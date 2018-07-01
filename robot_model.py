@@ -1,4 +1,10 @@
+
+import os
 import sys
+#THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
+#sys.path.append(THIS_FOLDER)
+#print(THIS_FOLDER)
+
 from threading import Lock
 import time
 import subprocess
@@ -6,29 +12,13 @@ import pexpect
 import imp
 import numpy as np
 
-import sample
-imp.reload(sample)
-from sample import Sample
+import auto_goniometer
+imp.reload(auto_goniometer)
 
-import sample_holder
-imp.reload(sample_holder)
-from sample_holder import Sample_holder
-
-# import drawing
-# imp.reload(drawing)
-# from drawing import Drawing
-
-import motor
-imp.reload(motor)
-from motor import Motor
-
-import detector
-imp.reload(detector)
-from detector import Detector
-
-import sample
-imp.reload(sample)
-from sample import Sample
+from auto_goniometer.sample import Sample
+from auto_goniometer.sample_holder import Sample_holder
+from auto_goniometer.detector import Detector
+from auto_goniometer.motor import Motor
 
 test=True
 
@@ -38,13 +28,12 @@ class Model:
         
         self.view=view
         self.plotter=plotter
-            
         self.wr=Sample('wr')
         self.s1=Sample('Mars!')
         self.sh=Sample_holder(3)
         self.sh.fill_tray(self.wr,0)
         self.sh.fill_tray(self.s1,1)
-    
+        x=Motor('foo')
         self.m_i=Motor('incidence')
         self.m_e=Motor('emission')
         self.m_a=Motor('azimuth')
@@ -187,5 +176,5 @@ def take_wr():
 def take_spectrum():
     pass
 
-if __name__=='__main__':
-    main()
+# if __name__=='__main__':
+#     main()

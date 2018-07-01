@@ -1,20 +1,16 @@
 #The controller runs the main thread controlling the program.
 #It creates and starts a View object, which extends Thread and will show a pygame window.
-#It also creates and runs a master Tk window along with a 
 
 import imp
 from tkinter import *
 import threading
+import auto_goniometer
+imp.reload(auto_goniometer)
 
-import robot_model
-imp.reload(robot_model)
-from robot_model import Model
-import robot_view
-imp.reload(robot_view)
-from robot_view import View
-import plotter
-imp.reload(plotter)
-from plotter import Plotter
+from auto_goniometer.robot_model import Model
+imp.reload(auto_goniometer.robot_model)
+from auto_goniometer.robot_view import View
+from auto_goniometer.plotter import Plotter
 
 import tkinter as tk
 import pexpect
@@ -32,12 +28,7 @@ test=True
 
 
 def main():
-    plt.close()
-
-   #  p=Plotter()
-
-
-    #view=View(0,10)
+    plt.close('all')
 
     view=View()
     view.start()
@@ -62,11 +53,8 @@ def main():
             emission['increment']=int(detector_increment_entry.get())
         except:
             print('Invalid input')
-
         model.go(incidence, emission)
         
-        
-    
     master_bg='white'
     
     master.configure(background = master_bg)
@@ -80,15 +68,6 @@ def main():
     border_color='light gray'
     bg='white'
     button_width=28
-    
-    #Frame, label, entry for directory
-
-    
-    
-    #Frame, buttons to generate images
-
-    
-
     
     right_bg=bg
 
