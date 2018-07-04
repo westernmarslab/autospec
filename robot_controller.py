@@ -1,34 +1,43 @@
 #The controller runs the main thread controlling the program.
 #It creates and starts a View object, which extends Thread and will show a pygame window.
 
-import imp
+dev=True
+test=True
+online=False
+
 from tkinter import *
+import imp
 import threading
-import auto_goniometer
-imp.reload(auto_goniometer)
-
-from auto_goniometer.robot_model import Model
-imp.reload(auto_goniometer.robot_model)
-from auto_goniometer.robot_view import View
-from auto_goniometer.plotter import Plotter
-
 import tkinter as tk
+import pygame
 import pexpect
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
-
 import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-import pygame
 
-test=True
+#From pyzo shell, looks in /home/khoza/Python for modules
+#From terminal, it will look in current directory
+if dev: sys.path.append('auto_goniometer')
 
+import robot_model
+import robot_view
+import plotter
+
+#This is needed because otherwise changes won't show up until you restart the shell.
+if dev:
+    imp.reload(robot_model)
+    from robot_model import Model
+    imp.reload(robot_view)
+    from robot_view import View
+    imp.reload(plotter)
+    from plotter import Plotter
 
 def main():
-    plt.close('all')
+    if dev: plt.close('all')
 
     view=View()
     view.start()
@@ -36,11 +45,9 @@ def main():
     master=Tk()
     plotter=Plotter(master)
 
-    model=Model(view, plotter)
+    model=Model(view, plotter, False, False)
     
-    def go():  
-
-        
+    def go():          
         incidence={'start':-1,'end':-1,'increment':-1}
         emission={'start':-1,'end':-1,'increment':-1}
         try:
@@ -56,13 +63,9 @@ def main():
         model.go(incidence, emission)
         
     master_bg='white'
-    
     master.configure(background = master_bg)
     master.title('Control')
-    
-
-    
-    
+   
     padx=3
     pady=3
     border_color='light gray'

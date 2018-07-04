@@ -1,9 +1,5 @@
-
 import os
 import sys
-#THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
-#sys.path.append(THIS_FOLDER)
-#print(THIS_FOLDER)
 
 from threading import Lock
 import time
@@ -20,12 +16,11 @@ from auto_goniometer.sample_holder import Sample_holder
 from auto_goniometer.detector import Detector
 from auto_goniometer.motor import Motor
 
-test=True
-
 class Model:
 
-    def __init__(self, view, plotter):
-        
+    def __init__(self, view, plotter, spec_compy_connected=True, raspberry_pi_connected=True):
+        self.spec_compy_connected=spec_compy_connected
+        self.raspberry_pi_connected=raspberry_pi_connected
         self.view=view
         self.plotter=plotter
         self.wr=Sample('wr')
@@ -40,65 +35,52 @@ class Model:
         
         self.detector=Detector()
         self.i_e_tuples=[]
+        if spec_compy_connected:
+            self.rs3_process=pexpect.spawnu('ssh MELISSA+RS3Admin@MELISSA.univ.dir.wwu.edu')
+            fout = open('mylog.txt','w')
+            fin=open('mylog2.txt','w')
+            self.rs3_process.logfile_send = fout
+            self.rs3_process.logfile_read = fin
+            self.rs3_process.expect('password:')
+            self.rs3_process.sendline('fieldspecadmin')
+            self.rs3_process.expect('$')
+            self.rs3_process.sendline('touch c:/Kathleen/test')
+        else:
+            self.rs3_process=None
+        if self.raspberry_pi_connected:
+            self.pi_process=pexpect.spawnu('python3')
+            self.pi_process.expect('>>>')
+        else:
+            self.pi_process=None
         
     def plot(self):
         self.plotter.plot_spectrum(10,10,[[1,2,3,4,5],[1,2,3,4,5]])
 
     def go(self, incidence, emission):
-
         self.i_e_tuples=[]
-
-        # process = pexpect.spawnu('python3',ignore_sighup=False) #change to True to kill ssh?
-
-        #   process.expect('>>> ')  
-        # process.sendline('import time')
-        # process.expect('>>> ')
-        # 
-        rs3_process=0
-        pi_process=0
-        if not test:
-            rs3_process=pexpect.spawnu('ssh MELISSA+RS3Admin@MELISSA.univ.dir.wwu.edu')
-            rs3_process.expect('Are you sure you want to continue connecting (yes/no)?')
-            print('process says 1:')
-            print(rs3_process.before)
-            rs3_process.sendline('yes')
-            time.sleep('3')
-            rs3_process.sendline('yes')
-            print(rs3_process.after)
-            #rs3_process.expect("MELISSA+RS3Admin@melissa.univ.dir.wwu.edu's password:")
-            rs3_process.sendline('fieldspecadmin')
-            print('process_says_2:')
-            print(rs3_process.before)
-            rs3_process.expect('$')
-            
-            pi_process=pexpect.spawnu('python3')
-            pi_process.expect('>>>')
-        else:
-            test_process=pexpect.spawnu('python3')
-            test_process.expect('>>>')
-            test_process.sendline('print("hooray")')
-            #print(test_process.before)
-            print(test_process.after)
+        pi_process=None
+        
+        
 
         
         for i in range(incidence['start'],incidence['end']+1):
             if (i-incidence['start'])%(incidence['increment']) != 0 and i != incidence['end'] and i != incidence['start']:
                 continue
-            self.move_light(i, pi_process)
+            self.move_light(i, self.pi_process)
             
             for e in range(emission['start'],emission['end']+1):
                 if (e-emission['start'])%(emission['increment']) != 0 and e != emission['end'] and e != emission['start']:
                     continue
                 print('taking spectrum at '+str(e))
-                self.move_detector(e, pi_process)
-                self.take_spectrum(i,e, rs3_process)
-                data = np.genfromtxt('/home/khoza/test_data/test_'+str(i)+'_'+str(e)+'.csv', dtype=float,delimiter=',')
+                self.move_detector(e, self.pi_process)
+                self.take_spectrum(i,e, self.rs3_process)
+                data = np.genfromtxt('test_data/test_'+str(i)+'_'+str(e)+'.csv', dtype=float,delimiter=',')
 
-                print(data)
                 self.plotter.plot_spectrum(i,e,data)
             
-        if not test:
-            rs3_process.terminate(force=True)
+        if self.spec_compy_connected:
+            self.rs3_process.terminate(force=True)
+        if self.raspberry_pi_connected:
             pi_process.terminate(force=True)
 
 
@@ -131,8 +113,15 @@ class Model:
     
         
     def take_spectrum(self, i, e, process):
-        if not test: 
-            process.sendline('c:/users/rs3admin/anaconda3/python.exe c:/users/rs3admin/hozak/Python/spectrum_taker.py -sp')
+        open('spectrometer_network/newfile','w')
+        if self.spec_compy_connected: 
+            cmd='touch c:/Kathleen/test'+str(np.random.rand())
+            process.sendline(cmd)
+            process.expect('$')
+            print('got it')
+            print(process.after)
+
+            #process.sendline('c:/users/rs3admin/anaconda3/python.exe c:/users/rs3admin/hozak/Python/spectrum_taker.py -sp')
 
         self.view.take_spectrum()
         self.detector.take_spectrum()
@@ -140,7 +129,7 @@ class Model:
         print(self.i_e_tuples)
         
         name='test_'+str(i)+'_'+str(e)+'.csv'
-        file=open('/home/khoza/test_data/'+name,'w')
+        file=open('test_data/'+name,'w')
         for j in range(10):
             file.write(str(0.5+0.1*j))
             if j<9:
@@ -159,13 +148,6 @@ class Model:
 
         process.terminate()
         #spectrum_taker.take_spectrum()
-            
-
-        
-
-
-    
-
 
     #l.release()
         
