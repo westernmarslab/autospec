@@ -9,6 +9,7 @@ from tkinter import *
 import imp
 import threading
 import tkinter as tk
+from tkinter import ttk
 import pygame
 import pexpect
 import matplotlib.pyplot as plt
@@ -35,18 +36,23 @@ if dev:
     from robot_view import View
     imp.reload(plotter)
     from plotter import Plotter
+    
+def go():          
+    incidence={'start':-1,'end':-1,'increment':-1}
+    emission={'start':-1,'end':-1,'increment':-1}
+    try:
+        incidence['start']=int(light_start_entry.get())
+        incidence['end']=int(light_end_entry.get())
+        incidence['increment']=int(light_increment_entry.get())
+        
+        emission['start']=int(detector_start_entry.get())
+        emission['end']=int(detector_end_entry.get())
+        emission['increment']=int(detector_increment_entry.get())
+    except:
+        print('Invalid input')
+    model.go(incidence, emission)
 
 def main():
-    if dev: plt.close('all')
-
-    view=View()
-    view.start()
-    
-    master=Tk()
-    plotter=Plotter(master)
-
-    model=Model(view, plotter, False, False)
-    
     def go():          
         incidence={'start':-1,'end':-1,'increment':-1}
         emission={'start':-1,'end':-1,'increment':-1}
@@ -60,7 +66,46 @@ def main():
             emission['increment']=int(detector_increment_entry.get())
         except:
             print('Invalid input')
+            return
         model.go(incidence, emission)
+    
+    def take_spectrum():
+        try:
+            incidence=int(man_light_entry.get())
+            emission=int(man_detector_entry.get())
+        except:
+            print('Invalid input')
+            return
+        if incidence<0 or incidence>90 or emission<0 or emission>90:
+            print('Invalid input')
+            return
+        model.take_spectrum(incidence,emission)
+    
+    def move():
+        try:
+            incidence=int(man_light_entry.get())
+            emission=int(man_detector_entry.get())
+        except:
+            print('Invalid input')
+            return
+        if incidence<0 or incidence>90 or emission<0 or emission>90:
+            print('Invalid input')
+            return
+        model.move_light(i)
+        model.move_detector(e)
+        
+    if dev: plt.close('all')
+
+    view=View()
+    view.start()
+    
+    master=Tk()
+    notebook=ttk.Notebook(master)
+    plotter=Plotter(master)
+
+    model=Model(view, plotter, False, False)
+    
+
         
     master_bg='white'
     master.configure(background = master_bg)
@@ -70,30 +115,29 @@ def main():
     pady=3
     border_color='light gray'
     bg='white'
-    button_width=28
+    button_width=15
     
-    right_bg=bg
-
-    right_frame=Frame(master,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=1,bg=right_bg)
-    right_frame.pack(fill=BOTH)
-    light_frame=Frame(right_frame,bg=right_bg)
+    auto_frame=Frame(notebook, bg=bg)
+    top_frame=Frame(auto_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=bg)
+    top_frame.pack(fill=BOTH)
+    light_frame=Frame(top_frame,bg=bg)
     light_frame.pack(side=LEFT)
-    light_label=Label(light_frame,padx=padx, pady=pady,bg=right_bg,text='Light Source')
+    light_label=Label(light_frame,padx=padx, pady=pady,bg=bg,text='Light Source')
     light_label.pack()
     
-    light_labels_frame = Frame(light_frame,bg=right_bg,padx=padx,pady=pady)
+    light_labels_frame = Frame(light_frame,bg=bg,padx=padx,pady=pady)
     light_labels_frame.pack(side=LEFT)
     
-    light_start_label=Label(light_labels_frame,padx=padx,pady=pady,bg=right_bg,text='Start:')
+    light_start_label=Label(light_labels_frame,padx=padx,pady=pady,bg=bg,text='Start:')
     light_start_label.pack(pady=(0,8))
-    light_end_label=Label(light_labels_frame,bg=right_bg,padx=padx,pady=pady,text='End:')
+    light_end_label=Label(light_labels_frame,bg=bg,padx=padx,pady=pady,text='End:')
     light_end_label.pack(pady=(0,5))
 
-    light_increment_label=Label(light_labels_frame,bg=right_bg,padx=padx,pady=pady,text='Increment:')
+    light_increment_label=Label(light_labels_frame,bg=bg,padx=padx,pady=pady,text='Increment:')
     light_increment_label.pack(pady=(0,5))
 
     
-    light_entries_frame=Frame(light_frame,bg=right_bg,padx=padx,pady=pady)
+    light_entries_frame=Frame(light_frame,bg=bg,padx=padx,pady=pady)
     light_entries_frame.pack(side=RIGHT)
     
 
@@ -111,25 +155,25 @@ def main():
     light_increment_entry.insert(0,'10')
 
     
-    detector_frame=Frame(right_frame,bg=right_bg)
+    detector_frame=Frame(top_frame,bg=bg)
     detector_frame.pack(side=RIGHT)
     
-    detector_label=Label(detector_frame,padx=padx, pady=pady,bg=right_bg,text='Detector')
+    detector_label=Label(detector_frame,padx=padx, pady=pady,bg=bg,text='Detector')
     detector_label.pack()
     
-    detector_labels_frame = Frame(detector_frame,bg=right_bg,padx=padx,pady=pady)
+    detector_labels_frame = Frame(detector_frame,bg=bg,padx=padx,pady=pady)
     detector_labels_frame.pack(side=LEFT)
     
-    detector_start_label=Label(detector_labels_frame,padx=padx,pady=pady,bg=right_bg,text='Start:')
+    detector_start_label=Label(detector_labels_frame,padx=padx,pady=pady,bg=bg,text='Start:')
     detector_start_label.pack(pady=(0,8))
-    detector_end_label=Label(detector_labels_frame,bg=right_bg,padx=padx,pady=pady,text='End:')
+    detector_end_label=Label(detector_labels_frame,bg=bg,padx=padx,pady=pady,text='End:')
     detector_end_label.pack(pady=(0,5))
 
-    detector_increment_label=Label(detector_labels_frame,bg=right_bg,padx=padx,pady=pady,text='Increment:')
+    detector_increment_label=Label(detector_labels_frame,bg=bg,padx=padx,pady=pady,text='Increment:')
     detector_increment_label.pack(pady=(0,5))
 
     
-    detector_entries_frame=Frame(detector_frame,bg=right_bg,padx=padx,pady=pady)
+    detector_entries_frame=Frame(detector_frame,bg=bg,padx=padx,pady=pady)
     detector_entries_frame.pack(side=RIGHT)
     detector_start_entry=Entry(detector_entries_frame,bd=3,width=10)
     detector_start_entry.pack(padx=padx,pady=pady)
@@ -143,14 +187,69 @@ def main():
     detector_increment_entry.pack(padx=padx,pady=pady)
     detector_increment_entry.insert(0,'10')
     
+    auto_check_frame=Frame(auto_frame, bg=bg)
+    auto_check_frame.pack()
+    auto_process=IntVar()
+    auto_process_check=Checkbutton(auto_check_frame, text='Process data', bg=bg, highlightthickness=0)
+    auto_process_check.pack(side=LEFT)
+    
+    auto_plot=IntVar()
+    auto_plot_check=Checkbutton(auto_check_frame, text='Plot spectra', bg=bg, highlightthickness=0)
+    auto_plot_check.pack(side=LEFT)
+    
     gen_bg=bg
     
-    gen_frame=Frame(master,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=1,bg=gen_bg)
-    gen_frame.pack()
+    gen_frame=Frame(auto_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=gen_bg)
+    gen_frame.pack(side=BOTTOM)
     
     go_button=Button(gen_frame, text='Go!', padx=padx, pady=pady, width=button_width,bg='light gray', command=go)
-    go_button.pack(padx=padx,pady=pady)
+    go_button.pack(padx=padx,pady=pady, side=LEFT)
+    pause_button=Button(gen_frame, text='Pause', padx=padx, pady=pady, width=button_width, bg='light gray', command=go)
+    pause_button.pack(padx=padx,pady=pady, side=LEFT)
+    cancel_button=Button(gen_frame, text='Cancel', padx=padx, pady=pady,width=button_width, bg='light gray', command=go)
+    cancel_button.pack(padx=padx,pady=pady, side=LEFT)
     
+    
+    #***************************************************************
+    # Frame for manual control
+    
+    man_frame=Frame(notebook, bg=bg, pady=2*pady)
+    man_frame.pack()
+    entries_frame=Frame(man_frame, bg=bg)
+    entries_frame.pack(fill=BOTH, expand=True)
+    man_light_label=Label(entries_frame,padx=padx, pady=pady,bg=bg,text='Instrument positions:')
+    man_light_label.pack()
+    man_light_label=Label(entries_frame,padx=padx,pady=pady,bg=bg,text='Incidence:')
+    man_light_label.pack(side=LEFT, padx=(30,5),pady=(0,8))
+    man_light_entry=Entry(entries_frame, width=10)
+    man_light_entry.insert(0,'10')
+    man_light_entry.pack(side=LEFT)
+    man_detector_label=Label(entries_frame, padx=padx,pady=pady,bg=bg, text='Emission:')
+    man_detector_label.pack(side=LEFT, padx=(10,0))
+    man_detector_entry=Entry(entries_frame, width=10,text='0')
+    man_detector_entry.insert(0,'10')
+    man_detector_entry.pack(side=LEFT)
+    
+    check_frame=Frame(man_frame, bg=bg)
+    check_frame.pack()
+    process=IntVar()
+    process_check=Checkbutton(check_frame, text='Process data', bg=bg, pady=pady,highlightthickness=0)
+    process_check.pack(side=LEFT, pady=(5,15))
+    
+    plot=IntVar()
+    plot_check=Checkbutton(check_frame, text='Plot spectrum', bg=bg, pady=pady,highlightthickness=0)
+    plot_check.pack(side=LEFT, pady=(5,15))
+
+    move_button=Button(man_frame, text='Move', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=go)
+    move_button.pack(padx=padx,pady=pady, side=LEFT)
+    spectrum_button=Button(man_frame, text='Take a spectrum', padx=padx, pady=pady, width=int(button_width*1.6), bg='light gray', command=take_spectrum)
+    spectrum_button.pack(padx=padx,pady=pady, side=LEFT)
+    
+
+
+    notebook.add(auto_frame, text='Automatic control')
+    notebook.add(man_frame, text='Manual control')
+    notebook.pack()
     master.mainloop()
     
 

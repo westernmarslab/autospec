@@ -17,12 +17,22 @@ from auto_goniometer.detector import Detector
 from auto_goniometer.motor import Motor
 
 class Model:
+    
 
     def __init__(self, view, plotter, spec_compy_connected=True, raspberry_pi_connected=True):
-        self.spec_compy_connected=spec_compy_connected
-        self.raspberry_pi_connected=raspberry_pi_connected
+
         self.view=view
         self.plotter=plotter
+        self.spec_compy_connected=spec_compy_connected
+        self.raspberry_pi_connected=raspberry_pi_connected
+        
+        self.command_num=0        
+        files=pexpect.run('ls /home/khoza/Python/spectrometer_network/commands')
+        print(files)
+        cleanup=pexpect.run('rm /home/khoza/Python/spectrometer_network/commands/foo')
+        print(cleanup)
+
+        
         self.wr=Sample('wr')
         self.s1=Sample('Mars!')
         self.sh=Sample_holder(3)
@@ -66,14 +76,14 @@ class Model:
         for i in range(incidence['start'],incidence['end']+1):
             if (i-incidence['start'])%(incidence['increment']) != 0 and i != incidence['end'] and i != incidence['start']:
                 continue
-            self.move_light(i, self.pi_process)
+            self.move_light(i)
             
             for e in range(emission['start'],emission['end']+1):
                 if (e-emission['start'])%(emission['increment']) != 0 and e != emission['end'] and e != emission['start']:
                     continue
                 print('taking spectrum at '+str(e))
-                self.move_detector(e, self.pi_process)
-                self.take_spectrum(i,e, self.rs3_process)
+                self.move_detector(e)
+                self.take_spectrum(i,e)
                 data = np.genfromtxt('test_data/test_'+str(i)+'_'+str(e)+'.csv', dtype=float,delimiter=',')
 
                 self.plotter.plot_spectrum(i,e,data)
@@ -84,8 +94,7 @@ class Model:
             pi_process.terminate(force=True)
 
 
-
-    def move_detector(self, e, process):
+    def move_detector(self, e):
         command='print('+str(e)+')'#,'print("foo")']
         print('Detector to ', str(e), ' degrees...')
         # process.sendline(command)
@@ -98,7 +107,7 @@ class Model:
         #print(process.before)
         self.m_e.position=e
         
-    def move_light(self, i, process):
+    def move_light(self, i):
         # command='ssh pi@192.168.2.3'
         # print('Light source to ', str(i), ' degrees...')
         # process.sendline(command)
@@ -112,19 +121,17 @@ class Model:
         # self.m_i.position=i
     
         
-    def take_spectrum(self, i, e, process):
+    def take_spectrum(self,i,e):
         open('spectrometer_network/newfile','w')
         if self.spec_compy_connected: 
             cmd='touch c:/Kathleen/test'+str(np.random.rand())
-            process.sendline(cmd)
-            process.expect('$')
-            print('got it')
-            print(process.after)
+            self.rs3_process.sendline(cmd)
+            self.rs3_process.expect('$')
 
             #process.sendline('c:/users/rs3admin/anaconda3/python.exe c:/users/rs3admin/hozak/Python/spectrum_taker.py -sp')
 
-        self.view.take_spectrum()
-        self.detector.take_spectrum()
+        # self.view.take_spectrum()
+        # self.detector.take_spectrum()
         self.i_e_tuples.append((i,e))
         print(self.i_e_tuples)
         
