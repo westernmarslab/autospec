@@ -20,7 +20,7 @@ class Model:
     
 
     def __init__(self, view, plotter, spec_compy_connected=True, raspberry_pi_connected=True):
-
+        print('foo')
         self.view=view
         self.plotter=plotter
         self.spec_compy_connected=spec_compy_connected
@@ -157,6 +157,8 @@ class Model:
         #spectrum_taker.take_spectrum()
 
     #l.release()
+    def set_save_path(self, path, basename, startnum):
+            pass
         
     
 def take_wr():
@@ -164,6 +166,8 @@ def take_wr():
     
 def take_spectrum():
     pass
+    
+
 
 # if __name__=='__main__':
 #     main()

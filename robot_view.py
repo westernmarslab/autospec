@@ -38,7 +38,7 @@ class View(threading.Thread):
                 pivot = (400,400)
                 light_len = 300
                 scale=1.1
-                back_radius=200
+                back_radius=250
                 x_l = pivot[0] + np.sin(np.radians(self.theta_l)) * light_len
                 x_l_text=pivot[0] + np.sin(np.radians(self.theta_l)) * (light_len*scale)
                 y_l = pivot[1] - np.cos(np.radians(self.theta_l)) * light_len
@@ -51,10 +51,14 @@ class View(threading.Thread):
                 y_d_text = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len*scale
                 
                 self.screen.fill(pygame.Color("white"))
+                pygame.draw.circle(self.screen, (0,0,0), pivot, back_radius)
+                pygame.draw.rect(self.screen, (255,255,255),(400-back_radius,400,2*back_radius,2*back_radius))
+                pygame.draw.rect(self.screen, (0,0,0),(400-back_radius,400,2*back_radius,50))
                 
                 pygame.draw.line(self.screen, (200, 200, 0), pivot, (x_l,y_l), 10)
                 self.screen.blit(i_text,(x_l_text,y_l_text))
                 pygame.draw.line(self.screen, (0, 100, 200), pivot, (x_d,y_d), 10)
+                
                 self.screen.blit(e_text,(x_d_text,y_d_text))
                 #pygame.draw.circle(self.screen, 'black', pivot, back_radius=200)
                 pygame.display.update()
