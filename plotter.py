@@ -20,7 +20,7 @@ class Plotter():
     def new_plot(self,i):
         t = tk.Toplevel(self.root)
         t.wm_title('Incidence = '+str(i))
-        fig = mpl.figure.Figure(figsize=(6,6))
+        fig = mpl.figure.Figure(figsize=(20,15))
         plot = fig.add_subplot(111)
         canvas = FigureCanvasTkAgg(fig, master=t)
         canvas.get_tk_widget().pack()
@@ -40,5 +40,58 @@ class Plotter():
         #Next, plot data onto the appropriate plot.
         self.plots[i].plot(data[0],data[1])
         self.canvases[i].draw()
+        
+    # def load_data(self, file):
+    #     print('loading data')
+    #     data = np.genfromtxt(file, skip_header=1, dtype=float,delimiter='\t')
+    #     wavelengths=[]
+    #     #reflectance=[[],[]]
+    #     reflectance=[]
+    #     for i, d in enumerate(data):
+    #         if i==0: wavelengths=np.array(d) #the first column in my .tsv (now first row) was wavelength in nm
+    #         else: #the other columns are all reflectance values
+    #             d=np.array(d)
+    #             reflectance.append(d)
+    #             #d2=d/np.max(d) #d2 is normalized reflectance
+    #             #reflectance[0].append(d)
+    #             #reflectance[1].append(d2)
+    #     print('returning data')
+    #     print(wavelengths)
+    #     print(reflectance)
+    #     return wavelengths, reflectance
+    #     
+    def plot_spectra(self, name, file, caption):
+        self.new_plot(name)
+        wavelengths, reflectance, labels=self.load_data(file)
+        colors=['red','orange','yellow','greenyellow','green','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','green','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','green','cyan','dodgerblue','purple']
+        for i,spectrum in enumerate(reflectance):
+            self.plots[name].plot(wavelengths, spectrum, label=labels[i+1], color=colors[i])
+        self.plots[name].set_title(name, fontsize=24)
+        self.plots[name].set_ylabel('Relative Reflectance',fontsize=18)
+        self.plots[name].set_xlabel('Wavelength (nm)',fontsize=18)
+        self.plots[name].tick_params(labelsize=14)
+        self.plots[name].legend()
+        self.canvases[name].draw()
+        
+    def load_data(self, file):
+        print('loading')
+        data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
+        labels=list(data.dtype.names)
+        print(labels)
+        data=zip(*data)
+        wavelengths=[]
+        #reflectance=[[],[]]
+        reflectance=[]
+        for i, d in enumerate(data):
+            if i==0: wavelengths=d #the first column in my .tsv (now first row) was wavelength in nm
+            else: #the other columns are all reflectance values
+                d=np.array(d)
+                reflectance.append(d)
+                #d2=d/np.max(d) #d2 is normalized reflectance
+                #reflectance[0].append(d)
+                #reflectance[1].append(d2)
+
+        return wavelengths, reflectance, labels
+            
         
         

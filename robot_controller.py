@@ -30,7 +30,8 @@ import plotter
 
 global PROCESS_COUNT
 global SPECTRUM_COUNT
-
+share_loc='/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen'
+config_loc='/home/khoza/Python/auto_goniometer/config'
 #This is needed because otherwise changes won't show up until you restart the shell.
 if dev:
     imp.reload(robot_model)
@@ -56,11 +57,6 @@ if dev:
 #     model.go(incidence, emission)
 
 def main():
-    global PROCESS_COUNT
-    PROCESS_COUNT=0
-    global SPECTRUM_COUNT
-    SPECTRUM_COUNT=0
-    
     global spec_save_path
     spec_save_path=''
     global spec_basename
@@ -88,12 +84,11 @@ def main():
             model.go(incidence, emission)
         
             if spec_save_config.get():
-                file=open('/home/khoza/Python/spectrometer_network/config/spec_save','w')
+                file=open('spec_save','w')
                 file.write(spec_save_path_entry.get()+'\n')
                 file.write(spec_basename_entry.get()+'\n')
                 file.write(spec_startnum_entry.get()+'\n')
 
-    
     def take_spectrum():
         global spec_save_path
         global spec_basename
@@ -121,11 +116,11 @@ def main():
         increment_num()
         if spec_save_config.get():
             print('save config')
-            file=open('/home/khoza/Python/spectrometer_network/config/spec_save','w')
+            file=open(config_loc+'/spec_save','w')
             file.write(spec_save_path_entry.get()+'\n')
             file.write(spec_basename_entry.get()+'\n')
             file.write(spec_startnum_entry.get()+'\n')
-            
+
             input_path_entry.delete(0,'end')
             input_path_entry.insert(0,spec_save_path_entry.get())
     def increment_num():
@@ -150,22 +145,24 @@ def main():
         model.move_detector(e)
         
     def process_cmd():
-        print('processing!')
-        global PROCESS_COUNT
-        input_path=input_path_entry.get()
-        output_path=output_path_entry.get()
-        filename='/home/khoza/Python/spectrometer_network/commands/process_'+str(PROCESS_COUNT)
-        PROCESS_COUNT=PROCESS_COUNT+1
-        file=open(filename,'w')
-        file.write(input_path)
-        file.write('\n')
-        file.write(output_path)
-        file.close()
-        if process_save_dir:
-            file=open('/home/khoza/Python/spectrometer_network/config/process_directories','w')
-            file.write(input_path)
-            file.write('\n')
-            file.write(output_path)
+        try:
+            model.process(input_path_entry.get(), output_path_entry.get(), output_file_entry.get())
+        except:
+            pass
+        if process_save_dir.get():
+            file=open(config_loc+'/process_directories','w')
+            file.write(input_path_entry.get()+'\n')
+            file.write(output_path_entry.get()+'\n')
+            file.write(output_file_entry.get()+'\n')
+            
+    def plot():
+        filename=plot_input_path_entry.get()
+        filename=filename.replace('C:\\Kathleen','/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen/')
+        filename=filename.replace('\\','/')
+        title=plot_title_entry.get()
+        caption=plot_caption_entry.get()
+        plotter.plot_spectra(title,filename,caption)
+    
     
     def auto_cycle_check():
         if auto.get():
@@ -210,7 +207,7 @@ def main():
     bg='white'
     button_width=15
     
-    process_config=open('/home/khoza/Python/spectrometer_network/config/process_directories','r')
+    process_config=open(config_loc+'/process_directories','r')
     input_path=''
     output_path=''
     try:
@@ -218,8 +215,11 @@ def main():
         output_path=process_config.readline().strip('\n')
     except:
         print('invalid config')
+    print('found process config??')
+    print(input_path)
+    print(output_path)
 
-    spec_save_config=open('/home/khoza/Python/spectrometer_network/config/spec_save','r')
+    spec_save_config=open(config_loc+'/spec_save','r')
     spec_save_path=''
     spec_basename=''
     spec_startnum=''
@@ -345,7 +345,7 @@ def main():
     
     go_button=Button(gen_frame, text='Go!', padx=padx, pady=pady, width=button_width,bg='light gray', command=go)
     go_button.pack(padx=padx,pady=pady, side=LEFT)
-    pause_button=Button(gen_frame, text='Pause', padx=padx, pady=pady, width=button_width, bg='light gray', command=go)
+    pause_button=Button(gen_frame, text='Pause', padx=padx, pady=pady, width=button_width, bg='light gray', command=plot)
     pause_button.pack(padx=padx,pady=pady, side=LEFT)
     cancel_button=Button(gen_frame, text='Cancel', padx=padx, pady=pady,width=button_width, bg='light gray', command=go)
     cancel_button.pack(padx=padx,pady=pady, side=LEFT)
@@ -410,7 +410,7 @@ def main():
     process_frame.pack()
     input_frame=Frame(process_frame, bg=bg)
     input_frame.pack()
-    input_path_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Input path:')
+    input_path_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Input directory:')
     input_path_label.pack(padx=padx,pady=pady)
     input_path_entry=Entry(process_frame, width=50)
     input_path_entry.insert(0, input_path)
@@ -418,11 +418,20 @@ def main():
     
     output_frame=Frame(process_frame, bg=bg)
     output_frame.pack()
-    output_path_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Output path:')
+    output_path_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Output directory:')
     output_path_label.pack(padx=padx,pady=pady)
     output_path_entry=Entry(process_frame, width=50)
     output_path_entry.insert(0, output_path)
     output_path_entry.pack()
+    
+    output_file_frame=Frame(process_frame, bg=bg)
+    output_file_frame.pack()
+    output_file_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Output file name:')
+    output_file_label.pack(padx=padx,pady=pady)
+    output_file_entry=Entry(process_frame, width=50)
+    output_file_entry.insert(0, output_path)
+    output_file_entry.pack()
+    
     
     process_check_frame=Frame(process_frame, bg=bg)
     process_check_frame.pack(pady=(15,5))
@@ -436,11 +445,54 @@ def main():
     
     process_button=Button(process_frame, text='Process', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=process_cmd)
     process_button.pack()
+    
+    #********************** Plot frame ******************************
+    
+    plot_frame=Frame(notebook, bg=bg, pady=2*pady)
+    process_frame.pack()
+    plot_input_frame=Frame(plot_frame, bg=bg)
+    plot_input_frame.pack()
+    plot_input_path_label=Label(plot_frame,padx=padx,pady=pady,bg=bg,text='Path to .tsv file:')
+    plot_input_path_label.pack(padx=padx,pady=pady)
+    plot_input_path_entry=Entry(plot_frame, width=50)
+    plot_input_path_entry.insert(0, input_path)
+    plot_input_path_entry.pack()
+    
+    plot_title_frame=Frame(plot_frame, bg=bg)
+    plot_title_frame.pack()
+    plot_title_label=Label(plot_frame,padx=padx,pady=pady,bg=bg,text='Plot title:')
+    plot_title_label.pack(padx=padx,pady=pady)
+    plot_title_entry=Entry(plot_frame, width=50)
+    plot_title_entry.insert(0, output_path)
+    plot_title_entry.pack()
+    
+    plot_caption_frame=Frame(plot_frame, bg=bg)
+    plot_caption_frame.pack()
+    plot_caption_label=Label(plot_frame,padx=padx,pady=pady,bg=bg,text='Plot caption:')
+    plot_caption_label.pack(padx=padx,pady=pady)
+    plot_caption_entry=Entry(plot_frame, width=50)
+    plot_caption_entry.insert(0, output_path)
+    plot_caption_entry.pack()
+    
+    
+    # pr_check_frame=Frame(process_frame, bg=bg)
+    # process_check_frame.pack(pady=(15,5))
+    # process_save_dir=IntVar()
+    # process_save_dir_check=Checkbutton(process_check_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=process_save_dir)
+    # process_save_dir_check.pack(side=LEFT, pady=(5,15))
+    # process_save_dir_check.select()
+    # process_plot=IntVar()
+    # process_plot_check=Checkbutton(process_check_frame, text='Plot spectra', bg=bg, pady=pady,highlightthickness=0)
+    # process_plot_check.pack(side=LEFT, pady=(5,15))
+    
+    plot_button=Button(plot_frame, text='Plot', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=plot)
+    plot_button.pack()
 
 
     notebook.add(auto_frame, text='Spectrometer control')
     notebook.add(man_frame, text='Timer control')
     notebook.add(process_frame, text='Data processing')
+    notebook.add(plot_frame, text='Plot')
     #notebook.add(val_frame, text='Validation tools')
     #checkbox: Iterate through a range of geometries
     #checkbox: Choose a single geometry
@@ -456,6 +508,7 @@ def main():
     print('time to move light!')
     view.join()
     print('****************************************************************************')
+
 
 
 def draw_figure(canvas, figure, loc=(0, 0)):

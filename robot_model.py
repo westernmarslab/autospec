@@ -17,21 +17,19 @@ from auto_goniometer.detector import Detector
 from auto_goniometer.motor import Motor
 
 class Model:
-    
 
     def __init__(self, view, plotter, spec_compy_connected=True, raspberry_pi_connected=True):
-        print('foo')
         self.view=view
         self.plotter=plotter
         self.spec_compy_connected=spec_compy_connected
         self.raspberry_pi_connected=raspberry_pi_connected
         
-        self.command_num=0        
-        files=pexpect.run('ls /home/khoza/Python/spectrometer_network/commands')
-        print(files)
-        cleanup=pexpect.run('rm /home/khoza/Python/spectrometer_network/commands/foo')
-        print(cleanup)
-
+        self.command_num=0     
+        self.spectrum_num=0
+        self.opt_num=0
+        self.save_config_num=0
+        self.process_num=0
+        #os.system('rm /home/khoza/Python/spectrometer_network/commands/*')
         
         self.wr=Sample('wr')
         self.s1=Sample('Mars!')
@@ -45,6 +43,11 @@ class Model:
         
         self.detector=Detector()
         self.i_e_tuples=[]
+        self.share_loc='/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen'
+        cmd='rm '+self.share_loc+'/commands/*'
+        os.system(cmd)
+
+        
         if spec_compy_connected:
             self.rs3_process=pexpect.spawnu('ssh MELISSA+RS3Admin@MELISSA.univ.dir.wwu.edu')
             fout = open('mylog.txt','w')
@@ -65,11 +68,31 @@ class Model:
         
     def plot(self):
         self.plotter.plot_spectrum(10,10,[[1,2,3,4,5],[1,2,3,4,5]])
+        
+    def process(self,input_path, output_path, output_file):
+        input_path=input_path.replace('\\','-')
+        input_path=input_path.replace(':','&')
+        output_path=output_path.replace('\\','-')
+        output_path=output_path.replace(':','&')
+        path=self.share_loc+'/commands/process_'+str(self.process_num)+'_'+input_path+'_'+output_path+'_'+output_file
+        self.process_num=self.process_num+1
+        file=open(path,'w')
+        
+        # file.write(input_path+'\n')
+        # file.write(output_path+'\n')
+        # file.write(output_file)
+        # file.close()
+        # cmd='mv '+filename+' '+ self.share_loc+'/commands/'+filename
+        # print(cmd)
+        # os.system(cmd)
+
+        
 
     def go(self, incidence, emission):
         self.i_e_tuples=[]
         pi_process=None
         
+
         
 
         
@@ -86,7 +109,7 @@ class Model:
                 self.take_spectrum(i,e)
                 data = np.genfromtxt('test_data/test_'+str(i)+'_'+str(e)+'.csv', dtype=float,delimiter=',')
 
-                self.plotter.plot_spectrum(i,e,data)
+            self.plotter.plot_spectrum(i,e,data)
             
         if self.spec_compy_connected:
             self.rs3_process.terminate(force=True)
@@ -122,7 +145,10 @@ class Model:
     
         
     def take_spectrum(self,i,e):
-        open('spectrometer_network/newfile','w')
+        filename='spectrum_'+str(self.spectrum_num)
+        file=open(self.share_loc+'/commands/'+filename,'w')
+        file.write('take_spectrum')
+        self.spectrum_num=self.spectrum_num+1
         if self.spec_compy_connected: 
             cmd='touch c:/Kathleen/test'+str(np.random.rand())
             self.rs3_process.sendline(cmd)
@@ -147,18 +173,38 @@ class Model:
             if k<9:
                 file.write(',')
         file.close()
+    def opt(self):
+        filename='opt_'+str(self.opt_num)
+        file=open(filename,'w')
+        file.write('optimize')
+        cmd='mv '+filename+' '+ self.share_loc+'/commands/'+filename
+        self.opt_num=self.opt_num+1
+    
+    def wr(self):
+        filename='wr_'+str(self.spectrum_num)
+        file=open(self.share_loc+'/commands/'+filename,'w')
+        file.write('wr')
+        self.spectrum_num=self.spectrum_num+1
+        
             
     def fill_tray(composition, position):
         sample=Sample(composition)
         self.sh.fill_tray(sample, position)
-
 
         process.terminate()
         #spectrum_taker.take_spectrum()
 
     #l.release()
     def set_save_path(self, path, basename, startnum):
-            pass
+        filename='save_config_'+str(self.save_config_num)
+        config=open(filename,'w')
+        #config=open(self.share_loc+'/commands/'+filename,'w')
+        config.write(path+'\n')
+        config.write(basename+'\n')
+        config.write(startnum+'\n')
+        cmd='mv '+filename+' '+ self.share_loc+'/commands/'+filename
+        os.system(cmd)
+        self.save_config_num=self.save_config_num+1
         
     
 def take_wr():
