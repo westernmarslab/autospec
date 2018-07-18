@@ -369,7 +369,7 @@ def main():
         
     master_bg='white'
     master.configure(background = master_bg)
-    master.title('Control')
+    self.master.title('Control')
    
     padx=3
     pady=3
