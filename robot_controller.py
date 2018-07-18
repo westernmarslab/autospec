@@ -18,6 +18,7 @@ import numpy as np
 import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import datetime
 
 
 #From pyzo shell, looks in /home/khoza/Python for modules
@@ -31,6 +32,8 @@ import plotter
 global PROCESS_COUNT
 global SPECTRUM_COUNT
 share_loc='/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen'
+write_command_loc=share_loc+'/commands/from_control'
+read_command_loc='share_loc+/commands/from_spec'
 config_loc='/home/khoza/Python/auto_goniometer/config'
 #This is needed because otherwise changes won't show up until you restart the shell.
 if dev:
@@ -64,6 +67,14 @@ def main():
     global spec_num
     spec_num=None
     
+    global user_cmds
+    user_cmds=[]
+    global user_cmd_index
+    user_cmd_index=-1
+    log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
+    with open(log_filename,'w+') as log:
+        log.write(str(datetime.datetime.now())+'\n')
+    
     def go():    
         if not auto.get():
             take_spectrum()
@@ -88,15 +99,30 @@ def main():
                 file.write(spec_save_path_entry.get()+'\n')
                 file.write(spec_basename_entry.get()+'\n')
                 file.write(spec_startnum_entry.get()+'\n')
-
+    def wr():
+        model.white_reference()
+        info_string='UNVERIFIED:\n White reference taken at '+str(datetime.datetime.now())
+        with open(log_filename,'a') as log:
+            log.write(info_string)
+        textbox.insert(END,info_string)
+    def opt():
+        model.opt()
+        model.white_reference()
+        info_string='UNVERIFIED:\n Instrument optimized at '+str(datetime.datetime.now())
+        with open(log_filename,'a') as log:
+            log.write(info_string)
+        textbox.insert(END, info_string)
+        
     def take_spectrum():
         global spec_save_path
         global spec_basename
         global spec_num
         
         try:
-            incidence=int(light_start_entry.get())
-            emission=int(detector_start_entry.get())
+            incidence=int(man_incidence_entry.get())
+            emission=int(man_emission_entry.get())
+            # incidence=int(light_start_entry.get())
+            # emission=int(detector_start_entry.get())
         except:
             print('Invalid input')
             return
@@ -109,11 +135,22 @@ def main():
             spec_save_path=spec_save_path_entry.get()
             spec_basename = spec_basename_entry.get()
             spec_num=spec_startnum_entry.get()
-            print(spec_num)
             model.set_save_path(spec_save_path, spec_basename, spec_num)
         else: spec_num=str(int(spec_num)+1)
+        
+        
         model.take_spectrum(incidence,emission)
+
+        info_string='UNVERIFIED:\n Spectrum saved at '+str(datetime.datetime.now())+ '\n\ti='+man_incidence_entry.get()+'\n\te='+man_emission_entry.get()+'\n\tfilename='+spec_basename_entry.get()+spec_startnum_entry.get()+'\n\tNotes: '+man_notes_entry.get()+'\n'
+        textbox.insert(END,info_string)
         increment_num()
+        with open(log_filename,'a') as log:
+            log.write(info_string)
+        
+        man_incidence_entry.delete(0,'end')
+        man_emission_entry.delete(0,'end')
+        man_notes_entry.delete(0,'end')
+        
         if spec_save_config.get():
             print('save config')
             file=open(config_loc+'/spec_save','w')
@@ -148,12 +185,15 @@ def main():
         try:
             model.process(input_path_entry.get(), output_path_entry.get(), output_file_entry.get())
         except:
-            pass
+            print("error:", sys.exc_info()[0])
         if process_save_dir.get():
             file=open(config_loc+'/process_directories','w')
             file.write(input_path_entry.get()+'\n')
             file.write(output_path_entry.get()+'\n')
             file.write(output_file_entry.get()+'\n')
+            plot_input_path_entry.delete(0,'end')
+            plot_file=output_path_entry.get()+'\\'+output_file_entry.get()+'..txt'
+            plot_input_path_entry.insert(0,plot_file)
             
     def plot():
         filename=plot_input_path_entry.get()
@@ -184,6 +224,58 @@ def main():
             light_increment_entry.config(bd=1)
             detector_increment_entry.config(bd=1)
         
+    def run(keypress_event):
+        global user_cmds
+        global user_cmd_index
+        if keypress_event.keycode==36:
+            cmd=console_entry.get()
+            if cmd !='':
+                user_cmds.insert(0,cmd)
+                user_cmd_index=-1
+                textbox.insert(END,'>>> '+cmd+'\n')
+                console_entry.delete(0,'end')
+                
+                params=cmd.split(' ')
+                if params[0].lower()=='process':
+                    try:
+                        if params[1]=='--save_config':
+                            process_save_dir_check.select()
+                            params.pop(1)
+                        print('made it')
+                        input_path_entry.delete(0,'end')
+                        input_path_entry.insert(0,params[1])
+                        output_path_entry.delete(0,'end')
+                        output_path_entry.insert(0,params[2]) 
+                        output_file_entry.delete(0,'end')
+                        output_file_entry.insert(0,params[3])
+                        process_cmd()
+                    except:
+                        textbox.insert(END,'Error: Failed to process file.')
+                if params[0].lower()=='log':
+                    logstring=''
+                    for word in params:
+                        logstring=logstring+word+' '
+                    logstring=logstring+'\n'
+                    with open('log.txt','a') as log:
+                        log.write(logstring)
+                    
+            
+        elif keypress_event.keycode==111:
+            if len(user_cmds)>user_cmd_index+1 and len(user_cmds)>0:
+                user_cmd_index=user_cmd_index+1
+                last=user_cmds[user_cmd_index]
+                console_entry.delete(0,'end')
+                console_entry.insert(0,last)
+
+        elif keypress_event.keycode==116:
+            if user_cmd_index>0:
+                user_cmd_index=user_cmd_index-1
+                next=user_cmds[user_cmd_index]
+                console_entry.delete(0,'end')
+                console_entry.insert(0,next)
+
+        
+        
     if dev: plt.close('all')
 
     view=View()
@@ -193,7 +285,7 @@ def main():
     notebook=ttk.Notebook(master)
     plotter=Plotter(master)
 
-    model=Model(view, plotter, False, False)
+    model=Model(view, plotter, share_loc, write_command_loc, False, False)
     
 
         
@@ -256,17 +348,36 @@ def main():
     
     spec_save_config=IntVar()
     spec_save_config_check=Checkbutton(auto_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=spec_save_config)
-    spec_save_config_check.pack(pady=(5,15))
+    spec_save_config_check.pack(pady=pady)
     spec_save_config_check.select()
     
     auto_check_frame=Frame(auto_frame, bg=bg)
-    auto_check_frame.pack(pady=(15,5))
+    auto_check_frame.pack()
     auto=IntVar()
     auto_check=Checkbutton(auto_check_frame, text='Automatically iterate through viewing geometries', bg=bg, pady=pady,highlightthickness=0, variable=auto, command=auto_cycle_check)
-    auto_check.pack(side=LEFT, pady=(5,15))
+    auto_check.pack(side=LEFT, pady=pady)
+    
+    manual_frame=Frame(auto_frame, bg=bg)
+    manual_frame.pack()
+    
+    man_incidence_label=Label(manual_frame,padx=padx,pady=pady,bg=bg,text='Incidence angle:')
+    man_incidence_label.pack(side=LEFT, padx=padx,pady=(0,8))
+    man_incidence_entry=Entry(manual_frame, width=10)
+    man_incidence_entry.pack(side=LEFT)
+    man_emission_label=Label(manual_frame, padx=padx,pady=pady,bg=bg, text='Emission angle:')
+    man_emission_label.pack(side=LEFT, padx=(10,0))
+    man_emission_entry=Entry(manual_frame, width=10)
+   # timer_interval_entry.insert(0,'-1')
+    man_emission_entry.pack(side=LEFT, padx=(0,20))
+    
+    man_notes_label=Label(auto_frame, padx=padx,pady=pady,bg=bg, text='Notes:')
+    man_notes_label.pack()
+    man_notes_entry=Entry(auto_frame, width=60)
+   # timer_interval_entry.insert(0,'-1')
+    man_notes_entry.pack()
     
     top_frame=Frame(auto_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=bg)
-    top_frame.pack(fill=BOTH)
+    #top_frame.pack()
     light_frame=Frame(top_frame,bg=bg)
     light_frame.pack(side=LEFT)
     light_label=Label(light_frame,padx=padx, pady=pady,bg=bg,text='Light Source')
@@ -328,8 +439,10 @@ def main():
     detector_increment_entry=Entry(detector_entries_frame,bd=1,width=10, highlightbackground='white')
     detector_increment_entry.pack(padx=padx,pady=pady)
     
+
+    
     auto_check_frame=Frame(auto_frame, bg=bg)
-    auto_check_frame.pack()
+    #auto_check_frame.pack()
     auto_process=IntVar()
     auto_process_check=Checkbutton(auto_check_frame, text='Process data', bg=bg, highlightthickness=0)
     auto_process_check.pack(side=LEFT)
@@ -341,21 +454,21 @@ def main():
     gen_bg=bg
     
     gen_frame=Frame(auto_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=gen_bg)
-    gen_frame.pack(side=BOTTOM)
+    gen_frame.pack()
     
-    go_button=Button(gen_frame, text='Go!', padx=padx, pady=pady, width=button_width,bg='light gray', command=go)
+    opt_button=Button(gen_frame, text='Optimize', padx=padx, pady=pady,width=button_width, bg='light gray', command=opt)
+    opt_button.pack(padx=padx,pady=pady, side=LEFT)
+    wr_button=Button(gen_frame, text='White Reference', padx=padx, pady=pady, width=button_width, bg='light gray', command=wr)
+    wr_button.pack(padx=padx,pady=pady, side=LEFT)
+
+    go_button=Button(gen_frame, text='Take Spectrum', padx=padx, pady=pady, width=button_width,bg='light gray', command=go)
     go_button.pack(padx=padx,pady=pady, side=LEFT)
-    pause_button=Button(gen_frame, text='Pause', padx=padx, pady=pady, width=button_width, bg='light gray', command=plot)
-    pause_button.pack(padx=padx,pady=pady, side=LEFT)
-    cancel_button=Button(gen_frame, text='Cancel', padx=padx, pady=pady,width=button_width, bg='light gray', command=go)
-    cancel_button.pack(padx=padx,pady=pady, side=LEFT)
-    
     
     #***************************************************************
     # Frame for manual control
     
-    man_frame=Frame(notebook, bg=bg, pady=2*pady)
-    man_frame.pack()
+    dumb_frame=Frame(notebook, bg=bg, pady=2*pady)
+    dumb_frame.pack()
     # entries_frame=Frame(man_frame, bg=bg)
     # entries_frame.pack(fill=BOTH, expand=True)
     # man_light_label=Label(entries_frame,padx=padx, pady=pady,bg=bg,text='Instrument positions:')
@@ -371,7 +484,7 @@ def main():
     # man_detector_entry.insert(0,'10')
     # man_detector_entry.pack(side=LEFT)
     
-    timer_frame=Frame(man_frame, bg=bg)
+    timer_frame=Frame(dumb_frame, bg=bg, pady=2*pady)
     timer_frame.pack()
     timer_check_frame=Frame(timer_frame, bg=bg)
     timer_check_frame.pack(pady=(15,5))
@@ -429,7 +542,6 @@ def main():
     output_file_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Output file name:')
     output_file_label.pack(padx=padx,pady=pady)
     output_file_entry=Entry(process_frame, width=50)
-    output_file_entry.insert(0, output_path)
     output_file_entry.pack()
     
     
@@ -488,11 +600,32 @@ def main():
     plot_button=Button(plot_frame, text='Plot', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=plot)
     plot_button.pack()
 
+    #************************Console********************************
+    console_frame=Frame(notebook, bg=bg)
+    console_frame.pack(fill=BOTH, expand=True)
+    text_frame=Frame(console_frame)
+    scrollbar = Scrollbar(text_frame)
+    notebook_width=notebook.winfo_width()
+    notebook_height=notebook.winfo_width()
+    textbox = Text(text_frame, width=notebook_width)
+    scrollbar.pack(side=RIGHT, fill=Y)
+
+    scrollbar.config(command=textbox.yview)
+    textbox.configure(yscrollcommand=scrollbar.set)
+    console_entry=Entry(console_frame, width=notebook_width)
+    console_entry.bind("<Return>",run)
+    console_entry.bind('<Up>',run)
+    console_entry.bind('<Down>',run)
+    console_entry.pack(fill=BOTH, side=BOTTOM)
+    text_frame.pack(fill=BOTH, expand=True)
+    textbox.pack(fill=BOTH,expand=True)
+    console_entry.focus()
 
     notebook.add(auto_frame, text='Spectrometer control')
-    notebook.add(man_frame, text='Timer control')
+    notebook.add(dumb_frame, text='Timer control')
     notebook.add(process_frame, text='Data processing')
     notebook.add(plot_frame, text='Plot')
+    notebook.add(console_frame, text='Console')
     #notebook.add(val_frame, text='Validation tools')
     #checkbox: Iterate through a range of geometries
     #checkbox: Choose a single geometry
@@ -500,7 +633,7 @@ def main():
     #checkbox: Use a timer to collect a series of spectra
     #Timer interval: 
     #Number of spectra to collect:
-    notebook.pack()
+    notebook.pack(fill=BOTH, expand=True)
     master.mainloop()
     
 

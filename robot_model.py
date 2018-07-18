@@ -18,7 +18,7 @@ from auto_goniometer.motor import Motor
 
 class Model:
 
-    def __init__(self, view, plotter, spec_compy_connected=True, raspberry_pi_connected=True):
+    def __init__(self, view, plotter, share_loc, command_loc, spec_compy_connected=True, raspberry_pi_connected=True):
         self.view=view
         self.plotter=plotter
         self.spec_compy_connected=spec_compy_connected
@@ -29,7 +29,6 @@ class Model:
         self.opt_num=0
         self.save_config_num=0
         self.process_num=0
-        #os.system('rm /home/khoza/Python/spectrometer_network/commands/*')
         
         self.wr=Sample('wr')
         self.s1=Sample('Mars!')
@@ -43,9 +42,10 @@ class Model:
         
         self.detector=Detector()
         self.i_e_tuples=[]
-        self.share_loc='/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen'
-        cmd='rm '+self.share_loc+'/commands/*'
-        os.system(cmd)
+        self.share_loc=share_loc
+        self.command_loc=command_loc
+        #cmd='rm '+self.share_loc+'/commands/*'
+        #os.system(cmd)
 
         
         if spec_compy_connected:
@@ -70,13 +70,21 @@ class Model:
         self.plotter.plot_spectrum(10,10,[[1,2,3,4,5],[1,2,3,4,5]])
         
     def process(self,input_path, output_path, output_file):
+        print('input_path:')
+        print(input_path)
+        print('output_path:')
+        print(output_path)
+        print('file:')
+        print(output_file)
         input_path=input_path.replace('\\','-')
         input_path=input_path.replace(':','&')
         output_path=output_path.replace('\\','-')
         output_path=output_path.replace(':','&')
-        path=self.share_loc+'/commands/process_'+str(self.process_num)+'_'+input_path+'_'+output_path+'_'+output_file
+        path=self.command_loc+'/process_'+str(self.process_num)+'_'+input_path+'_'+output_path+'_'+output_file
         self.process_num=self.process_num+1
-        file=open(path,'w')
+        print(path)
+        #os.system('touch '+path)
+        file=open(path,'w+')
         
         # file.write(input_path+'\n')
         # file.write(output_path+'\n')
@@ -107,7 +115,7 @@ class Model:
                 print('taking spectrum at '+str(e))
                 self.move_detector(e)
                 self.take_spectrum(i,e)
-                data = np.genfromtxt('test_data/test_'+str(i)+'_'+str(e)+'.csv', dtype=float,delimiter=',')
+                #data = np.genfromtxt('test_data/test_'+str(i)+'_'+str(e)+'.csv', dtype=float,delimiter=',')
 
             self.plotter.plot_spectrum(i,e,data)
             
@@ -145,45 +153,49 @@ class Model:
     
         
     def take_spectrum(self,i,e):
-        filename='spectrum_'+str(self.spectrum_num)
-        file=open(self.share_loc+'/commands/'+filename,'w')
-        file.write('take_spectrum')
+        try:
+            filename='spectrum_'+str(self.spectrum_num)
+            file=open(self.command_loc+'/'+filename,'w')
+        except:
+            print('Ignore error in model.take_spectrum')
         self.spectrum_num=self.spectrum_num+1
-        if self.spec_compy_connected: 
-            cmd='touch c:/Kathleen/test'+str(np.random.rand())
-            self.rs3_process.sendline(cmd)
-            self.rs3_process.expect('$')
+        # if self.spec_compy_connected: 
+        #     cmd='touch c:/Kathleen/test'+str(np.random.rand())
+        #     self.rs3_process.sendline(cmd)
+        #     self.rs3_process.expect('$')
 
             #process.sendline('c:/users/rs3admin/anaconda3/python.exe c:/users/rs3admin/hozak/Python/spectrum_taker.py -sp')
 
         # self.view.take_spectrum()
         # self.detector.take_spectrum()
         self.i_e_tuples.append((i,e))
-        print(self.i_e_tuples)
         
-        name='test_'+str(i)+'_'+str(e)+'.csv'
-        file=open('test_data/'+name,'w')
-        for j in range(10):
-            file.write(str(0.5+0.1*j))
-            if j<9:
-                file.write(',')
-        file.write('\n')
-        for k in range(10):
-            file.write(str(k*e/100))
-            if k<9:
-                file.write(',')
-        file.close()
+        # name='test_'+str(i)+'_'+str(e)+'.csv'
+        # file=open('test_data/'+name,'w')
+        # for j in range(10):
+        #     file.write(str(0.5+0.1*j))
+        #     if j<9:
+        #         file.write(',')
+        # file.write('\n')
+        # for k in range(10):
+        #     file.write(str(k*e/100))
+        #     if k<9:
+        #         file.write(',')
+        # file.close()
     def opt(self):
         filename='opt_'+str(self.opt_num)
-        file=open(filename,'w')
-        file.write('optimize')
-        cmd='mv '+filename+' '+ self.share_loc+'/commands/'+filename
+        try:
+            file=open(self.command_loc+'/'+filename,'w+')
+        except:
+            print('ignore error in model.opr()')
         self.opt_num=self.opt_num+1
     
-    def wr(self):
+    def white_reference(self):
         filename='wr_'+str(self.spectrum_num)
-        file=open(self.share_loc+'/commands/'+filename,'w')
-        file.write('wr')
+        try:
+            file=open(self.command_loc+'/'+filename,'w+')
+        except:
+            print('ignore error in model.white_reference()')
         self.spectrum_num=self.spectrum_num+1
         
             
@@ -196,15 +208,15 @@ class Model:
 
     #l.release()
     def set_save_path(self, path, basename, startnum):
-        filename='save_config_'+str(self.save_config_num)
-        config=open(filename,'w')
-        #config=open(self.share_loc+'/commands/'+filename,'w')
-        config.write(path+'\n')
-        config.write(basename+'\n')
-        config.write(startnum+'\n')
-        cmd='mv '+filename+' '+ self.share_loc+'/commands/'+filename
-        os.system(cmd)
+        path=path.replace('\\','-')
+        path=path.replace(':','&')
+        filename='saveconfig_'+str(self.save_config_num)+'_'+path+'_'+basename+'_'+startnum
         self.save_config_num=self.save_config_num+1
+        try:
+            file=open(self.command_loc+'/'+filename,'w')
+        except:
+            pass
+
         
     
 def take_wr():
