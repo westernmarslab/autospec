@@ -6,6 +6,7 @@ test=True
 online=False
 
 from tkinter import *
+from tkinter import messagebox
 import imp
 import threading
 import tkinter as tk
@@ -19,7 +20,8 @@ import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import datetime
-
+import time
+from threading import Thread
 
 #From pyzo shell, looks in /home/khoza/Python for modules
 #From terminal, it will look in current directory
@@ -101,34 +103,66 @@ def main():
                 file.write(spec_startnum_entry.get()+'\n')
     def wr():
         model.white_reference()
-        info_string='UNVERIFIED:\n White reference taken at '+str(datetime.datetime.now())
+        info_string='UNVERIFIED:\n White reference taken at '+str(datetime.datetime.now())+'\n'
         with open(log_filename,'a') as log:
             log.write(info_string)
         textbox.insert(END,info_string)
     def opt():
         model.opt()
         model.white_reference()
-        info_string='UNVERIFIED:\n Instrument optimized at '+str(datetime.datetime.now())
+        info_string='UNVERIFIED:\n Instrument optimized at '+str(datetime.datetime.now())+'\n'
         with open(log_filename,'a') as log:
             log.write(info_string)
         textbox.insert(END, info_string)
         
+            
     def take_spectrum():
         global spec_save_path
         global spec_basename
         global spec_num
         
-        try:
-            incidence=int(man_incidence_entry.get())
-            emission=int(man_emission_entry.get())
-            # incidence=int(light_start_entry.get())
-            # emission=int(detector_start_entry.get())
-        except:
-            print('Invalid input')
+        incidence=man_incidence_entry.get()
+        emission=man_emission_entry.get()
+
+        print("thread finished...exiting")
+        
+        if man_incidence_entry.get()=='' or man_emission_entry.get()=='':
+            dialog=Dialog(master,'Error: Invalid Input', ['label:Error: Invalid emission and/or incidence angle.\nDo you want to continue?','yes','no'])
+            global take_anyway
+            take_anyway=dialog.yes
+            print(take_anyway)
             return
-        if incidence<0 or incidence>90 or emission<0 or emission>90:
-            print('Invalid input')
+            print('hi?')
+            dialog=open_dialog()
             return
+            print('hi!')
+            take_anyway=False
+            go_back=False
+            while take_anyway==False and go_back==False:
+                print('waiting')
+                take_anyway=dialog.yes
+                go_back=dialog.no
+                time.sleep(1)
+            if take_anyway:
+                print('taking anyway')
+                incidence=-1
+                emission=-1
+            if go_back:
+                print('going back')
+                return
+            #messagebox.showinfo("Error: Invalid Input", "Error: Please enter incidence and emission angles before taking a spectrum")
+        
+        # try:
+        #     incidence=int(man_incidence_entry.get())
+        #     emission=int(man_emission_entry.get())
+        #     # incidence=int(light_start_entry.get())
+        #     # emission=int(detector_start_entry.get())
+        # except:
+        #     print('Invalid input')
+        #     return
+        # if incidence<0 or incidence>90 or emission<0 or emission>90:
+        #     print('Invalid input')
+        #     return
 
         if spec_save_path_entry.get() != spec_save_path or spec_basename_entry.get() != spec_basename or spec_num==None or spec_startnum_entry.get() !=str(int(spec_num)+1):
             print('setting path')
@@ -158,8 +192,9 @@ def main():
             file.write(spec_basename_entry.get()+'\n')
             file.write(spec_startnum_entry.get()+'\n')
 
-            input_path_entry.delete(0,'end')
-            input_path_entry.insert(0,spec_save_path_entry.get())
+            input_dir_entry.delete(0,'end')
+            input_dir_entry.insert(0,spec_save_path_entry.get())
+            
     def increment_num():
         try:
             num=int(spec_startnum_entry.get())+1
@@ -183,20 +218,20 @@ def main():
         
     def process_cmd():
         try:
-            model.process(input_path_entry.get(), output_path_entry.get(), output_file_entry.get())
+            model.process(input_dir_entry.get(), output_dir_entry.get(), output_file_entry.get())
         except:
             print("error:", sys.exc_info()[0])
         if process_save_dir.get():
             file=open(config_loc+'/process_directories','w')
-            file.write(input_path_entry.get()+'\n')
-            file.write(output_path_entry.get()+'\n')
+            file.write(input_dir_entry.get()+'\n')
+            file.write(output_dir_entry.get()+'\n')
             file.write(output_file_entry.get()+'\n')
-            plot_input_path_entry.delete(0,'end')
-            plot_file=output_path_entry.get()+'\\'+output_file_entry.get()+'..txt'
-            plot_input_path_entry.insert(0,plot_file)
+            plot_input_dir_entry.delete(0,'end')
+            plot_file=output_dir_entry.get()+'\\'+output_file_entry.get()+'..txt'
+            plot_input_dir_entry.insert(0,plot_file)
             
     def plot():
-        filename=plot_input_path_entry.get()
+        filename=plot_input_dir_entry.get()
         filename=filename.replace('C:\\Kathleen','/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen/')
         filename=filename.replace('\\','/')
         title=plot_title_entry.get()
@@ -242,10 +277,10 @@ def main():
                             process_save_dir_check.select()
                             params.pop(1)
                         print('made it')
-                        input_path_entry.delete(0,'end')
-                        input_path_entry.insert(0,params[1])
-                        output_path_entry.delete(0,'end')
-                        output_path_entry.insert(0,params[2]) 
+                        input_dir_entry.delete(0,'end')
+                        input_dir_entry.insert(0,params[1])
+                        output_dir_entry.delete(0,'end')
+                        output_dir_entry.insert(0,params[2]) 
                         output_file_entry.delete(0,'end')
                         output_file_entry.insert(0,params[3])
                         process_cmd()
@@ -273,8 +308,51 @@ def main():
                 next=user_cmds[user_cmd_index]
                 console_entry.delete(0,'end')
                 console_entry.insert(0,next)
-
+    
+    def validate_basename():
+        basename=limit_len(spec_basename_entry.get())
+        basename=rm_reserved_chars(basename)
+        spec_basename_entry.set(basename)
+    
+    def validate_startnum():
+        num=spec_startnum.get()
+        valid=validate_int_input(num,999,0)
+        if not valid:
+            spec_startnum.set('')
+        else:
+            while len(num)<3:
+                num=0+num
+        spec_startnum_entry.detel(0,'end')
+        spec_startnum_entry.insert(0,num)
+    
+    def validate_input_dir(*args):
+        print('validating')
+        input_dir=rm_reserved_chars(input_dir_entry.get())
+        input_dir_entry.delete(0,'end')
+        input_dir_entry.insert(0,input_dir)
         
+    def validate_output_dir():
+        output_dir=rm_reserved_chars(output_dir_entry.get())
+        output_dir_entry.delete(0,'end')
+        output_dir_entry.insert(0,output_dir)
+
+    def rm_reserved_chars(input):
+        print(input.strip('&').strip('+').strip('='))
+        return input.strip('&').strip('+').strip('=')
+    
+    def limit_len(input, max):
+        return input[:max]
+        
+    def validate_int_input(input, max, min):
+        try:
+            input=int(input)
+        except:
+            return False
+        if input>max: return False
+        if input<min: return False
+        
+        return True
+            
         
     if dev: plt.close('all')
 
@@ -300,16 +378,16 @@ def main():
     button_width=15
     
     process_config=open(config_loc+'/process_directories','r')
-    input_path=''
-    output_path=''
+    input_dir=''
+    output_dir=''
     try:
-        input_path=process_config.readline().strip('\n')
-        output_path=process_config.readline().strip('\n')
+        input_dir=process_config.readline().strip('\n')
+        output_dir=process_config.readline().strip('\n')
     except:
         print('invalid config')
     print('found process config??')
-    print(input_path)
-    print(output_path)
+    print(input_dir)
+    print(output_dir)
 
     spec_save_config=open(config_loc+'/spec_save','r')
     spec_save_path=''
@@ -523,19 +601,21 @@ def main():
     process_frame.pack()
     input_frame=Frame(process_frame, bg=bg)
     input_frame.pack()
-    input_path_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Input directory:')
-    input_path_label.pack(padx=padx,pady=pady)
-    input_path_entry=Entry(process_frame, width=50)
-    input_path_entry.insert(0, input_path)
-    input_path_entry.pack()
+    input_dir_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Input directory:')
+    input_dir_label.pack(padx=padx,pady=pady)
+    input_dir_var = StringVar()
+    input_dir_var.trace('w', validate_input_dir)
+    input_dir_entry=Entry(process_frame, width=50, textvariable=input_dir_var)
+    input_dir_entry.insert(0, input_dir)
+    input_dir_entry.pack()
     
     output_frame=Frame(process_frame, bg=bg)
     output_frame.pack()
-    output_path_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Output directory:')
-    output_path_label.pack(padx=padx,pady=pady)
-    output_path_entry=Entry(process_frame, width=50)
-    output_path_entry.insert(0, output_path)
-    output_path_entry.pack()
+    output_dir_label=Label(process_frame,padx=padx,pady=pady,bg=bg,text='Output directory:')
+    output_dir_label.pack(padx=padx,pady=pady)
+    output_dir_entry=Entry(process_frame, width=50)
+    output_dir_entry.insert(0, output_dir)
+    output_dir_entry.pack()
     
     output_file_frame=Frame(process_frame, bg=bg)
     output_file_frame.pack()
@@ -564,18 +644,18 @@ def main():
     process_frame.pack()
     plot_input_frame=Frame(plot_frame, bg=bg)
     plot_input_frame.pack()
-    plot_input_path_label=Label(plot_frame,padx=padx,pady=pady,bg=bg,text='Path to .tsv file:')
-    plot_input_path_label.pack(padx=padx,pady=pady)
-    plot_input_path_entry=Entry(plot_frame, width=50)
-    plot_input_path_entry.insert(0, input_path)
-    plot_input_path_entry.pack()
+    plot_input_dir_label=Label(plot_frame,padx=padx,pady=pady,bg=bg,text='Path to .tsv file:')
+    plot_input_dir_label.pack(padx=padx,pady=pady)
+    plot_input_dir_entry=Entry(plot_frame, width=50)
+    plot_input_dir_entry.insert(0, input_dir)
+    plot_input_dir_entry.pack()
     
     plot_title_frame=Frame(plot_frame, bg=bg)
     plot_title_frame.pack()
     plot_title_label=Label(plot_frame,padx=padx,pady=pady,bg=bg,text='Plot title:')
     plot_title_label.pack(padx=padx,pady=pady)
     plot_title_entry=Entry(plot_frame, width=50)
-    plot_title_entry.insert(0, output_path)
+    plot_title_entry.insert(0, output_dir)
     plot_title_entry.pack()
     
     plot_caption_frame=Frame(plot_frame, bg=bg)
@@ -583,7 +663,7 @@ def main():
     plot_caption_label=Label(plot_frame,padx=padx,pady=pady,bg=bg,text='Plot caption:')
     plot_caption_label.pack(padx=padx,pady=pady)
     plot_caption_entry=Entry(plot_frame, width=50)
-    plot_caption_entry.insert(0, output_path)
+    plot_caption_entry.insert(0, output_dir)
     plot_caption_entry.pack()
     
     
@@ -690,9 +770,74 @@ def create_window(root):
     canvas.get_tk_widget().pack()
     canvas.draw()
 
+class Dialog:
+    def __init__(self, parent, title, options):
 
+        top = self.top = tk.Toplevel(parent, bg='white')
+        top.wm_title(title)
+        
+        # def on_closing():
+        #     del self.plots[i]
+        #     top.destroy()
+        # top.protocol("WM_DELETE_WINDOW", on_closing)
+        
+        self.label_frame=Frame(top, bg='white')
+        self.button_frame=Frame(top, bg='white')
+        self.label_frame.pack()
+        self.button_frame.pack()
+        
+        self.button_width=20
 
+        for option in options:
+            print(option)
+            if 'label:'in option:
+                label=option[6:]
+                self.myLabel = tk.Label(self.label_frame, text=label, bg='white')
+                self.myLabel.pack(pady=(10,10))
+            if option.lower()=='entry':
+                self.entry_box = Entry(top)
+                self.entry_Box.pack()
+            if option.lower=='ok':
+                self.ok_button = Button(top, text='OK', command=self.ok, width=self.button_width)
+                self.ok_button.pack()
+                self.ok=False
+            if 'yes' in option.lower():
+                self.yes_button=Button(self.button_frame, text='Yes', bg='light gray', command=self.yes, width=self.button_width)
+                self.yes_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+                # self.yes_button=Button(top, text='Yes',callback=self.yes)
+                # self.yes_button.pack()
+                # self.yes=False
+                self.yes=False
+            if 'no' in option.lower():
+                self.no_button=Button(self.button_frame, text='No',command=self.no, width=self.button_width)
+                self.no_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+                self.no=False
+            
+
+    def send(self):
+        global username
+        username = self.myEntryBox.get()
+        self.top.destroy()
     
+    def ok(self):
+        self.ok=True
+        self.top.destroy()
+        
+    def yes(self):
+        take_spectrum()
+        self.top.destroy()
+        
+    def no(self):
+        self.no=True
+        self.top.destroy()
+
+def onClick():
+    inputDialog = MyDialog(root)
+    root.wait_window(inputDialog.top)
+    print('Username: ', username)
+
+
+
 
 
 

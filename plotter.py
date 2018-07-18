@@ -17,12 +17,12 @@ class Plotter():
         self.plots={}
         self.canvases={}
  
-    def new_plot(self,i):
-        t = tk.Toplevel(self.root)
-        t.wm_title('Incidence = '+str(i))
+    def new_plot(self,title):
+        top = tk.Toplevel(self.root)
+        top.wm_title(title)
         fig = mpl.figure.Figure(figsize=(20,15))
         plot = fig.add_subplot(111)
-        canvas = FigureCanvasTkAgg(fig, master=t)
+        canvas = FigureCanvasTkAgg(fig, master=top)
         canvas.get_tk_widget().pack()
         canvas.draw()
         self.plots[i]=plot
@@ -30,13 +30,13 @@ class Plotter():
         
         def on_closing():
             del self.plots[i]
-            t.destroy()
-        t.protocol("WM_DELETE_WINDOW", on_closing)
+            top.destroy()
+        top.protocol("WM_DELETE_WINDOW", on_closing)
         
     def plot_spectrum(self,i,e, data):
         #If we've never plotted spectra at this incidence angle, make a whole new plot.
         if i not in self.plots:
-            self.new_plot(i)
+            self.new_plot('Incidence='+str(i))
         #Next, plot data onto the appropriate plot.
         self.plots[i].plot(data[0],data[1])
         self.canvases[i].draw()
@@ -60,10 +60,10 @@ class Plotter():
     #     print(reflectance)
     #     return wavelengths, reflectance
     #     
-    def plot_spectra(self, name, file, caption):
-        self.new_plot(name)
+    def plot_spectra(self, title, file, caption):
+        self.new_plot(title)
         wavelengths, reflectance, labels=self.load_data(file)
-        colors=['red','orange','yellow','greenyellow','green','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','green','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','green','cyan','dodgerblue','purple']
+        colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
         for i,spectrum in enumerate(reflectance):
             self.plots[name].plot(wavelengths, spectrum, label=labels[i+1], color=colors[i])
         self.plots[name].set_title(name, fontsize=24)

@@ -27,8 +27,9 @@ class Model:
         self.command_num=0     
         self.spectrum_num=0
         self.opt_num=0
-        self.save_config_num=0
+        self.saveconfig_num=0
         self.process_num=0
+        self.wr_num=0
         
         self.wr=Sample('wr')
         self.s1=Sample('Mars!')
@@ -69,31 +70,13 @@ class Model:
     def plot(self):
         self.plotter.plot_spectrum(10,10,[[1,2,3,4,5],[1,2,3,4,5]])
         
-    def process(self,input_path, output_path, output_file):
-        print('input_path:')
-        print(input_path)
-        print('output_path:')
-        print(output_path)
-        print('file:')
-        print(output_file)
-        input_path=input_path.replace('\\','-')
-        input_path=input_path.replace(':','&')
-        output_path=output_path.replace('\\','-')
-        output_path=output_path.replace(':','&')
-        path=self.command_loc+'/process_'+str(self.process_num)+'_'+input_path+'_'+output_path+'_'+output_file
+    def process(self,input_dir, output_dir, output_file):
+        filename=cmd_to_params('process',self.process_num,[input_dir,output_dir,output_file])
         self.process_num=self.process_num+1
-        print(path)
-        #os.system('touch '+path)
-        file=open(path,'w+')
-        
-        # file.write(input_path+'\n')
-        # file.write(output_path+'\n')
-        # file.write(output_file)
-        # file.close()
-        # cmd='mv '+filename+' '+ self.share_loc+'/commands/'+filename
-        # print(cmd)
-        # os.system(cmd)
-
+        try:
+            file=open(self.command_loc_+'/'+filename,'w+')
+        except:
+            print('ignoring error in process')
         
 
     def go(self, incidence, emission):
@@ -153,12 +136,12 @@ class Model:
     
         
     def take_spectrum(self,i,e):
+        filename=cmd_to_filename('spectrum',self.spectrum_num)
         try:
-            filename='spectrum_'+str(self.spectrum_num)
             file=open(self.command_loc+'/'+filename,'w')
         except:
             print('Ignore error in model.take_spectrum')
-        self.spectrum_num=self.spectrum_num+1
+        self.spectrum_num+=1
         # if self.spec_compy_connected: 
         #     cmd='touch c:/Kathleen/test'+str(np.random.rand())
         #     self.rs3_process.sendline(cmd)
@@ -183,7 +166,7 @@ class Model:
         #         file.write(',')
         # file.close()
     def opt(self):
-        filename='opt_'+str(self.opt_num)
+        filename=cmd_to_filename('opt',self.opt_num)
         try:
             file=open(self.command_loc+'/'+filename,'w+')
         except:
@@ -191,32 +174,37 @@ class Model:
         self.opt_num=self.opt_num+1
     
     def white_reference(self):
-        filename='wr_'+str(self.spectrum_num)
+        filename='wr_'+str(self.wr_num)
         try:
             file=open(self.command_loc+'/'+filename,'w+')
         except:
             print('ignore error in model.white_reference()')
-        self.spectrum_num=self.spectrum_num+1
+        self.wr_num+=1
         
             
     def fill_tray(composition, position):
         sample=Sample(composition)
         self.sh.fill_tray(sample, position)
-
         process.terminate()
-        #spectrum_taker.take_spectrum()
+        
 
-    #l.release()
     def set_save_path(self, path, basename, startnum):
-        path=path.replace('\\','-')
-        path=path.replace(':','&')
-        filename='saveconfig_'+str(self.save_config_num)+'_'+path+'_'+basename+'_'+startnum
-        self.save_config_num=self.save_config_num+1
+        filename=cmd_to_filename('saveconfig',self.saveconfig_num,[path,basename,startnum])
+        print(filename)
         try:
             file=open(self.command_loc+'/'+filename,'w')
         except:
-            pass
+            print('ignoring error in set_save_path')
+        self.saveconfig_num+=1
+            
 
+def cmd_to_filename(cmd, num, parameters=[]):
+    filename=cmd+str(num)
+    for param in parameters:
+        param=param.replace('\\','+')
+        param=param.replace(':','=')
+        filename=filename+'&'+param
+    return filename
         
     
 def take_wr():
