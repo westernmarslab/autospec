@@ -49,8 +49,8 @@ global spec_save_path
 spec_save_path=''
 global spec_basename
 spec_basename=''
-global spec_num
-spec_num=None
+global g_spec_num
+g_spec_num=None
 
 global user_cmds
 user_cmds=[]
@@ -506,9 +506,11 @@ class Controller():
     def take_spectrum(self, force=False):
         global spec_save_path
         global spec_basename
-        global spec_num
+        global g_spec_num
+        
         incidence=self.man_incidence_entry.get()
         emission=self.man_emission_entry.get()
+        
             
         if force==False: 
             if self.man_incidence_entry.get()=='' or self.man_emission_entry.get()=='':
@@ -524,29 +526,35 @@ class Controller():
                 label='Error: Invalid emission and/or incidence angle.\nDo you want to continue?'
                 dialog=Dialog(self,title,label,buttons)
                 return
-        try:
-            if self.spec_save_path_entry.get() != spec_save_path or self.spec_basename_entry.get() != spec_basename or spec_num==None or self.spec_startnum_entry.get() !=str(int(spec_num)+1):
-                print('setting save config')
-                spec_save_path=self.spec_save_path_entry.get()
-                spec_basename = self.spec_basename_entry.get()
-                spec_num=self.spec_startnum_entry.get()
-                self.model.set_save_path(spec_save_path, spec_basename, spec_num)
-            
-            else: spec_num=str(int(spec_num)+1)
-        except:
-            print('save config input invalid')
-            dialog=ErrorDialog(self, 'Error: invalid save configuation')
+                
+        new_spec_save_dir=self.spec_save_path_entry.get()
+        new_spec_basename=self.spec_basename_entry.get()
+        if new_spec_save_dir=='' or new_spec_basename=='':
+            dialog=ErrorDialog(self,'Error: Please enter a save directory and a basename')
             return
-        startnum=str(self.spec_startnum_entry.get())
-        while len(startnum)<3:
-            startnum='0'+startnum
+        try:
+            new_spec_num=int(self.spec_startnum_entry.get())
+        except:
+            dialog=ErrorDialog(self,'Error: Invalid spectrum number')
+            return
+
+        if new_spec_save_dir != spec_save_path or new_spec_basename != spec_basename or g_spec_num==None or new_spec_num!=g_spec_num:
+            self.set_save_config()
+            time.sleep(1)
+
+
+        startnum_str=str(self.spec_startnum_entry.get())
+        while len(startnum_str)<3:
+            startnum_str='0'+startnum_str
+            
         self.model.take_spectrum(incidence,emission)
-        filename=self.spec_save_path_entry.get()+'\\'+self.spec_basename_entry.get()+'.'+startnum
+        
+        filename=self.spec_save_path_entry.get()+'\\'+self.spec_basename_entry.get()+'.'+startnum_str
         self.listener.expected_data_files.append(filename)
         
         info_string='UNVERIFIED:\n Spectrum saved at '+str(datetime.datetime.now())+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+filename+'\n\tNotes: '+self.man_notes_entry.get()+'\n'
         self.textbox.insert(END,info_string)
-        self.increment_num()
+        #self.increment_num()
         with open(self.log_filename,'a') as log:
             log.write(info_string)
         
@@ -565,6 +573,18 @@ class Controller():
         
         wait_dialog=WaitDialog(self)
         return wait_dialog
+        
+    def set_save_config(self):
+        global g_spec_num
+        global spec_save_path
+        global spec_basename
+        spec_save_path=self.spec_save_path_entry.get()
+        spec_basename = self.spec_basename_entry.get()
+        spec_num=self.spec_startnum_entry.get()
+        g_spec_num=int(spec_num)
+        while len(spec_num)<3:
+            spec_num='0'+spec_num
+        self.model.set_save_path(spec_save_path, spec_basename, spec_num)
             
     def increment_num(self):
         try:
@@ -619,7 +639,7 @@ class Controller():
         #self.plotter.plot_spectra(title,filename,caption)
     
     
-    def auto_cycle_check():
+    def auto_cycle_check(self):
         if self.auto.get():
             light_end_label.config(fg='black')
             detector_end_label.config(fg='black')
@@ -639,7 +659,7 @@ class Controller():
             light_increment_entry.config(bd=1)
             detector_increment_entry.config(bd=1)
         
-    def run(keypress_event):
+    def run(self, keypress_event):
         global user_cmds
         global user_cmd_index
         if keypress_event.keycode==36:
@@ -665,7 +685,11 @@ class Controller():
                         process_cmd()
                     except:
                         self.textbox.insert(END,'Error: Failed to process file.')
-                if params[0].lower()=='log':
+                elif params[0].lower()=='wr':
+                    self.wr()
+                elif params[0].lower()=='opt':
+                    self.opt()
+                elif params[0].lower()=='log':
                     logstring=''
                     for word in params:
                         logstring=logstring+word+' '
@@ -718,7 +742,6 @@ class Controller():
     
 class Dialog:
     def __init__(self, controller, title, label, buttons):
-        print('here is the label:'+label)
         self.controller=controller
         self.top = tk.Toplevel(controller.master, bg='white')
         self.top.wm_title(title)
@@ -748,7 +771,6 @@ class Dialog:
         try:
             self.button_frame.destroy()
         except:
-            print('hacky frame clearing')
             pass
         self.button_frame=Frame(self.top, bg=self.bg)
         self.button_frame.pack(side=BOTTOM)
@@ -823,23 +845,35 @@ class WaitDialog(Dialog):
         thread.start()
         
     def wait(self, timeout):
-        filename='foo'
         old_files=list(self.controller.listener.saved_files)
-        print('wait!')
         timeout=15
         for i in range(timeout):
-            if self.controller.listener.interrupt:
-                self.controller.listener.interrupt=False
+            if self.controller.listener.failed:
+                self.controller.listener.failed=False
                 self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?')
                 return
+            elif self.controller.listener.noconfig==True:
+                self.controller.listener.noconfig=False
+                self.controller.set_save_config()
+                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get())
+                
             time.sleep(1)
             current_files=self.controller.listener.saved_files
+            
             if current_files==old_files:
                 print('waiting')
             else:
                 for file in current_files:
                     if file not in old_files:
-                        print('wait dialog knows file saved: '+file)
+                        global g_spec_num
+                        g_spec_num+=1
+                        self.controller.spec_startnum_entry.delete(0,'end')
+                        spec_num_string=str(g_spec_num)
+                        while len(spec_num_string)<3:
+                            spec_num_string='0'+spec_num_string
+                        self.controller.spec_startnum_entry.insert(0,spec_num_string)
+                        self.interrupt('Success!')
+                        return
         self.timeout()
         # t0=time.clock()
         # if timeout>0:
@@ -899,15 +933,14 @@ class Listener(threading.Thread):
         self.expected_data_files=[]
         self.controller=None
         
-        self.interrupt=False
+        self.failed=False
+        self.noconfig=False
         
     def set_controller(self,controller):
         self.controller=controller
     
     def run(self):
         files0=os.listdir(self.read_command_loc)
-        print('files in read command directory:')
-        print(files0)
         while True:
             files=os.listdir(self.read_command_loc)
             if files==files0:
@@ -916,29 +949,40 @@ class Listener(threading.Thread):
                 for file in files:
                     if file not in files0:
                         cmd, params=filename_to_cmd(file)
-                        print(file)
-                        os.remove(read_command_loc+'/'+file)
+                        #os.remove(read_command_loc+'/'+file)
                         if 'savedfile' in cmd:
-                            print('here are the files I expect')
-                            print(self.expected_data_files)
-                            print('here is what I have:')
-                            print(params[0])
+
                             if params[0] in self.expected_data_files:
                                 self.saved_files.append(params[0])
                             else:
-                                dialog=ErrorDialog(self.controller, label='Warning! Unexpected file in data directory.\nAre you sure spectrum numbers match between computers?\n\n'+params[0])
+                                print("I wasn't expecting that!")
+                                dialog=ErrorDialog(self.controller, label="Warning! I wasn't expecting that! The spectrometer compy was happy to save this file but I don't think it should be here The\n\n"+params[0])
                         elif 'failedtosavefile' in cmd:
+                            self.failed=True
                             pass
                             #dialog=ErrorDialog(self.controller, label='Error: Processing failed')
                         elif 'processerror' in cmd:
                             dialog=ErrorDialog(self.controller, label='Error: Processing failed.')
                         elif 'unexpectedfile' in cmd:
-                            print('spectrometer computer knows this file is unexpected:')
-                            print(params[0])
-                            dialog=ErrorDialog(self.controller, label='Warning! Unexpected file in data directory.\nAre you sure spectrum numbers match between computers?\n\n'+params[0])
+                            #This is hacky and bad. If you switch save directories and the new one has files that shouldn't be there but have the same names as ones in your old directory that should be there then you will lose.
+                            print('could one of these match?')
+                            ignore=False
+                            for file in self.expected_data_files:
+                                end=file.split('\\')[-1]
+                                if end==params[0]:
+                                    print('I think this file is probably fine: '+params[0])
+                                    ignore=True
+                                    
+                            if not ignore:
+                                print('unexpected file: '+params[0])
+                                dialog=ErrorDialog(self.controller, label='Warning! Unexpected file in data directory.\nDoes this belong here? Make sure numbers match\nbetween computers before continuing\n\n'+params[0])
                         elif 'saveconfigerror' in cmd:
-                            self.interrupt=True
+                            self.failed=True
                             #dialog=ErrorDialog(self.controller, label='Error: Failed to set save configuration.\nAre you sure the spectrometer is connected?')
+                        elif 'noconfig' in cmd:
+                            print('GOT NO CONFIG')
+                            self.noconfig=True
+
                         else:
                             print('unexpected file: '+file)
                 #This line always prints twice if it's uncommented, I'm not sure why.
@@ -963,12 +1007,9 @@ class Listener(threading.Thread):
 
 def filename_to_cmd(filename):
     cmd=filename.split('&')[0]
-    #print(cmd)
     params=filename.split('&')[1:]
     for i, param in enumerate(params):
-        params[i]=param.replace('\\','+').replace(':','=')
-    print('here is the output of filename_to_cmd')
-    print(params)
+        params[i]=param.replace('+','\\').replace('=',':')
     return cmd, params
 
 

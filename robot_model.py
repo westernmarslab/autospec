@@ -141,7 +141,7 @@ class Model:
         try:
             file=open(self.command_loc+'/'+filename,'w')
         except:
-            print('Ignore error in model.take_spectrum')
+            print('Ignoring file write error')
         self.spectrum_num+=1
         # if self.spec_compy_connected: 
         #     cmd='touch c:/Kathleen/test'+str(np.random.rand())
@@ -191,7 +191,6 @@ class Model:
 
     def set_save_path(self, path, basename, startnum):
         filename=cmd_to_filename('saveconfig',self.saveconfig_num,[path,basename,startnum])
-        print(filename)
         try:
             file=open(self.command_loc+'/'+filename,'w')
         except:
