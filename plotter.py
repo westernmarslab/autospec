@@ -16,6 +16,7 @@ class Plotter():
         self.root=root
         self.plots={}
         self.canvases={}
+        self.num=0
  
     def new_plot(self,title):
         top = tk.Toplevel(self.root)
@@ -25,11 +26,13 @@ class Plotter():
         canvas = FigureCanvasTkAgg(fig, master=top)
         canvas.get_tk_widget().pack()
         canvas.draw()
-        self.plots[i]=plot
-        self.canvases[i]=canvas
+        self.plots[title]=plot
+        self.canvases[title]=canvas
         
         def on_closing():
-            del self.plots[i]
+            # for i in self.plots:
+            #     del self.plots[i]
+            # #del self.plots[i]
             top.destroy()
         top.protocol("WM_DELETE_WINDOW", on_closing)
         
@@ -61,23 +64,28 @@ class Plotter():
     #     return wavelengths, reflectance
     #     
     def plot_spectra(self, title, file, caption):
+        try:
+            wavelengths, reflectance, labels=self.load_data(file)
+        except:
+            print('Error loading data!')
+            raise('Error loading data!')
+            return
         self.new_plot(title)
-        wavelengths, reflectance, labels=self.load_data(file)
+        #self.num=0
         colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
         for i,spectrum in enumerate(reflectance):
-            self.plots[name].plot(wavelengths, spectrum, label=labels[i+1], color=colors[i])
-        self.plots[name].set_title(name, fontsize=24)
-        self.plots[name].set_ylabel('Relative Reflectance',fontsize=18)
-        self.plots[name].set_xlabel('Wavelength (nm)',fontsize=18)
-        self.plots[name].tick_params(labelsize=14)
-        self.plots[name].legend()
-        self.canvases[name].draw()
+            self.plots[title].plot(wavelengths, spectrum, label=labels[i+1], color=colors[i])
+        self.plots[title].set_title(title, fontsize=24)
+        self.plots[title].set_ylabel('Relative Reflectance',fontsize=18)
+        self.plots[title].set_xlabel('Wavelength (nm)',fontsize=18)
+        self.plots[title].tick_params(labelsize=14)
+        self.plots[title].legend()
+        self.canvases[title].draw()
         
     def load_data(self, file):
-        print('loading')
+        
         data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
         labels=list(data.dtype.names)
-        print(labels)
         data=zip(*data)
         wavelengths=[]
         #reflectance=[[],[]]

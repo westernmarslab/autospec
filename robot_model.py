@@ -71,12 +71,13 @@ class Model:
         self.plotter.plot_spectrum(10,10,[[1,2,3,4,5],[1,2,3,4,5]])
         
     def process(self,input_dir, output_dir, output_file):
-        filename=cmd_to_params('process',self.process_num,[input_dir,output_dir,output_file])
+        filename=cmd_to_filename('process',self.process_num,[input_dir,output_dir,output_file])
         self.process_num=self.process_num+1
         try:
-            file=open(self.command_loc_+'/'+filename,'w+')
+            file=open(self.command_loc+'/'+filename,'w+')
         except:
             print('ignoring error in process')
+        file=open(self.command_loc+'/'+filename,'w+')
         
 
     def go(self, incidence, emission):
