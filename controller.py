@@ -63,10 +63,10 @@ read_command_loc=share_loc+'/commands/from_spec'
 config_loc='/home/khoza/Python/auto_goniometer/config'
 
 def main():
-    
-    delme=os.listdir(read_command_loc)
-    for file in delme:
-        os.remove(read_command_loc+'/'+file)
+    #Really only need to delete everything in write command loc. We only check for changes in readcommand loc after getting files0, so it should be fine.
+    # delme=os.listdir(read_command_loc)
+    # for file in delme:
+    #     os.remove(read_command_loc+'/'+file)
         
     delme=os.listdir(write_command_loc)
     for file in delme:
@@ -300,7 +300,7 @@ class Controller():
         self.timer_check_frame=Frame(self.timer_frame, bg=bg)
         self.timer_check_frame.pack(pady=(15,5))
         self.timer=IntVar()
-        self.timer_check=Checkbutton(self.timer_check_frame, text='Use a self.timer to take spectra at set intervals at each geometry', bg=bg, pady=pady,highlightthickness=0, variable=self.timer)
+        self.timer_check=Checkbutton(self.timer_check_frame, text='Use a timer to take spectra at set intervals at each geometry', bg=bg, pady=pady,highlightthickness=0, variable=self.timer)
         self.timer_check.pack(side=LEFT, pady=(5,15))
         self.timer_spectra_label=Label(self.timer_frame,padx=padx,pady=pady,bg=bg,text='Total duration (min):')
         self.timer_spectra_label.pack(side=LEFT, padx=padx,pady=(0,8))
@@ -389,7 +389,6 @@ class Controller():
         self.plot_title_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot title:')
         self.plot_title_label.pack(padx=padx,pady=pady)
         self.plot_title_entry=Entry(self.plot_frame, width=50)
-        self.plot_title_entry.insert(0, output_dir)
         self.plot_title_entry.pack()
         
         self.plot_caption_frame=Frame(self.plot_frame, bg=bg)
@@ -397,7 +396,6 @@ class Controller():
         self.plot_caption_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot caption:')
         self.plot_caption_label.pack(padx=padx,pady=pady)
         self.plot_caption_entry=Entry(self.plot_frame, width=50)
-        self.plot_caption_entry.insert(0, output_dir)
         self.plot_caption_entry.pack()
         
         
@@ -436,7 +434,7 @@ class Controller():
         self.console_entry.focus()
     
         self.notebook.add(self.auto_frame, text='Spectrometer control')
-        self.notebook.add(self.dumb_frame, text='self.timer control')
+        self.notebook.add(self.dumb_frame, text='Timer')
         self.notebook.add(self.process_frame, text='Data processing')
         self.notebook.add(self.plot_frame, text='Plot')
         self.notebook.add(self.console_frame, text='Console')
@@ -507,7 +505,7 @@ class Controller():
         global spec_save_path
         global spec_basename
         global g_spec_num
-        
+
         incidence=self.man_incidence_entry.get()
         emission=self.man_emission_entry.get()
         
@@ -529,38 +527,35 @@ class Controller():
                 
         new_spec_save_dir=self.spec_save_path_entry.get()
         new_spec_basename=self.spec_basename_entry.get()
-        if new_spec_save_dir=='' or new_spec_basename=='':
-            dialog=ErrorDialog(self,'Error: Please enter a save directory and a basename')
-            return
         try:
             new_spec_num=int(self.spec_startnum_entry.get())
         except:
             dialog=ErrorDialog(self,'Error: Invalid spectrum number')
             return
-
-        if new_spec_save_dir != spec_save_path or new_spec_basename != spec_basename or g_spec_num==None or new_spec_num!=g_spec_num:
-            self.set_save_config()
-            time.sleep(1)
-
-
+            
         startnum_str=str(self.spec_startnum_entry.get())
         while len(startnum_str)<3:
             startnum_str='0'+startnum_str
             
+        if new_spec_save_dir=='' or new_spec_basename=='':
+            dialog=ErrorDialog(self,'Error: Please enter a save directory and a basename')
+            return
+
+
+        if new_spec_save_dir != spec_save_path or new_spec_basename != spec_basename or g_spec_num==None or new_spec_num!=g_spec_num:
+            self.set_save_config()
+
+
+
+            
         self.model.take_spectrum(incidence,emission)
         
-        filename=self.spec_save_path_entry.get()+'\\'+self.spec_basename_entry.get()+'.'+startnum_str
-        self.listener.expected_data_files.append(filename)
+        #filename=self.spec_save_path_entry.get()+'\\'+self.spec_basename_entry.get()+'.'+startnum_str
+        #print('telling listener to expect '+filename)
+        #filetupe=(filename,)
+        #self.listener.ex_files=self.listener.ex_files+filetupe
         
-        info_string='UNVERIFIED:\n Spectrum saved at '+str(datetime.datetime.now())+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+filename+'\n\tNotes: '+self.man_notes_entry.get()+'\n'
-        self.textbox.insert(END,info_string)
-        #self.increment_num()
-        with open(self.log_filename,'a') as log:
-            log.write(info_string)
         
-        self.man_incidence_entry.delete(0,'end')
-        self.man_emission_entry.delete(0,'end')
-        self.man_notes_entry.delete(0,'end')
         
         if self.spec_save_config.get():
             file=open(self.config_loc+'/spec_save','w')
@@ -584,7 +579,9 @@ class Controller():
         g_spec_num=int(spec_num)
         while len(spec_num)<3:
             spec_num='0'+spec_num
+        self.listener.waiting_for_saveconfig='waiting'
         self.model.set_save_path(spec_save_path, spec_basename, spec_num)
+        #while self.listener.wait_for_saveconfig=='waiting':
             
     def increment_num(self):
         try:
@@ -733,11 +730,31 @@ class Controller():
         self.input_dir_entry.delete(0,'end')
         self.input_dir_entry.insert(0,input_dir)
         
-    def validate_output_dir():
+    def validate_output_dir(self):
         output_dir=rm_reserved_chars(self.output_dir_entry.get())
         self.output_dir_entry.delete(0,'end')
         self.output_dir_entry.insert(0,output_dir)
 
+    def success(self):
+        global spec_save_path
+        global spec_basename
+        global g_spec_num
+        numstr=str(g_spec_num)
+        while len(numstr)<3:
+            numstr='0'+numstr
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+spec_save_path+'\\'+spec_basename+'.'+numstr+'\n\tNotes: '+self.man_notes_entry.get()+'\n'
+        
+        self.textbox.insert(END,info_string)
+        with open(self.log_filename,'a') as log:
+            log.write(info_string)
+            
+        self.man_incidence_entry.delete(0,'end')
+        self.man_emission_entry.delete(0,'end')
+        self.man_notes_entry.delete(0,'end')
 
     
 class Dialog:
@@ -841,6 +858,8 @@ class WaitDialog(Dialog):
         self.pbar.start([10])
         self.pbar.pack(padx=(10,10),pady=(10,10))
         
+        self.listener=self.controller.listener
+        
         thread = Thread(target = self.wait, args = (10, ))
         thread.start()
         
@@ -852,10 +871,28 @@ class WaitDialog(Dialog):
                 self.controller.listener.failed=False
                 self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?')
                 return
+            #print('waiting for saveconfig?')
+            #print(self.controller.listener.waiting_for_saveconfig)
+            # elif self.listener.unexpected_file !=None:
+            #     self.listener.unexpected_file=None
+
+            elif 'failed' in self.controller.listener.waiting_for_saveconfig:
+                if 'fileexists' in self.controller.listener.waiting_for_saveconfig:
+                    self.interrupt('Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.')
+                    #dialog=ErrorDialog(self.controller, label='Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.')
+                else:
+                    self.interrupt('Error: There was a problem with setting the save configuration.')
+                    print('failed to save config for a different reason')
+                self.controller.listener.waiting_for_saveconfig='done'
+                print('waiting for saveconfig failed:')
+                print(self.controller.listener.waiting_for_saveconfig)
+                return
+                
             elif self.controller.listener.noconfig==True:
                 self.controller.listener.noconfig=False
+                print('got noconfig, saving to current')
                 self.controller.set_save_config()
-                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get())
+                #self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get())
                 
             time.sleep(1)
             current_files=self.controller.listener.saved_files
@@ -872,6 +909,7 @@ class WaitDialog(Dialog):
                         while len(spec_num_string)<3:
                             spec_num_string='0'+spec_num_string
                         self.controller.spec_startnum_entry.insert(0,spec_num_string)
+                        self.controller.success()
                         self.interrupt('Success!')
                         return
         self.timeout()
@@ -930,11 +968,25 @@ class Listener(threading.Thread):
         threading.Thread.__init__(self)
         self.read_command_loc=read_command_loc
         self.saved_files=[]
-        self.expected_data_files=[]
+        #self.__ex_files=()
+        # print('expected data files:')
+        # print(self.ex_files)
         self.controller=None
         
         self.failed=False
         self.noconfig=False
+        self.waiting_for_saveconfig=None
+        self.unexpect_file=None
+        
+    # @property
+    # def ex_files(self):
+    #     return self.__ex_files
+
+    #   @ex_files.setter
+    # def ex_files(self, newfiles):
+    #     print('changing data files to these ones:')
+    #     print(newfiles)
+    #     self.__ex_files=newfiles
         
     def set_controller(self,controller):
         self.controller=controller
@@ -951,40 +1003,51 @@ class Listener(threading.Thread):
                         cmd, params=filename_to_cmd(file)
                         #os.remove(read_command_loc+'/'+file)
                         if 'savedfile' in cmd:
+                            self.saved_files.append(params[0])
+                            # if params[0] in self.ex_files:
+                            #     self.saved_files.append(params[0])
+                            # else:
+                            #     print("I wasn't expecting that!")
+                            #     print(params[0])
+                            #     print('here is what I was expecting')
+                            #     print(self.ex_files)
 
-                            if params[0] in self.expected_data_files:
-                                self.saved_files.append(params[0])
-                            else:
-                                print("I wasn't expecting that!")
-                                dialog=ErrorDialog(self.controller, label="Warning! I wasn't expecting that! The spectrometer compy was happy to save this file but I don't think it should be here The\n\n"+params[0])
+                                #dialog=ErrorDialog(self.controller, label="Warning! I wasn't expecting that! The spectrometer compy was happy to save this file but I don't think it should be here The\n\n"+params[0])
                         elif 'failedtosavefile' in cmd:
+                            print(cmd)
                             self.failed=True
+                            print('I think I found a failed to save file commmand')
                             pass
                             #dialog=ErrorDialog(self.controller, label='Error: Processing failed')
                         elif 'processerror' in cmd:
                             dialog=ErrorDialog(self.controller, label='Error: Processing failed.')
                         elif 'unexpectedfile' in cmd:
-                            #This is hacky and bad. If you switch save directories and the new one has files that shouldn't be there but have the same names as ones in your old directory that should be there then you will lose.
+                            #This is hacky and bad. If you switch save directories and the new one has files that shouldn't be there but have the same names as ones in your old directory that should be there then this will think it's fine. Need to fix this on spec compy side.
                             print('could one of these match?')
                             ignore=False
-                            for file in self.expected_data_files:
-                                end=file.split('\\')[-1]
-                                if end==params[0]:
-                                    print('I think this file is probably fine: '+params[0])
-                                    ignore=True
+                            # for file in self.ex_files:
+                            #     end=file.split('\\')[-1]
+                            #     if end==params[0]:
+                            #         print('I think this file is probably fine: '+params[0])
+                            #         #ignore=True
                                     
                             if not ignore:
                                 print('unexpected file: '+params[0])
+                                self.unexpected_file=params[0]
                                 dialog=ErrorDialog(self.controller, label='Warning! Unexpected file in data directory.\nDoes this belong here? Make sure numbers match\nbetween computers before continuing\n\n'+params[0])
                         elif 'saveconfigerror' in cmd:
-                            self.failed=True
+                            self.waiting_for_saveconfig='failed:saveconfigerror'
                             #dialog=ErrorDialog(self.controller, label='Error: Failed to set save configuration.\nAre you sure the spectrometer is connected?')
+                        elif 'saveconfigsuccess' in cmd:
+                            self.waiting_for_saveconfig='success'
                         elif 'noconfig' in cmd:
-                            print('GOT NO CONFIG')
+                            print("Spectrometer computer doesn't have a file configuration saved (python restart over there?). Setting to current configuration.")
                             self.noconfig=True
-
+                        elif 'fileexists' in cmd:
+                            print('found filexists')
+                            self.waiting_for_saveconfig='failed:fileexists'
                         else:
-                            print('unexpected file: '+file)
+                            print('unexpected cmd: '+file)
                 #This line always prints twice if it's uncommented, I'm not sure why.
                 #print('forward!')
                 
