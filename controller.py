@@ -51,6 +51,8 @@ global spec_basename
 spec_basename=''
 global g_spec_num
 g_spec_num=None
+global spec_config_count
+spec_config_count=None
 
 global user_cmds
 user_cmds=[]
@@ -103,7 +105,10 @@ class Controller():
         self.model=Model(self.view, self.plotter, self.share_loc, self.write_command_loc, False, False)
         
         self.take_spectrum_with_bad_i_or_e=False
-    
+        self.wr_time=None
+        self.opt_time=None
+        self.wr_limit=20
+        self.opt_limit=20
             
         master_bg='white'
         self.master.configure(background = master_bg)
@@ -163,6 +168,14 @@ class Controller():
         self.spec_save_config_check=Checkbutton(self.auto_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=self.spec_save_config)
         self.spec_save_config_check.pack(pady=pady)
         self.spec_save_config_check.select()
+        
+        self.instrument_config_frame=Frame(self.auto_frame, bg=bg)
+        self.instrument_config_frame.pack(pady=(20,20))
+        self.instrument_config_label=Label(self.instrument_config_frame, text='Number of spectra to average:', bg=bg)
+        self.instrument_config_label.pack(side=LEFT)
+        self.instrument_config_entry=Entry(self.instrument_config_frame, width=10)
+        self.instrument_config_entry.insert(0, 5)
+        self.instrument_config_entry.pack(side=LEFT)
         
         self.auto_check_frame=Frame(self.auto_frame, bg=bg)
         self.auto_check_frame.pack()
@@ -484,15 +497,37 @@ class Controller():
                 file.write(self.spec_basename_entry.get()+'\n')
                 file.write(self.spec_startnum_entry.get()+'\n')
     def wr(self):
+        global spec_config_count
+        try:
+            new_spec_config_count=int(self.instrument_config_entry.get())
+        except:
+            dialog=ErrorDialog(self,'Error: Invalid number of spectra to average')
+            return 
+        if spec_config_count==None or str(new_spec_config_count) !=str(spec_config_count):
+            self.configure_instrument()
+            
         self.model.white_reference()
-        info_string='UNVERIFIED:\n White reference taken at '+str(datetime.datetime.now())+'\n'
+        self.wr_time=int(time.time())
+        
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+        
+        info_string='UNVERIFIED:\n White reference taken at '+datestring+'\n'
         with open(self.log_filename,'a') as log:
             log.write(info_string)
         self.textbox.insert(END,info_string)
     def opt(self):
         self.model.opt()
-        self.model.white_reference()
-        info_string='UNVERIFIED:\n Instrument optimized at '+str(datetime.datetime.now())+'\n'
+        self.opt_time=int(time.time())
+        #self.model.white_reference()
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+        
+        info_string='UNVERIFIED:\n Instrument optimized at '+datestring+'\n'
         with open(self.log_filename,'a') as log:
             log.write(info_string)
         self.textbox.insert(END, info_string)
@@ -501,22 +536,66 @@ class Controller():
         print(arg)
         
             
-    def take_spectrum(self, force=False):
+    def take_spectrum(self, input_check=True, opt_wr_check=True):
+        now=int(time.time())
+        print('Here is whether to check input: '+str(input_check))
+        print('Here is whether to check for wr and opt: '+str(opt_wr_check))
+        try:
+            print('Here is the amount of time elapsed since last wr: '+str(now-self.wr_time))
+        except:
+            print(self.wr_time)
+            
+        try:
+            print('Here is the amount of time elapsed since last opt: '+str(now-self.opt_time))
+        except:
+            print(self.opt_time)
         global spec_save_path
         global spec_basename
         global g_spec_num
+        global spec_config_count
+        
+        if opt_wr_check:
+            
+            if self.wr_time==None or self.opt_time==None or now-self.wr_time>self.wr_limit or now-self.opt_time>self.opt_limit:
+                title='Warning!'
+                buttons={
+                    'yes':{
+                        self.take_spectrum:[input_check,False],
+                        self.test:[True]
+                    },
+                    'no':{}
+                }
+                label='Warning!'
+                if self.opt_time==None: label+=' The instrument has not been optimized.'
+                elif now-self.opt_time>self.opt_limit: 
+                    minutes=str(int((now-self.opt_time)/60))
+                    seconds=str((now-self.opt_time)%60)
+                    if int(minutes)>0:
+                        label+=' The instrument has not been optimized for '+minutes+' minutes '+seconds+' seconds.'
+                    else: label+=' The instrument has not been optimized for '+seconds+' seconds.'
+                
+                if self.wr_time==None: label+=' No white reference has been taken.'
+                elif now-self.wr_time>self.wr_limit: 
+                    minutes=str(int((now-self.wr_time)/60))
+                    seconds=str((now-self.wr_time)%60)
+                    if int(minutes)>0:
+                        label+=' No white reference has been taken for '+minutes+' minutes '+seconds+' seconds.'
+                    else: label+=' No white reference has been taken for '+seconds+' seconds.'
+                label+='\nDo you want to continue?'
+                dialog=Dialog(self,title,label,buttons)
+                return
 
         incidence=self.man_incidence_entry.get()
         emission=self.man_emission_entry.get()
         
             
-        if force==False: 
+        if input_check: 
             if self.man_incidence_entry.get()=='' or self.man_emission_entry.get()=='':
                 
                 title='Error: Invalid Input'
                 buttons={
                     'yes':{
-                        self.take_spectrum:[True],
+                        self.take_spectrum:[False,opt_wr_check],
                         self.test:[True]
                     },
                     'no':{}
@@ -533,6 +612,12 @@ class Controller():
             dialog=ErrorDialog(self,'Error: Invalid spectrum number')
             return
             
+        try:
+            new_spec_config_count=int(self.instrument_config_entry.get())
+        except:
+            dialog=ErrorDialog(self,'Error: Invalid number of spectra to average')
+            return    
+            
         startnum_str=str(self.spec_startnum_entry.get())
         while len(startnum_str)<3:
             startnum_str='0'+startnum_str
@@ -544,9 +629,9 @@ class Controller():
 
         if new_spec_save_dir != spec_save_path or new_spec_basename != spec_basename or g_spec_num==None or new_spec_num!=g_spec_num:
             self.set_save_config()
-
-
-
+            
+        if spec_config_count==None or str(new_spec_config_count) !=str(spec_config_count):
+            self.configure_instrument()
             
         self.model.take_spectrum(incidence,emission)
         
@@ -565,9 +650,15 @@ class Controller():
 
             self.input_dir_entry.delete(0,'end')
             self.input_dir_entry.insert(0,self.spec_save_path_entry.get())
-        
-        wait_dialog=WaitDialog(self)
+        timeout=new_spec_config_count+10
+        print('timeout should be '+str(timeout))
+        wait_dialog=WaitDialog(self, timeout=timeout)
         return wait_dialog
+    
+    def configure_instrument(self):
+        global spec_config_count
+        spec_config_count=self.instrument_config_entry.get()
+        self.model.configure_instrument(spec_config_count)
         
     def set_save_config(self):
         global g_spec_num
@@ -817,7 +908,11 @@ class Dialog:
         self.top.destroy()
         for func in dict:
             arg=dict[func][0]
-            func(arg)
+            try:
+                arg1=dict[func][1]
+                func(arg, arg1)
+            except:
+                func(arg)
         
     def no(self):
         dict=self.buttons['no']
@@ -828,6 +923,7 @@ class Dialog:
             
     def cancel(self):
         dict=self.buttons['cancel']
+        print('made it to cancellation')
         self.top.destroy()
         for func in dict:
             arg=dict[func][0]
@@ -841,9 +937,10 @@ class Dialog:
 #     def command(self, func_dict):
         
 class WaitDialog(Dialog):
-    def __init__(self, controller, title='Working...', label='Working...', buttons={'cancel':{}}, timeout=-1):
+    def __init__(self, controller, title='Working...', label='Working...', buttons={'cancel':{}}, timeout=10):
         t0=time.clock()
         t=time.clock()
+        self.canceled=False
 
         super().__init__(controller, title, label,buttons)
         
@@ -859,14 +956,24 @@ class WaitDialog(Dialog):
         self.pbar.pack(padx=(10,10),pady=(10,10))
         
         self.listener=self.controller.listener
+        self.timeoutint=timeout
         
-        thread = Thread(target = self.wait, args = (10, ))
+        thread = Thread(target = self.wait, args = (self.timeoutint, ))
         thread.start()
+    
+    def cancel(self):
+
+        self.canceled=True
         
-    def wait(self, timeout):
+    def wait(self, timeoutint):
+        
+        print('my timeout is '+str(timeoutint))
         old_files=list(self.controller.listener.saved_files)
-        timeout=15
-        for i in range(timeout):
+        for i in range(timeoutint):
+            if self.canceled==True:
+                print('canceled!')
+                self.interrupt('Operation canceled by user. Warning! This might\nhave left some of your changes halfway entered\nor the spectrometer software in a strange state.')
+                return
             if self.controller.listener.failed:
                 self.controller.listener.failed=False
                 self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?')
@@ -888,11 +995,16 @@ class WaitDialog(Dialog):
                 print(self.controller.listener.waiting_for_saveconfig)
                 return
                 
-            elif self.controller.listener.noconfig==True:
-                self.controller.listener.noconfig=False
+            elif self.controller.listener.noconfig=='noconfig':
+                self.controller.listener.noconfig=''
                 print('got noconfig, saving to current')
                 self.controller.set_save_config()
-                #self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get())
+                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get())
+            elif self.controller.listener.nonumspectra=='nonumspectra':
+                self.controller.listener.nonumspectra=''
+                print('got nonumspectra, saving to current')
+                self.controller.configure_instrument()
+                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get())
                 
             time.sleep(1)
             current_files=self.controller.listener.saved_files
@@ -974,7 +1086,8 @@ class Listener(threading.Thread):
         self.controller=None
         
         self.failed=False
-        self.noconfig=False
+        self.noconfig=''
+        self.nonumspectra=''
         self.waiting_for_saveconfig=None
         self.unexpect_file=None
         
@@ -987,6 +1100,15 @@ class Listener(threading.Thread):
     #     print('changing data files to these ones:')
     #     print(newfiles)
     #     self.__ex_files=newfiles
+    
+    @property
+    def nonumspectra(self):
+        return self.__noconfig2
+        
+    @nonumspectra.setter
+    def nonumspectra(self, val):
+        print('changing noconfig2 to '+str(val))
+        self.__noconfig2=val
         
     def set_controller(self,controller):
         self.controller=controller
@@ -1001,57 +1123,45 @@ class Listener(threading.Thread):
                 for file in files:
                     if file not in files0:
                         cmd, params=filename_to_cmd(file)
-                        #os.remove(read_command_loc+'/'+file)
                         if 'savedfile' in cmd:
                             self.saved_files.append(params[0])
-                            # if params[0] in self.ex_files:
-                            #     self.saved_files.append(params[0])
-                            # else:
-                            #     print("I wasn't expecting that!")
-                            #     print(params[0])
-                            #     print('here is what I was expecting')
-                            #     print(self.ex_files)
 
-                                #dialog=ErrorDialog(self.controller, label="Warning! I wasn't expecting that! The spectrometer compy was happy to save this file but I don't think it should be here The\n\n"+params[0])
                         elif 'failedtosavefile' in cmd:
-                            print(cmd)
                             self.failed=True
-                            print('I think I found a failed to save file commmand')
-                            pass
-                            #dialog=ErrorDialog(self.controller, label='Error: Processing failed')
+                            
                         elif 'processerror' in cmd:
-                            dialog=ErrorDialog(self.controller, label='Error: Processing failed.')
+                            dialog=ErrorDialog(self.controller, label='Error: Processing failed.\nAre you sure directories exist?')
+                            
                         elif 'unexpectedfile' in cmd:
-                            #This is hacky and bad. If you switch save directories and the new one has files that shouldn't be there but have the same names as ones in your old directory that should be there then this will think it's fine. Need to fix this on spec compy side.
-                            print('could one of these match?')
-                            ignore=False
-                            # for file in self.ex_files:
-                            #     end=file.split('\\')[-1]
-                            #     if end==params[0]:
-                            #         print('I think this file is probably fine: '+params[0])
-                            #         #ignore=True
-                                    
-                            if not ignore:
-                                print('unexpected file: '+params[0])
-                                self.unexpected_file=params[0]
+                            self.unexpected_file=params[0]
+                            try:
                                 dialog=ErrorDialog(self.controller, label='Warning! Unexpected file in data directory.\nDoes this belong here? Make sure numbers match\nbetween computers before continuing\n\n'+params[0])
+                            except:
+                                print('Ignoring RuntimeError: Main thread not in main loop.')
+                                
                         elif 'saveconfigerror' in cmd:
                             self.waiting_for_saveconfig='failed:saveconfigerror'
-                            #dialog=ErrorDialog(self.controller, label='Error: Failed to set save configuration.\nAre you sure the spectrometer is connected?')
+                            
                         elif 'saveconfigsuccess' in cmd:
                             self.waiting_for_saveconfig='success'
+                            
                         elif 'noconfig' in cmd:
                             print("Spectrometer computer doesn't have a file configuration saved (python restart over there?). Setting to current configuration.")
-                            self.noconfig=True
+                            self.noconfig='noconfig'
+                            
+                        elif 'nonumspectra' in cmd:
+                            print("Spectrometer computer doesn't have an instrument configuration saved (python restart over there?). Setting to current configuration.")
+                            self.nonumspectra='nonumspectra' 
+                    
                         elif 'fileexists' in cmd:
-                            print('found filexists')
                             self.waiting_for_saveconfig='failed:fileexists'
+                            
                         else:
                             print('unexpected cmd: '+file)
                 #This line always prints twice if it's uncommented, I'm not sure why.
                 #print('forward!')
                 
-                files0=files
+            files0=files
                             
             time.sleep(1)
             

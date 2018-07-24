@@ -30,6 +30,7 @@ class Model:
         self.saveconfig_num=0
         self.process_num=0
         self.wr_num=0
+        self.instrumentconfig_num=0
         
         self.wr=Sample('wr')
         self.s1=Sample('Mars!')
@@ -196,6 +197,14 @@ class Model:
         except:
             print('ignoring error in set_save_path')
         self.saveconfig_num+=1
+    
+    def configure_instrument(self,number):
+        filename=cmd_to_filename('instrumentconfig',self.instrumentconfig_num,[number])
+        try:
+            file=open(self.command_loc+'/'+filename,'w')
+        except:
+            print('ignoring error in set_save_path')
+        self.instrumentconfig_num+=1
             
 
 def cmd_to_filename(cmd, num, parameters=[]):
