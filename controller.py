@@ -23,6 +23,7 @@ import datetime
 import time
 from threading import Thread
 import os
+import sys
 
 #From pyzo shell, looks in /home/khoza/Python for modules
 #From terminal, it will look in current directory
@@ -73,6 +74,10 @@ def main():
     delme=os.listdir(write_command_loc)
     for file in delme:
         os.remove(write_command_loc+'/'+file)
+        
+    delme=os.listdir(read_command_loc)
+    for file in delme:
+        os.remove(read_command_loc+'/'+file)
     
     listener=Listener(read_command_loc)
 
@@ -107,8 +112,6 @@ class Controller():
         self.take_spectrum_with_bad_i_or_e=False
         self.wr_time=None
         self.opt_time=None
-        self.wr_limit=20
-        self.opt_limit=20
             
         master_bg='white'
         self.master.configure(background = master_bg)
@@ -144,8 +147,8 @@ class Controller():
         self.auto_frame=Frame(self.notebook, bg=bg)
     
         self.spec_save_path_label=Label(self.auto_frame,padx=padx,pady=pady,bg=bg,text='Save directory:')
-        self.spec_save_path_label.pack(padx=padx,pady=pady)
-        self.spec_save_path_entry=Entry(self.auto_frame, width=50,bd=3)
+        self.spec_save_path_label.pack(padx=padx,pady=(15,5))
+        self.spec_save_path_entry=Entry(self.auto_frame, width=50,bd=1)
         self.spec_save_path_entry.insert(0, spec_save_path)
         self.spec_save_path_entry.pack(padx=padx, pady=pady)
     
@@ -154,34 +157,33 @@ class Controller():
         
         self.spec_basename_label=Label(self.spec_save_frame,pady=pady,bg=bg,text='Base name:')
         self.spec_basename_label.pack(side=LEFT,pady=(5,15),padx=(0,0))
-        self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=3)
+        self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=1)
         self.spec_basename_entry.pack(side=LEFT,padx=(5,5), pady=pady)
         self.spec_basename_entry.insert(0,spec_basename)
         
         self.spec_startnum_label=Label(self.spec_save_frame,padx=padx,pady=pady,bg=bg,text='Number:')
         self.spec_startnum_label.pack(side=LEFT,pady=pady)
-        self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=3)
+        self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=1)
         self.spec_startnum_entry.insert(0,spec_startnum)
         self.spec_startnum_entry.pack(side=RIGHT, pady=pady)
         
         self.spec_save_config=IntVar()
         self.spec_save_config_check=Checkbutton(self.auto_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=self.spec_save_config)
-        self.spec_save_config_check.pack(pady=pady)
+        self.spec_save_config_check.pack(pady=(0,5))
         self.spec_save_config_check.select()
         
         self.instrument_config_frame=Frame(self.auto_frame, bg=bg)
-        self.instrument_config_frame.pack(pady=(20,20))
+        self.instrument_config_frame.pack(pady=(15,15))
         self.instrument_config_label=Label(self.instrument_config_frame, text='Number of spectra to average:', bg=bg)
         self.instrument_config_label.pack(side=LEFT)
         self.instrument_config_entry=Entry(self.instrument_config_frame, width=10)
         self.instrument_config_entry.insert(0, 5)
         self.instrument_config_entry.pack(side=LEFT)
+        #self.filler_label=Label(self.instrument_config_frame,bg=bg,text='       ')
+        # self.filler_label.pack(side=LEFT)
         
-        self.auto_check_frame=Frame(self.auto_frame, bg=bg)
-        self.auto_check_frame.pack()
-        self.auto=IntVar()
-        self.auto_check=Checkbutton(self.auto_check_frame, text='Automatically iterate through viewing geometries', bg=bg, pady=pady,highlightthickness=0, variable=self.auto, command=self.auto_cycle_check)
-        self.auto_check.pack(side=LEFT, pady=pady)
+
+
         
         self.manual_frame=Frame(self.auto_frame, bg=bg)
         self.manual_frame.pack()
@@ -197,8 +199,8 @@ class Controller():
         
         self.man_notes_label=Label(self.auto_frame, padx=padx,pady=pady,bg=bg, text='Notes:')
         self.man_notes_label.pack()
-        self.man_notes_entry=Entry(self.auto_frame, width=60)
-        self.man_notes_entry.pack()
+        self.man_notes_entry=Entry(self.auto_frame, width=50)
+        self.man_notes_entry.pack(pady=(0,15))
         
         self.top_frame=Frame(self.auto_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=bg)
         #self.top_frame.pack()
@@ -289,7 +291,7 @@ class Controller():
         self.go_button.pack(padx=padx,pady=pady, side=LEFT)
         
         #***************************************************************
-        # Frame for manual control
+        # Frame for settings
         
         self.dumb_frame=Frame(self.notebook, bg=bg, pady=2*pady)
         self.dumb_frame.pack()
@@ -307,23 +309,99 @@ class Controller():
         # man_detector_entry=Entry(entries_frame, width=10,text='0')
         # man_detector_entry.insert(0,'10')
         # man_detector_entry.pack(side=LEFT)
+
+        # self.instrument_config_title_frame=Frame(self.dumb_frame, bg=bg)
+        # self.instrument_config_title_frame.pack(pady=pady)
+        # self.instrument_config_label0=Label(self.instrument_config_title_frame, text='Instrument Configuration:                                ', bg=bg)
+        # self.instrument_config_label0.pack(side=LEFT)
+
         
-        self.timer_frame=Frame(self.dumb_frame, bg=bg, pady=2*pady)
+        self.automation_title_frame=Frame(self.dumb_frame, bg=bg)
+        self.automation_title_frame.pack(pady=pady)
+        self.automation_label0=Label(self.automation_title_frame, text='Automation:                                               ', bg=bg)
+        self.automation_label0.pack(side=LEFT)
+        
+        
+        self.auto_check_frame=Frame(self.dumb_frame, bg=bg)
+        self.auto_check_frame.pack()
+        self.auto=IntVar()
+        self.auto_check=Checkbutton(self.auto_check_frame, text='Automatically iterate through viewing geometries', bg=bg, pady=pady,highlightthickness=0, variable=self.auto, command=self.auto_cycle_check)
+        self.auto_check.pack(side=LEFT, pady=pady)
+        
+        self.timer_title_frame=Frame(self.dumb_frame, bg=bg)
+        self.timer_title_frame.pack(pady=(10,0))
+        self.timer_label0=Label(self.timer_title_frame, text='Timer:                                                   ', bg=bg)
+        self.timer_label0.pack(side=LEFT)
+        self.timer_frame=Frame(self.dumb_frame, bg=bg, pady=pady)
         self.timer_frame.pack()
         self.timer_check_frame=Frame(self.timer_frame, bg=bg)
-        self.timer_check_frame.pack(pady=(15,5))
+        self.timer_check_frame.pack(pady=pady)
         self.timer=IntVar()
-        self.timer_check=Checkbutton(self.timer_check_frame, text='Use a timer to take spectra at set intervals at each geometry', bg=bg, pady=pady,highlightthickness=0, variable=self.timer)
-        self.timer_check.pack(side=LEFT, pady=(5,15))
-        self.timer_spectra_label=Label(self.timer_frame,padx=padx,pady=pady,bg=bg,text='Total duration (min):')
+        self.timer_check=Checkbutton(self.timer_check_frame, text='Collect sets of spectra using a timer           ', bg=bg, pady=pady,highlightthickness=0, variable=self.timer)
+        self.timer_check.pack(side=LEFT, pady=pady)
+        
+        self.timer_duration_frame=Frame(self.timer_frame, bg=bg)
+        self.timer_duration_frame.pack()
+        self.timer_spectra_label=Label(self.timer_duration_frame,padx=padx,pady=pady,bg=bg,text='Total duration (min):')
         self.timer_spectra_label.pack(side=LEFT, padx=padx,pady=(0,8))
-        self.timer_spectra_entry=Entry(self.timer_frame, width=10)
+        self.timer_spectra_entry=Entry(self.timer_duration_frame, width=10)
         self.timer_spectra_entry.pack(side=LEFT)
-        self.timer_interval_label=Label(self.timer_frame, padx=padx,pady=pady,bg=bg, text='Interval (min):')
+        self.filler_label=Label(self.timer_duration_frame,bg=bg,text='              ')
+        self.filler_label.pack(side=LEFT)
+        
+        self.timer_interval_frame=Frame(self.timer_frame, bg=bg)
+        self.timer_interval_frame.pack()
+        self.timer_interval_label=Label(self.timer_interval_frame, padx=padx,pady=pady,bg=bg, text='Interval (min):')
         self.timer_interval_label.pack(side=LEFT, padx=(10,0))
-        self.timer_interval_entry=Entry(self.timer_frame, width=10,text='0')
+        self.timer_interval_entry=Entry(self.timer_interval_frame, width=10,text='0')
     # self.timer_interval_entry.insert(0,'-1')
         self.timer_interval_entry.pack(side=LEFT, padx=(0,20))
+        self.filler_label=Label(self.timer_interval_frame,bg=bg,text='                   ')
+        self.filler_label.pack(side=LEFT)
+        
+        self.failsafe_title_frame=Frame(self.dumb_frame, bg=bg)
+        self.failsafe_title_frame.pack(pady=(10,0))
+        self.failsafe_label0=Label(self.failsafe_title_frame, text='Failsafes:                                              ', bg=bg)
+        self.failsafe_label0.pack(side=LEFT)
+        self.failsafe_frame=Frame(self.dumb_frame, bg=bg, pady=pady)
+        self.failsafe_frame.pack(pady=pady)
+
+        
+        self.wrfailsafe=IntVar()
+        self.wrfailsafe_check=Checkbutton(self.failsafe_frame, text='Prompt if no white reference has been taken.    ', bg=bg, pady=pady,highlightthickness=0, variable=self.wrfailsafe)
+        self.wrfailsafe_check.pack()#side=LEFT, pady=pady)
+        #self.wrfailsafe_check.select()
+        
+        self.wr_timeout_frame=Frame(self.failsafe_frame, bg=bg)
+        self.wr_timeout_frame.pack(pady=(0,10))
+        self.wr_timeout_label=Label(self.wr_timeout_frame, text='Timeout (s):', bg=bg)
+        self.wr_timeout_label.pack(side=LEFT, padx=(10,0))
+        self.wr_timeout_entry=Entry(self.wr_timeout_frame, width=10)
+        self.wr_timeout_entry.pack(side=LEFT, padx=(0,20))
+        self.wr_timeout_entry.insert(0,'120')
+        self.filler_label=Label(self.wr_timeout_frame,bg=bg,text='              ')
+        self.filler_label.pack(side=LEFT)
+        
+        
+        self.optfailsafe=IntVar()
+        self.optfailsafe_check=Checkbutton(self.failsafe_frame, text='Prompt if the instrument has not been optimized.', bg=bg, pady=pady,highlightthickness=0, variable=self.optfailsafe)
+        self.optfailsafe_check.pack()#side=LEFT, pady=pady)
+       # self.optfailsafe_check.select()
+        
+        self.opt_timeout_frame=Frame(self.failsafe_frame, bg=bg)
+        self.opt_timeout_frame.pack()
+        self.opt_timeout_label=Label(self.opt_timeout_frame, text='Timeout (s):', bg=bg)
+        self.opt_timeout_label.pack(side=LEFT, padx=(10,0))
+        self.opt_timeout_entry=Entry(self.opt_timeout_frame, width=10)
+        self.opt_timeout_entry.pack(side=LEFT, padx=(0,20))
+        self.opt_timeout_entry.insert(0,'240')
+        self.filler_label=Label(self.opt_timeout_frame,bg=bg,text='              ')
+        self.filler_label.pack(side=LEFT)
+        
+        self.anglesfailsafe=IntVar()
+        self.anglesfailsafe_check=Checkbutton(self.failsafe_frame, text='Check validity of emission and incidence angles.', bg=bg, pady=pady,highlightthickness=0, variable=self.anglesfailsafe)
+        self.anglesfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=pady)
+       # self.anglesfailsafe_check.select()
         
         # check_frame=Frame(man_frame, bg=bg)
         # check_frame.pack()
@@ -447,7 +525,7 @@ class Controller():
         self.console_entry.focus()
     
         self.notebook.add(self.auto_frame, text='Spectrometer control')
-        self.notebook.add(self.dumb_frame, text='Timer')
+        self.notebook.add(self.dumb_frame, text='Settings')
         self.notebook.add(self.process_frame, text='Data processing')
         self.notebook.add(self.plot_frame, text='Plot')
         self.notebook.add(self.console_frame, text='Console')
@@ -496,12 +574,47 @@ class Controller():
                 file.write(self.spec_save_path_entry.get()+'\n')
                 file.write(self.spec_basename_entry.get()+'\n')
                 file.write(self.spec_startnum_entry.get()+'\n')
-    def wr(self):
+    def wr(self, opt_check=True):
+        
+
+        if opt_check and self.optfailsafe.get():
+            label=''
+            now=int(time.time())
+            try:
+                opt_limit=int(float(self.opt_timeout_entry.get()))
+            except:
+                opt_limit=sys.maxsize
+                
+            if self.opt_time==None:
+                label+='The instrument has not been optimized.\n'
+            elif now-self.opt_time>opt_limit: 
+                minutes=str(int((now-self.opt_time)/60))
+                seconds=str((now-self.opt_time)%60)
+                if int(minutes)>0:
+                    label+='The instrument has not been optimized for '+minutes+' minutes '+seconds+' seconds.\n'
+                else: label+='The instrument has not been optimized for '+seconds+' seconds.\n'
+                
+            if label !='':
+                title='Warning!'
+                buttons={
+                    'yes':{
+                        self.wr:[False],
+                        self.test:[True]
+                    },
+                    'no':{}
+                }
+                label='Warning!\n'+label
+                label+='Do you want to continue?'
+                dialog=Dialog(self,title,label,buttons)
+                return
+                    
         global spec_config_count
         try:
             new_spec_config_count=int(self.instrument_config_entry.get())
+            if new_spec_config_count<1 or new_spec_config_count>32767:
+                raise(Exception)
         except:
-            dialog=ErrorDialog(self,'Error: Invalid number of spectra to average')
+            dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return 
         if spec_config_count==None or str(new_spec_config_count) !=str(spec_config_count):
             self.configure_instrument()
@@ -537,26 +650,42 @@ class Controller():
         
             
     def take_spectrum(self, input_check=True, opt_wr_check=True):
-        now=int(time.time())
-        print('Here is whether to check input: '+str(input_check))
-        print('Here is whether to check for wr and opt: '+str(opt_wr_check))
-        try:
-            print('Here is the amount of time elapsed since last wr: '+str(now-self.wr_time))
-        except:
-            print(self.wr_time)
-            
-        try:
-            print('Here is the amount of time elapsed since last opt: '+str(now-self.opt_time))
-        except:
-            print(self.opt_time)
         global spec_save_path
         global spec_basename
         global g_spec_num
         global spec_config_count
         
         if opt_wr_check:
-            
-            if self.wr_time==None or self.opt_time==None or now-self.wr_time>self.wr_limit or now-self.opt_time>self.opt_limit:
+            try:
+                wr_limit=int(float(self.wr_timeout_entry.get()))
+            except:
+                wr_limit=sys.maxsize
+            try:
+                opt_limit=int(float(self.opt_timeout_entry.get()))
+            except:
+                opt_limit=sys.maxsize
+                
+            label=''
+            if self.optfailsafe.get():
+                if self.opt_time==None:
+                    label+='The instrument has not been optimized.\n'
+                elif now-self.opt_time>opt_limit: 
+                    minutes=str(int((now-self.opt_time)/60))
+                    seconds=str((now-self.opt_time)%60)
+                    if int(minutes)>0:
+                        label+='The instrument has not been optimized for '+minutes+' minutes '+seconds+' seconds.\n'
+                    else: label+='The instrument has not been optimized for '+seconds+' seconds.\n'
+            if self.wrfailsafe.get():
+                if self.wr_time==None:
+                    label+='No white reference has been taken.\n'
+                elif now-self.wr_time>wr_limit: 
+                    minutes=str(int((now-self.wr_time)/60))
+                    seconds=str((now-self.wr_time)%60)
+                    if int(minutes)>0:
+                        label+=' No white reference has been taken for '+minutes+' minutes '+seconds+' seconds.\n'
+                    else: label+=' No white reference has been taken for '+seconds+' seconds.\n'
+
+            if label !='':
                 title='Warning!'
                 buttons={
                     'yes':{
@@ -565,23 +694,8 @@ class Controller():
                     },
                     'no':{}
                 }
-                label='Warning!'
-                if self.opt_time==None: label+=' The instrument has not been optimized.'
-                elif now-self.opt_time>self.opt_limit: 
-                    minutes=str(int((now-self.opt_time)/60))
-                    seconds=str((now-self.opt_time)%60)
-                    if int(minutes)>0:
-                        label+=' The instrument has not been optimized for '+minutes+' minutes '+seconds+' seconds.'
-                    else: label+=' The instrument has not been optimized for '+seconds+' seconds.'
-                
-                if self.wr_time==None: label+=' No white reference has been taken.'
-                elif now-self.wr_time>self.wr_limit: 
-                    minutes=str(int((now-self.wr_time)/60))
-                    seconds=str((now-self.wr_time)%60)
-                    if int(minutes)>0:
-                        label+=' No white reference has been taken for '+minutes+' minutes '+seconds+' seconds.'
-                    else: label+=' No white reference has been taken for '+seconds+' seconds.'
-                label+='\nDo you want to continue?'
+                label='Warning!\n'+label
+                label+='Do you want to continue?'
                 dialog=Dialog(self,title,label,buttons)
                 return
 
@@ -589,7 +703,7 @@ class Controller():
         emission=self.man_emission_entry.get()
         
             
-        if input_check: 
+        if input_check and self.anglesfailsafe.get(): 
             if self.man_incidence_entry.get()=='' or self.man_emission_entry.get()=='':
                 
                 title='Error: Invalid Input'
@@ -614,8 +728,10 @@ class Controller():
             
         try:
             new_spec_config_count=int(self.instrument_config_entry.get())
+            if new_spec_config_count<1 or new_spec_config_count>32767:
+                raise(Exception)
         except:
-            dialog=ErrorDialog(self,'Error: Invalid number of spectra to average')
+            dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return    
             
         startnum_str=str(self.spec_startnum_entry.get())
@@ -650,8 +766,7 @@ class Controller():
 
             self.input_dir_entry.delete(0,'end')
             self.input_dir_entry.insert(0,self.spec_save_path_entry.get())
-        timeout=new_spec_config_count+10
-        print('timeout should be '+str(timeout))
+        timeout=new_spec_config_count+20
         wait_dialog=WaitDialog(self, timeout=timeout)
         return wait_dialog
     
@@ -1010,7 +1125,7 @@ class WaitDialog(Dialog):
             current_files=self.controller.listener.saved_files
             
             if current_files==old_files:
-                print('waiting')
+                pass
             else:
                 for file in current_files:
                     if file not in old_files:
@@ -1123,6 +1238,7 @@ class Listener(threading.Thread):
                 for file in files:
                     if file not in files0:
                         cmd, params=filename_to_cmd(file)
+                        print(cmd)
                         if 'savedfile' in cmd:
                             self.saved_files.append(params[0])
 
