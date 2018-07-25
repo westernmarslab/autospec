@@ -1,0 +1,13 @@
+2018-07-25 13:43:17.873471
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:45:48
+	i=
+	e=
+	filename=C:\Users\hozak\science25\animals.000
+	Label: 
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:46:05
+	i=
+	e=
+	filename=C:\Users\hozak\science25\animals.001
+	Label: 

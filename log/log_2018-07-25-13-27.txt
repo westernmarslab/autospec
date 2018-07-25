@@ -1,0 +1,7 @@
+2018-07-25 13:27:44.715026
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:34:24
+	i=10
+	e=50
+	filename=C:\Users\hozak\science24\animals.001
+	Label: Fish

@@ -1,0 +1,19 @@
+2018-07-25 13:23:01.475154
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:23:42
+	i=10
+	e=50
+	filename=C:\Users\hozak\science23\animals.000
+	Label: Octopus
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:23:56
+	i=
+	e=
+	filename=C:\Users\hozak\science23\animals.001
+	Label: Gecko
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:25:27
+	i=15
+	e=80
+	filename=C:\Users\hozak\science23\animals.003
+	Label: Fish

@@ -1,0 +1,7 @@
+2018-07-25 12:38:39.130587
+SUCCESS:
+ Spectrum saved at 2018-07-25 12:39:51
+	i=
+	e=
+	filename=C:\Users\hozak\science16\animals.000
+	Notes: 

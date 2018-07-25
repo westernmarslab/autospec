@@ -63,18 +63,28 @@ class Plotter():
     #     print(reflectance)
     #     return wavelengths, reflectance
     #     
-    def plot_spectra(self, title, file, caption):
+    def plot_spectra(self, title, file, caption, loglabels):
+        print(loglabels)
         try:
-            wavelengths, reflectance, labels=self.load_data(file)
+            wavelengths, reflectance, default_labels=self.load_data(file)
         except:
             print('Error loading data!')
             raise('Error loading data!')
             return
+        
+        for i, label in enumerate(default_labels):
+            print(label)
+            
+            if label in loglabels:
+                if loglabels[label]!='':
+                    print(loglabels[label])
+                    default_labels[i]=loglabels[label]
+            
         self.new_plot(title)
         #self.num=0
         colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
         for i,spectrum in enumerate(reflectance):
-            self.plots[title].plot(wavelengths, spectrum, label=labels[i+1], color=colors[i])
+            self.plots[title].plot(wavelengths, spectrum, label=default_labels[i+1], color=colors[i])
         self.plots[title].set_title(title, fontsize=24)
         self.plots[title].set_ylabel('Relative Reflectance',fontsize=18)
         self.plots[title].set_xlabel('Wavelength (nm)',fontsize=18)
@@ -83,8 +93,9 @@ class Plotter():
         self.canvases[title].draw()
         
     def load_data(self, file):
-        
+        print('loading data')
         data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
+        print('got the data')
         labels=list(data.dtype.names)
         data=zip(*data)
         wavelengths=[]
@@ -98,7 +109,7 @@ class Plotter():
                 #d2=d/np.max(d) #d2 is normalized reflectance
                 #reflectance[0].append(d)
                 #reflectance[1].append(d2)
-
+        print('that went fine')
         return wavelengths, reflectance, labels
             
         

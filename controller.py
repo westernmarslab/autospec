@@ -95,7 +95,7 @@ class Controller():
         self.read_command_loc='self.share_loc+/commands/from_spec'
         self.config_loc='/home/khoza/Python/auto_goniometer/config'
         
-        self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
+        self.log_filename='/home/khoza/Python/auto_goniometer/log/log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
         with open(self.log_filename,'w+') as log:
             log.write(str(datetime.datetime.now())+'\n')
         if dev: plt.close('all')
@@ -197,7 +197,7 @@ class Controller():
         self.man_emission_entry=Entry(self.manual_frame, width=10)
         self.man_emission_entry.pack(side=LEFT, padx=(0,20))
         
-        self.man_notes_label=Label(self.auto_frame, padx=padx,pady=pady,bg=bg, text='Notes:')
+        self.man_notes_label=Label(self.auto_frame, padx=padx,pady=pady,bg=bg, text='Label:')
         self.man_notes_label.pack()
         self.man_notes_entry=Entry(self.auto_frame, width=50)
         self.man_notes_entry.pack(pady=(0,15))
@@ -475,19 +475,29 @@ class Controller():
         self.plot_input_dir_entry.insert(0, input_dir)
         self.plot_input_dir_entry.pack()
         
-        self.plot_title_frame=Frame(self.plot_frame, bg=bg)
-        self.plot_title_frame.pack()
+        # self.plot_title_frame=Frame(self.plot_frame, bg=bg)
+        # self.plot_title_frame.pack()
         self.plot_title_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot title:')
         self.plot_title_label.pack(padx=padx,pady=pady)
         self.plot_title_entry=Entry(self.plot_frame, width=50)
         self.plot_title_entry.pack()
         
-        self.plot_caption_frame=Frame(self.plot_frame, bg=bg)
-        self.plot_caption_frame.pack()
-        self.plot_caption_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot caption:')
-        self.plot_caption_label.pack(padx=padx,pady=pady)
-        self.plot_caption_entry=Entry(self.plot_frame, width=50)
-        self.plot_caption_entry.pack()
+        # self.plot_caption_frame=Frame(self.plot_frame, bg=bg)
+        # self.plot_caption_frame.pack()
+        # self.plot_caption_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot caption:')
+        # self.plot_caption_label.pack(padx=padx,pady=pady)
+        # self.plot_caption_entry=Entry(self.plot_frame, width=50)
+        # self.plot_caption_entry.pack()
+        
+        self.load_labels_frame=Frame(self.plot_frame, bg=bg)
+        self.load_labels_frame.pack()
+        self.load_labels=IntVar()
+        self.load_labels_check=Checkbutton(self.load_labels_frame, text='Load labels from log file', bg=bg, pady=pady,highlightthickness=0, variable=self.load_labels, command=self.load_labels_cmd)
+        self.load_labels_check.pack(pady=(5,5))
+        
+        self.load_labels_entry=Entry(self.load_labels_frame, width=50)
+        #self.load_labels_entry.pack()
+
         
         
         # pr_check_frame=Frame(self.process_frame, bg=bg)
@@ -501,7 +511,7 @@ class Controller():
         # self.process_plot_check.pack(side=LEFT, pady=(5,15))
         
         self.plot_button=Button(self.plot_frame, text='Plot', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=self.plot)
-        self.plot_button.pack()
+        self.plot_button.pack(pady=(10,5))
     
         #************************Console********************************
         self.console_frame=Frame(self.notebook, bg=bg)
@@ -542,6 +552,14 @@ class Controller():
     
 
         self.view.join()
+        
+    def load_labels_cmd(self):
+        if self.load_labels.get():
+            self.load_labels_entry.pack()
+            if self.load_labels_entry.get()=='':
+                self.load_labels_entry.insert(0,self.log_filename)
+        else:
+            self.load_labels_entry.pack_forget()
     
     def go(self):    
         if not self.auto.get():
@@ -666,6 +684,7 @@ class Controller():
                 opt_limit=sys.maxsize
                 
             label=''
+            now=int(time.time())
             if self.optfailsafe.get():
                 if self.opt_time==None:
                     label+='The instrument has not been optimized.\n'
@@ -742,12 +761,14 @@ class Controller():
             dialog=ErrorDialog(self,'Error: Please enter a save directory and a basename')
             return
 
-
+        save_timeout=0
         if new_spec_save_dir != spec_save_path or new_spec_basename != spec_basename or g_spec_num==None or new_spec_num!=g_spec_num:
+            savetimeout=10
             self.set_save_config()
-            
+        config_timeout=0
         if spec_config_count==None or str(new_spec_config_count) !=str(spec_config_count):
             self.configure_instrument()
+            config_timeout=15
             
         self.model.take_spectrum(incidence,emission)
         
@@ -766,7 +787,7 @@ class Controller():
 
             self.input_dir_entry.delete(0,'end')
             self.input_dir_entry.insert(0,self.spec_save_path_entry.get())
-        timeout=new_spec_config_count+20
+        timeout=new_spec_config_count+20+save_timeout+config_timeout
         wait_dialog=WaitDialog(self, timeout=timeout)
         return wait_dialog
     
@@ -812,6 +833,9 @@ class Controller():
         
     def process_cmd(self):
         output_file=self.output_file_entry.get()
+        if output_file=='':
+            dialog=ErrorDialog(self, label='Error: Enter an output file name')
+            return
         if '.' not in output_file: output_file=output_file+'.tsv'
         try:
             self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
@@ -834,9 +858,34 @@ class Controller():
         filename=filename.replace('C:\\Kathleen','/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen/')
         filename=filename.replace('\\','/')
         title=self.plot_title_entry.get()
-        caption=self.plot_caption_entry.get()
+        caption=''#self.plot_caption_entry.get()
+        labels={}
+        nextfile=None
+        nextnote=None
         try:
-            self.plotter.plot_spectra(title,filename,caption)
+            if self.load_labels.get():
+                with open(self.load_labels_entry.get()) as log:
+                    for line in log:
+                        if 'filename' in line:
+                            if '\\' in line:
+                                line=line.split('\\')
+                            else:
+                                line=line.split('/')
+                            nextfile=line[-1].strip('\n')
+                            nextfile=nextfile.split('.')
+                            nextfile=nextfile[0]+nextfile[1]
+                        elif 'Label' in line:
+                            nextnote=line.split('Label: ')[-1]
+                        if nextfile != None and nextnote != None:
+                            labels[nextfile]=nextnote.strip('\n')
+                            nextfile=None
+                            nextnote=None
+                        
+                    
+        except:
+            dialog=ErrorDialog(self, label='Error! File not found: '+self.load_labels_entry.get())
+        try:
+            self.plotter.plot_spectra(title,filename,caption,labels)
         except:
             dialog=Dialog(self, 'Plotting Error', 'Error: Plotting failed. Does file exist?',{'ok':{}})
         #self.plotter.plot_spectra(title,filename,caption)
@@ -945,14 +994,14 @@ class Controller():
         global spec_save_path
         global spec_basename
         global g_spec_num
-        numstr=str(g_spec_num)
+        numstr=str(g_spec_num-1)
         while len(numstr)<3:
             numstr='0'+numstr
         datestring=''
         datestringlist=str(datetime.datetime.now()).split('.')[:-1]
         for d in datestringlist:
             datestring=datestring+d
-        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+spec_save_path+'\\'+spec_basename+'.'+numstr+'\n\tNotes: '+self.man_notes_entry.get()+'\n'
+        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+spec_save_path+'\\'+spec_basename+'.'+numstr+'\n\tLabel: '+self.man_notes_entry.get()+'\n'
         
         self.textbox.insert(END,info_string)
         with open(self.log_filename,'a') as log:
@@ -1082,7 +1131,7 @@ class WaitDialog(Dialog):
         
     def wait(self, timeoutint):
         
-        print('my timeout is '+str(timeoutint))
+        #print('my timeout is '+str(timeoutint))
         old_files=list(self.controller.listener.saved_files)
         for i in range(timeoutint):
             if self.canceled==True:
@@ -1246,7 +1295,7 @@ class Listener(threading.Thread):
                             self.failed=True
                             
                         elif 'processerror' in cmd:
-                            dialog=ErrorDialog(self.controller, label='Error: Processing failed.\nAre you sure directories exist?')
+                            dialog=ErrorDialog(self.controller, label='Error: Processing failed.\nAre you sure directories exist?\nDoes the output file already exist?')
                             
                         elif 'unexpectedfile' in cmd:
                             self.unexpected_file=params[0]

@@ -1,0 +1,13 @@
+2018-07-25 12:41:50.137705
+SUCCESS:
+ Spectrum saved at 2018-07-25 12:42:20
+	i=10
+	e=40
+	filename=C:\Users\hozak\science17\animals.000
+	Notes: hippo
+SUCCESS:
+ Spectrum saved at 2018-07-25 12:44:59
+	i=
+	e=
+	filename=C:\Users\hozak\science17\animals.002
+	Notes: fish

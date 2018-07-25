@@ -1,0 +1,13 @@
+2018-07-25 13:19:31.001043
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:20:05
+	i=10
+	e=30
+	filename=C:\Users\hozak\science22\animals.001
+	Label: Iguana
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:20:47
+	i=
+	e=
+	filename=C:\Users\hozak\science22\animals.004
+	Label: 

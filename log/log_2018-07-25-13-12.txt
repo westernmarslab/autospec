@@ -1,0 +1,19 @@
+2018-07-25 13:12:28.825479
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:13:19
+	i=10
+	e=30
+	filename=C:\Users\hozak\science20\animals.000
+	Label: Bumblebee
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:13:41
+	i=
+	e=
+	filename=C:\Users\hozak\science20\animals.001
+	Label: iguana
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:16:08
+	i=
+	e=
+	filename=C:\Users\hozak\science20\animals.015
+	Label: 

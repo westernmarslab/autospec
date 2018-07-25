@@ -1,0 +1,27 @@
+2018-07-25 13:00:07.811933
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:00:54
+	i=10
+	e=50
+	filename=C:\Users\hozak\science18\animals.000
+	Notes: Elephant
+UNVERIFIED:
+ Instrument optimized at 2018-07-25 13:01:37
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:02:13
+	i=
+	e=
+	filename=C:\Users\hozak\science18\animals.001
+	Notes: Frog
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:02:23
+	i=
+	e=
+	filename=C:\Users\hozak\science18\animals.002
+	Notes: gecko
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:03:09
+	i=
+	e=
+	filename=C:\Users\hozak\science18\animals.004
+	Notes: horse

@@ -1,0 +1,7 @@
+2018-07-25 13:16:53.084956
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:17:27
+	i=10
+	e=15
+	filename=C:\Users\hozak\science21\animals.000
+	Label: Mouse

@@ -1,0 +1,13 @@
+2018-07-25 13:09:47.896589
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:10:20
+	i=10
+	e=90
+	filename=C:\Users\hozak\science19\animals.000
+	Label: Pig
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:10:34
+	i=
+	e=
+	filename=C:\Users\hozak\science19\animals.001
+	Label: Frog
