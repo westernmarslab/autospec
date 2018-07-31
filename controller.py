@@ -11,7 +11,7 @@ import imp
 import threading
 import tkinter as tk
 from tkinter import ttk
-import pygame
+#import pygame
 import pexpect
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -24,19 +24,16 @@ import time
 from threading import Thread
 import os
 import sys
+import platform
 
-#From pyzo shell, looks in /home/khoza/Python for modules
-#From terminal, it will look in current directory
-if dev: sys.path.append('auto_goniometer')
+if dev:
+    sys.path.append('C:\\Users\\hozak\\Python\\autospectroscopy')
 
 import robot_model
 import robot_view
 import plotter
 
-global PROCESS_COUNT
-global SPECTRUM_COUNT
-
-#This is needed because otherwise changes won't show up until you restart the shell.
+#This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't change
 if dev:
     imp.reload(robot_model)
     from robot_model import Model
@@ -44,86 +41,101 @@ if dev:
     from robot_view import View
     imp.reload(plotter)
     from plotter import Plotter
-    
-
-global spec_save_path
-spec_save_path=''
-global spec_basename
-spec_basename=''
-global g_spec_num
-g_spec_num=None
-global spec_config_count
-spec_config_count=None
-
-global user_cmds
-user_cmds=[]
-global user_cmd_index
-user_cmd_index=-1
-
-share_loc='/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen'
-write_command_loc=share_loc+'/commands/from_control'
-read_command_loc=share_loc+'/commands/from_spec'
-config_loc='/home/khoza/Python/auto_goniometer/config'
 
 def main():
-    #Really only need to delete everything in write command loc. We only check for changes in readcommand loc after getting files0, so it should be fine.
-    # delme=os.listdir(read_command_loc)
-    # for file in delme:
-    #     os.remove(read_command_loc+'/'+file)
+    #Server and share location. Could change if spectroscopy computer changes.
+    server='melissa'
+    share='specshare'
+    
+    #Figure out where this file is hanging out and tell python to look there for modules.
+    package_loc=os.path.dirname(sys.argv[0])
+    sys.path.append(package_loc)
+    if package_loc=='' and dev:
+        package_loc='C:\\Users\\hozak\\Python\\autospectroscopy'
+    
+    #Figure out all of your various directory locations. These will depend on what operating system you are using.
+    opsys=platform.system()
+    if opsys=='Darwin': opsys='Mac' #For some reason Macs identify themselves as Darwin. I don't know why but I think this is more intuitive.
+    if opsys=='Linux':
+        share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+share+'/'
+        delimiter='/'
+        write_command_loc=share_loc+'commands/from_control/'
+        read_command_loc=share_loc+'commands/from_spec/'
+        package_loc=package_loc+'/'
+        config_loc=package_loc+'/'+'config/'
+    elif opsys=='Windows':
+        share_loc='\\\\MELISSA\\SpecShare\\'
+        write_command_loc=share_loc+'commands\\from_control\\'
+        read_command_loc=share_loc+'commands\\from_spec\\'
+        package_loc=package_loc+'\\'
+        config_loc=package_loc+'config\\'
+    elif opsys=='Mac':
+        mac=ErrorDialog(self, label="ahhhhh I don't know what to do on a Mac!!")
         
+    #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
     delme=os.listdir(write_command_loc)
     for file in delme:
-        os.remove(write_command_loc+'/'+file)
-        
+        os.remove(write_command_loc+file)
     delme=os.listdir(read_command_loc)
     for file in delme:
-        os.remove(read_command_loc+'/'+file)
+        os.remove(read_command_loc+file)
     
+    #Create a listener, which listens for commands, and a controller, which manages the model (which writes commands) and the view.
     listener=Listener(read_command_loc)
-
-    control=Controller(listener)
-    
-    
+    control=Controller(listener, share_loc, write_command_loc, config_loc,opsys)
 
 class Controller():
-    def __init__(self, listener):
+    def __init__(self, listener, share_loc, write_command_loc, config_loc, opsys):
         self.listener=listener
         self.listener.set_controller(self)
         self.listener.start()
-        self.share_loc='/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen'
-        self.write_command_loc=self.share_loc+'/commands/from_control'
-        self.read_command_loc='self.share_loc+/commands/from_spec'
-        self.config_loc='/home/khoza/Python/auto_goniometer/config'
         
+        self.share_loc=share_loc
+        self.write_command_loc=write_command_loc
+        self.config_loc=config_loc
+        self.opsys=opsys
+        
+        #Log your actions!
         self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
         with open(self.log_filename,'w+') as log:
             log.write(str(datetime.datetime.now())+'\n')
         if dev: plt.close('all')
-    
-        self.view=View()
-        self.view.start()
         
-        self.master=Tk()
-        self.notebook=ttk.Notebook(self.master)
-        self.plotter=Plotter(self.master)
-    
-        self.model=Model(self.view, self.plotter, self.share_loc, self.write_command_loc, False, False)
-        
+        #These will get set via user input.
+        self.spec_save_path=''
+        self.spec_basename=''
+        self.spec_num=None
+        self.spec_config_count=None
         self.take_spectrum_with_bad_i_or_e=False
         self.wr_time=None
         self.opt_time=None
-            
-        master_bg='white'
-        self.master.configure(background = master_bg)
-        self.master.title('Control')
+        
+        #Tkinter notebook GUI
+        self.master=Tk()
+        self.notebook=ttk.Notebook(self.master)
+        
+        #The plotter, surprisingly, plots things.
+        self.plotter=Plotter(self.master)
+        
+        #The view displays what the software thinks the goniometer is up to.
+        self.view=View()
+        self.view.start()
     
+        #The model keeps track of the goniometer state and sends commands to the raspberry pi and spectrometer
+        self.model=Model(self.view, self.plotter, self.write_command_loc, False, False)
+        
+        #Yay formatting
+        bg='white'
+        bd=2
         padx=3
         pady=3
         border_color='light gray'
-        bg='white'
         button_width=15
         
-        process_config=open(self.config_loc+'/process_directories','r')
+        self.master.configure(background = bg)
+        self.master.title('Control')
+    
+        process_config=open(self.config_loc+'process_directories','r')
         input_dir=''
         output_dir=''
         try:
@@ -132,14 +144,14 @@ class Controller():
         except:
             print('invalid config')
     
-        self.spec_save_config=open(self.config_loc+'/spec_save','r')
-        spec_save_path=''
-        spec_basename=''
+        self.spec_save_config=open(self.config_loc+'spec_save','r')
+        self.spec_save_path=''
+        self.spec_basename=''
         spec_startnum=''
         
         try:
-            spec_save_path=self.spec_save_config.readline().strip('\n')
-            spec_basename=self.spec_save_config.readline().strip('\n')
+            self.spec_save_path=self.spec_save_config.readline().strip('\n')
+            self.spec_basename=self.spec_save_config.readline().strip('\n')
             spec_startnum=self.spec_save_config.readline().strip('\n')
         except:
             print('invalid config')
@@ -148,8 +160,8 @@ class Controller():
     
         self.spec_save_path_label=Label(self.auto_frame,padx=padx,pady=pady,bg=bg,text='Save directory:')
         self.spec_save_path_label.pack(padx=padx,pady=(15,5))
-        self.spec_save_path_entry=Entry(self.auto_frame, width=50,bd=1)
-        self.spec_save_path_entry.insert(0, spec_save_path)
+        self.spec_save_path_entry=Entry(self.auto_frame, width=50,bd=bd)
+        self.spec_save_path_entry.insert(0, self.spec_save_path)
         self.spec_save_path_entry.pack(padx=padx, pady=pady)
     
         self.spec_save_frame=Frame(self.auto_frame, bg=bg)
@@ -157,13 +169,13 @@ class Controller():
         
         self.spec_basename_label=Label(self.spec_save_frame,pady=pady,bg=bg,text='Base name:')
         self.spec_basename_label.pack(side=LEFT,pady=(5,15),padx=(0,0))
-        self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=1)
+        self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=bd)
         self.spec_basename_entry.pack(side=LEFT,padx=(5,5), pady=pady)
-        self.spec_basename_entry.insert(0,spec_basename)
+        self.spec_basename_entry.insert(0,self.spec_basename)
         
         self.spec_startnum_label=Label(self.spec_save_frame,padx=padx,pady=pady,bg=bg,text='Number:')
         self.spec_startnum_label.pack(side=LEFT,pady=pady)
-        self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=1)
+        self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=bd)
         self.spec_startnum_entry.insert(0,spec_startnum)
         self.spec_startnum_entry.pack(side=RIGHT, pady=pady)
         
@@ -176,7 +188,7 @@ class Controller():
         self.instrument_config_frame.pack(pady=(15,15))
         self.instrument_config_label=Label(self.instrument_config_frame, text='Number of spectra to average:', bg=bg)
         self.instrument_config_label.pack(side=LEFT)
-        self.instrument_config_entry=Entry(self.instrument_config_frame, width=10)
+        self.instrument_config_entry=Entry(self.instrument_config_frame, width=10, bd=bd)
         self.instrument_config_entry.insert(0, 5)
         self.instrument_config_entry.pack(side=LEFT)
         #self.filler_label=Label(self.instrument_config_frame,bg=bg,text='       ')
@@ -190,16 +202,16 @@ class Controller():
         
         self.man_incidence_label=Label(self.manual_frame,padx=padx,pady=pady,bg=bg,text='Incidence angle:')
         self.man_incidence_label.pack(side=LEFT, padx=padx,pady=(0,8))
-        self.man_incidence_entry=Entry(self.manual_frame, width=10)
+        self.man_incidence_entry=Entry(self.manual_frame, width=10, bd=bd)
         self.man_incidence_entry.pack(side=LEFT)
         self.man_emission_label=Label(self.manual_frame, padx=padx,pady=pady,bg=bg, text='Emission angle:')
         self.man_emission_label.pack(side=LEFT, padx=(10,0))
-        self.man_emission_entry=Entry(self.manual_frame, width=10)
+        self.man_emission_entry=Entry(self.manual_frame, width=10, bd=bd)
         self.man_emission_entry.pack(side=LEFT, padx=(0,20))
         
         self.man_notes_label=Label(self.auto_frame, padx=padx,pady=pady,bg=bg, text='Notes:')
         self.man_notes_label.pack()
-        self.man_notes_entry=Entry(self.auto_frame, width=50)
+        self.man_notes_entry=Entry(self.auto_frame, width=50, bd=bd)
         self.man_notes_entry.pack(pady=(0,15))
         
         self.top_frame=Frame(self.auto_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=bg)
@@ -224,15 +236,13 @@ class Controller():
         light_entries_frame=Frame(self.light_frame,bg=bg,padx=padx,pady=pady)
         light_entries_frame.pack(side=RIGHT)
         
-    
-        
-        light_start_entry=Entry(light_entries_frame,bd=3,width=10)
+        light_start_entry=Entry(light_entries_frame,width=10, bd=bd)
         light_start_entry.pack(padx=padx,pady=pady)
         light_start_entry.insert(0,'10')
         
-        light_end_entry=Entry(light_entries_frame,bd=1,width=10, highlightbackground='white')
+        light_end_entry=Entry(light_entries_frame,width=10, highlightbackground='white', bd=bd)
         light_end_entry.pack(padx=padx,pady=pady)    
-        light_increment_entry=Entry(light_entries_frame,bd=1,width=10,highlightbackground='white')
+        light_increment_entry=Entry(light_entries_frame,width=10,highlightbackground='white', bd=bd)
         light_increment_entry.pack(padx=padx,pady=pady)
         
         detector_frame=Frame(self.top_frame,bg=bg)
@@ -255,17 +265,15 @@ class Controller():
         
         detector_entries_frame=Frame(detector_frame,bg=bg,padx=padx,pady=pady)
         detector_entries_frame.pack(side=RIGHT)
-        detector_start_entry=Entry(detector_entries_frame,bd=3,width=10)
+        detector_start_entry=Entry(detector_entries_frame,bd=bd,width=10)
         detector_start_entry.pack(padx=padx,pady=pady)
         detector_start_entry.insert(0,'0')
         
-        detector_end_entry=Entry(detector_entries_frame,bd=1,width=10,highlightbackground='white')
+        detector_end_entry=Entry(detector_entries_frame,bd=bd,width=10,highlightbackground='white')
         detector_end_entry.pack(padx=padx,pady=pady)
         
-        detector_increment_entry=Entry(detector_entries_frame,bd=1,width=10, highlightbackground='white')
+        detector_increment_entry=Entry(detector_entries_frame,bd=bd,width=10, highlightbackground='white')
         detector_increment_entry.pack(padx=padx,pady=pady)
-        
-    
         
         self.auto_check_frame=Frame(self.auto_frame, bg=bg)
         #self.auto_check_frame.pack()
@@ -344,7 +352,7 @@ class Controller():
         self.timer_duration_frame.pack()
         self.timer_spectra_label=Label(self.timer_duration_frame,padx=padx,pady=pady,bg=bg,text='Total duration (min):')
         self.timer_spectra_label.pack(side=LEFT, padx=padx,pady=(0,8))
-        self.timer_spectra_entry=Entry(self.timer_duration_frame, width=10)
+        self.timer_spectra_entry=Entry(self.timer_duration_frame, bd=1,width=10)
         self.timer_spectra_entry.pack(side=LEFT)
         self.filler_label=Label(self.timer_duration_frame,bg=bg,text='              ')
         self.filler_label.pack(side=LEFT)
@@ -353,7 +361,7 @@ class Controller():
         self.timer_interval_frame.pack()
         self.timer_interval_label=Label(self.timer_interval_frame, padx=padx,pady=pady,bg=bg, text='Interval (min):')
         self.timer_interval_label.pack(side=LEFT, padx=(10,0))
-        self.timer_interval_entry=Entry(self.timer_interval_frame, width=10,text='0')
+        self.timer_interval_entry=Entry(self.timer_interval_frame,bd=bd,width=10,text='0')
     # self.timer_interval_entry.insert(0,'-1')
         self.timer_interval_entry.pack(side=LEFT, padx=(0,20))
         self.filler_label=Label(self.timer_interval_frame,bg=bg,text='                   ')
@@ -376,7 +384,7 @@ class Controller():
         self.wr_timeout_frame.pack(pady=(0,10))
         self.wr_timeout_label=Label(self.wr_timeout_frame, text='Timeout (s):', bg=bg)
         self.wr_timeout_label.pack(side=LEFT, padx=(10,0))
-        self.wr_timeout_entry=Entry(self.wr_timeout_frame, width=10)
+        self.wr_timeout_entry=Entry(self.wr_timeout_frame, bd=bd,width=10)
         self.wr_timeout_entry.pack(side=LEFT, padx=(0,20))
         self.wr_timeout_entry.insert(0,'120')
         self.filler_label=Label(self.wr_timeout_frame,bg=bg,text='              ')
@@ -392,7 +400,7 @@ class Controller():
         self.opt_timeout_frame.pack()
         self.opt_timeout_label=Label(self.opt_timeout_frame, text='Timeout (s):', bg=bg)
         self.opt_timeout_label.pack(side=LEFT, padx=(10,0))
-        self.opt_timeout_entry=Entry(self.opt_timeout_frame, width=10)
+        self.opt_timeout_entry=Entry(self.opt_timeout_frame,bd=bd, width=10)
         self.opt_timeout_entry.pack(side=LEFT, padx=(0,20))
         self.opt_timeout_entry.insert(0,'240')
         self.filler_label=Label(self.opt_timeout_frame,bg=bg,text='              ')
@@ -429,7 +437,7 @@ class Controller():
         self.input_dir_label.pack(padx=padx,pady=pady)
         self.input_dir_var = StringVar()
         self.input_dir_var.trace('w', self.validate_input_dir)
-        self.input_dir_entry=Entry(self.process_frame, width=50, textvariable=self.input_dir_var)
+        self.input_dir_entry=Entry(self.process_frame, width=50,bd=bd, textvariable=self.input_dir_var)
         self.input_dir_entry.insert(0, input_dir)
         self.input_dir_entry.pack()
         
@@ -437,7 +445,7 @@ class Controller():
         self.output_frame.pack()
         self.output_dir_label=Label(self.process_frame,padx=padx,pady=pady,bg=bg,text='Output directory:')
         self.output_dir_label.pack(padx=padx,pady=pady)
-        self.output_dir_entry=Entry(self.process_frame, width=50)
+        self.output_dir_entry=Entry(self.process_frame, width=50,bd=bd)
         self.output_dir_entry.insert(0, output_dir)
         self.output_dir_entry.pack()
         
@@ -445,7 +453,7 @@ class Controller():
         self.output_file_frame.pack()
         self.output_file_label=Label(self.process_frame,padx=padx,pady=pady,bg=bg,text='Output file name:')
         self.output_file_label.pack(padx=padx,pady=pady)
-        self.output_file_entry=Entry(self.process_frame, width=50)
+        self.output_file_entry=Entry(self.process_frame, width=50,bd=bd)
         self.output_file_entry.pack()
         
         
@@ -471,7 +479,7 @@ class Controller():
         self.plot_input_frame.pack()
         self.plot_input_dir_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Path to .tsv file:')
         self.plot_input_dir_label.pack(padx=padx,pady=pady)
-        self.plot_input_dir_entry=Entry(self.plot_frame, width=50)
+        self.plot_input_dir_entry=Entry(self.plot_frame, width=50,bd=bd)
         self.plot_input_dir_entry.insert(0, input_dir)
         self.plot_input_dir_entry.pack()
         
@@ -479,14 +487,14 @@ class Controller():
         self.plot_title_frame.pack()
         self.plot_title_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot title:')
         self.plot_title_label.pack(padx=padx,pady=pady)
-        self.plot_title_entry=Entry(self.plot_frame, width=50)
+        self.plot_title_entry=Entry(self.plot_frame, width=50,bd=bd)
         self.plot_title_entry.pack()
         
         self.plot_caption_frame=Frame(self.plot_frame, bg=bg)
         self.plot_caption_frame.pack()
         self.plot_caption_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot caption:')
         self.plot_caption_label.pack(padx=padx,pady=pady)
-        self.plot_caption_entry=Entry(self.plot_frame, width=50)
+        self.plot_caption_entry=Entry(self.plot_frame, width=50,bd=bd)
         self.plot_caption_entry.pack()
         
         
@@ -515,7 +523,7 @@ class Controller():
     
         self.scrollbar.config(command=self.textbox.yview)
         self.textbox.configure(yscrollcommand=self.scrollbar.set)
-        self.console_entry=Entry(self.console_frame, width=self.notebook_width)
+        self.console_entry=Entry(self.console_frame, width=self.notebook_width,bd=bd)
         self.console_entry.bind("<Return>",self.run)
         self.console_entry.bind('<Up>',self.run)
         self.console_entry.bind('<Down>',self.run)
@@ -608,15 +616,18 @@ class Controller():
                 dialog=Dialog(self,title,label,buttons)
                 return
                     
-        global spec_config_count
         try:
+            print('in try')
             new_spec_config_count=int(self.instrument_config_entry.get())
+            print('went fine')
+            print(self.instrument_config_entry.get())
+            print(new_spec_config_count)
             if new_spec_config_count<1 or new_spec_config_count>32767:
                 raise(Exception)
         except:
             dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return 
-        if spec_config_count==None or str(new_spec_config_count) !=str(spec_config_count):
+        if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
             self.configure_instrument()
             
         self.model.white_reference()
@@ -650,11 +661,7 @@ class Controller():
         
             
     def take_spectrum(self, input_check=True, opt_wr_check=True):
-        global spec_save_path
-        global spec_basename
-        global g_spec_num
-        global spec_config_count
-        
+
         if opt_wr_check:
             try:
                 wr_limit=int(float(self.wr_timeout_entry.get()))
@@ -743,10 +750,12 @@ class Controller():
             return
 
 
-        if new_spec_save_dir != spec_save_path or new_spec_basename != spec_basename or g_spec_num==None or new_spec_num!=g_spec_num:
+        if new_spec_save_dir != self.spec_save_path or new_spec_basename != self.spec_basename or self.spec_num==None or new_spec_num!=self.spec_num:
+            print('set save config!')
             self.set_save_config()
             
-        if spec_config_count==None or str(new_spec_config_count) !=str(spec_config_count):
+        if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
+            print('configure!')
             self.configure_instrument()
             
         self.model.take_spectrum(incidence,emission)
@@ -767,27 +776,24 @@ class Controller():
             self.input_dir_entry.delete(0,'end')
             self.input_dir_entry.insert(0,self.spec_save_path_entry.get())
         timeout=new_spec_config_count+20
+        print('oh wait I must have gotten here')
         wait_dialog=WaitDialog(self, timeout=timeout)
         return wait_dialog
     
     def configure_instrument(self):
-        global spec_config_count
-        spec_config_count=self.instrument_config_entry.get()
-        self.model.configure_instrument(spec_config_count)
+        self.spec_config_count=self.instrument_config_entry.get()
+        self.model.configure_instrument(self.spec_config_count)
         
     def set_save_config(self):
-        global g_spec_num
-        global spec_save_path
-        global spec_basename
-        spec_save_path=self.spec_save_path_entry.get()
-        spec_basename = self.spec_basename_entry.get()
+        self.spec_save_path=self.spec_save_path_entry.get()
+        self.spec_basename = self.spec_basename_entry.get()
         spec_num=self.spec_startnum_entry.get()
-        g_spec_num=int(spec_num)
+        self.spec_num=int(spec_num)
         while len(spec_num)<3:
             spec_num='0'+spec_num
         self.listener.waiting_for_saveconfig='waiting'
-        self.model.set_save_path(spec_save_path, spec_basename, spec_num)
-        #while self.listener.wait_for_saveconfig=='waiting':
+        print('set save path, model!')
+        self.model.set_save_path(self.spec_save_path, self.spec_basename, spec_num)
             
     def increment_num(self):
         try:
@@ -831,8 +837,8 @@ class Controller():
             
     def plot(self):
         filename=self.plot_input_dir_entry.get()
-        filename=filename.replace('C:\\Kathleen','/run/user/1000/gvfs/smb-share:server=melissa,share=kathleen/')
-        filename=filename.replace('\\','/')
+        filename=filename.replace('C:\\SpecShare',self.share_loc)
+        if self.opsys=='Windows': filename=filename.replace('\\','/')
         title=self.plot_title_entry.get()
         caption=self.plot_caption_entry.get()
         try:
@@ -928,7 +934,7 @@ class Controller():
         else:
             while len(num)<3:
                 num=0+num
-        self.spec_startnum_entry.detel(0,'end')
+        self.spec_startnum_entry.delete(0,'end')
         self.spec_startnum_entry.insert(0,num)
     
     def validate_input_dir(self,*args):
@@ -942,17 +948,14 @@ class Controller():
         self.output_dir_entry.insert(0,output_dir)
 
     def success(self):
-        global spec_save_path
-        global spec_basename
-        global g_spec_num
-        numstr=str(g_spec_num)
+        numstr=str(int(self.spec_num)-1)
         while len(numstr)<3:
             numstr='0'+numstr
         datestring=''
         datestringlist=str(datetime.datetime.now()).split('.')[:-1]
         for d in datestringlist:
             datestring=datestring+d
-        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+spec_save_path+'\\'+spec_basename+'.'+numstr+'\n\tNotes: '+self.man_notes_entry.get()+'\n'
+        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+self.spec_save_path+'\\'+self.spec_basename+'.'+numstr+'\n\tNotes: '+self.man_notes_entry.get()+'\n'
         
         self.textbox.insert(END,info_string)
         with open(self.log_filename,'a') as log:
@@ -1129,10 +1132,9 @@ class WaitDialog(Dialog):
             else:
                 for file in current_files:
                     if file not in old_files:
-                        global g_spec_num
-                        g_spec_num+=1
+                        self.controller.spec_num+=1
                         self.controller.spec_startnum_entry.delete(0,'end')
-                        spec_num_string=str(g_spec_num)
+                        spec_num_string=str(self.controller.spec_num)
                         while len(spec_num_string)<3:
                             spec_num_string='0'+spec_num_string
                         self.controller.spec_startnum_entry.insert(0,spec_num_string)

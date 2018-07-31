@@ -1,4 +1,4 @@
-import pygame
+#import pygame
 import threading
 from threading import Lock
 import time
@@ -8,6 +8,7 @@ class View(threading.Thread):
     
     def __init__(self, test=False):
         threading.Thread.__init__(self)
+        return
         self.lock=Lock()
         self.screen = pygame.display.set_mode((800, 500))
         self.light=pygame.Rect(30,30,60,60)
@@ -22,6 +23,7 @@ class View(threading.Thread):
             print('rats')
         
     def run(self):
+        return
         pygame.init()
         largeText = pygame.font.Font('freesansbold.ttf',30)
 

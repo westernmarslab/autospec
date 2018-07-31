@@ -8,17 +8,18 @@ import pexpect
 import imp
 import numpy as np
 
-import auto_goniometer
-imp.reload(auto_goniometer)
+sys.path.append('C:\\Users\\hozak\\Python\\')
+import autospectroscopy
+imp.reload(autospectroscopy)
 
-from auto_goniometer.sample import Sample
-from auto_goniometer.sample_holder import Sample_holder
-from auto_goniometer.detector import Detector
-from auto_goniometer.motor import Motor
+from autospectroscopy.sample import Sample
+from autospectroscopy.sample_holder import Sample_holder
+from autospectroscopy.detector import Detector
+from autospectroscopy.motor import Motor
 
 class Model:
 
-    def __init__(self, view, plotter, share_loc, command_loc, spec_compy_connected=True, raspberry_pi_connected=True):
+    def __init__(self, view, plotter,command_loc, spec_compy_connected=True, raspberry_pi_connected=True):
         self.view=view
         self.plotter=plotter
         self.spec_compy_connected=spec_compy_connected
@@ -44,7 +45,7 @@ class Model:
         
         self.detector=Detector()
         self.i_e_tuples=[]
-        self.share_loc=share_loc
+        #self.share_loc=share_loc
         self.command_loc=command_loc
         #cmd='rm '+self.share_loc+'/commands/*'
         #os.system(cmd)
@@ -63,8 +64,9 @@ class Model:
         else:
             self.rs3_process=None
         if self.raspberry_pi_connected:
-            self.pi_process=pexpect.spawnu('python3')
-            self.pi_process.expect('>>>')
+            pass
+            # self.pi_process=pexpect.spawnu('python3')
+            # self.pi_process.expect('>>>')
         else:
             self.pi_process=None
         
@@ -138,9 +140,12 @@ class Model:
     
         
     def take_spectrum(self,i,e):
+        print('take a spectrum!')
         filename=cmd_to_filename('spectrum',self.spectrum_num)
+        print(filename)
+        print(self.command_loc)
         try:
-            file=open(self.command_loc+'/'+filename,'w')
+            file=open(self.command_loc+filename,'w')
         except:
             print('Ignoring file write error')
         self.spectrum_num+=1
@@ -170,7 +175,7 @@ class Model:
     def opt(self):
         filename=cmd_to_filename('opt',self.opt_num)
         try:
-            file=open(self.command_loc+'/'+filename,'w+')
+            file=open(self.command_loc+filename,'w+')
         except:
             print('ignore error in model.opr()')
         self.opt_num=self.opt_num+1
@@ -178,7 +183,7 @@ class Model:
     def white_reference(self):
         filename='wr_'+str(self.wr_num)
         try:
-            file=open(self.command_loc+'/'+filename,'w+')
+            file=open(self.command_loc+filename,'w+')
         except:
             print('ignore error in model.white_reference()')
         self.wr_num+=1
@@ -192,8 +197,10 @@ class Model:
 
     def set_save_path(self, path, basename, startnum):
         filename=cmd_to_filename('saveconfig',self.saveconfig_num,[path,basename,startnum])
+        print(self.command_loc)
+        print(filename)
         try:
-            file=open(self.command_loc+'/'+filename,'w')
+            file=open(self.command_loc+filename,'w')
         except:
             print('ignoring error in set_save_path')
         self.saveconfig_num+=1
@@ -201,7 +208,7 @@ class Model:
     def configure_instrument(self,number):
         filename=cmd_to_filename('instrumentconfig',self.instrumentconfig_num,[number])
         try:
-            file=open(self.command_loc+'/'+filename,'w')
+            file=open(self.command_loc+filename,'w')
         except:
             print('ignoring error in set_save_path')
         self.instrumentconfig_num+=1

@@ -64,6 +64,7 @@ class Plotter():
     #     return wavelengths, reflectance
     #     
     def plot_spectra(self, title, file, caption):
+        print(file)
         try:
             wavelengths, reflectance, labels=self.load_data(file)
         except:
@@ -83,8 +84,10 @@ class Plotter():
         self.canvases[title].draw()
         
     def load_data(self, file):
-        
+        print('about to load')
+        print(file)
         data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
+        print('got it')
         labels=list(data.dtype.names)
         data=zip(*data)
         wavelengths=[]
