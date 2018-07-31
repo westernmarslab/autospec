@@ -74,11 +74,17 @@ class Plotter():
         
         for i, label in enumerate(default_labels):
             print(label)
-            
+            print(label[0:-3])
             if label in loglabels:
                 if loglabels[label]!='':
                     print(loglabels[label])
                     default_labels[i]=loglabels[label]
+            label2=label[0:-3]
+            if label2 in loglabels:
+                print('scolabel')
+                if loglabels[label2]!='':
+                    print(loglabels[label2])
+                    default_labels[i]=loglabels[label2]
             
         self.new_plot(title)
         #self.num=0

@@ -1,0 +1,27 @@
+2018-07-25 14:00:39.003290
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:01:16
+	i=
+	e=
+	filename=C:\Users\hozak\science27\animals.000
+	Label: wr
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:01:33
+	i=
+	e=
+	filename=C:\Users\hozak\science27\animals.001
+	Label: wr2
+UNVERIFIED:
+ White reference taken at 2018-07-25 14:02:58
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:03:27
+	i=
+	e=
+	filename=C:\Users\hozak\science28\animals.000
+	Label: wr
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:03:37
+	i=
+	e=
+	filename=C:\Users\hozak\science28\animals.001
+	Label: wr2

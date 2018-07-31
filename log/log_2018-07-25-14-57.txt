@@ -1,0 +1,43 @@
+2018-07-25 14:57:03.307697
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:59:12
+	i=5
+	e=70
+	filename=C:\Users\hozak\science33\animals.000
+	Label: AnglerFish
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:59:53
+	i=10
+	e=50
+	filename=C:\Users\hozak\science33\animals.001
+	Label: Frog
+SUCCESS:
+ Spectrum saved at 2018-07-25 15:02:27
+	i=
+	e=
+	filename=C:\Users\hozak\science33\animals.003
+	Label: Hippo
+SUCCESS:
+ Spectrum saved at 2018-07-25 15:11:12
+	i=
+	e=
+	filename=C:\Users\hozak\science33\animals.004
+	Label: 
+UNVERIFIED:
+ Instrument optimized at 2018-07-25 15:11:17
+UNVERIFIED:
+ White reference taken at 2018-07-25 15:12:22
+SUCCESS:
+ Spectrum saved at 2018-07-25 15:12:52
+	i=5
+	e=15
+	filename=C:\Users\hozak\science33\animals.005
+	Label: wr
+SUCCESS:
+ Spectrum saved at 2018-07-25 15:12:52
+	i=
+	e=
+	filename=C:\Users\hozak\science33\animals.006
+	Label: 
+UNVERIFIED:
+ White reference taken at 2018-07-25 15:15:50

@@ -1,0 +1,7 @@
+2018-07-25 14:16:15.516871
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:16:39
+	i=
+	e=
+	filename=C:\Users\hozak\science31\animals.000
+	Label: wr

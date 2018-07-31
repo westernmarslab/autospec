@@ -1,0 +1,51 @@
+2018-07-25 13:50:17.777503
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:51:03
+	i=10
+	e=60
+	filename=C:\Users\hozak\science26\animals.000
+	Label: Kangaroo
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:51:45
+	i=5
+	e=35
+	filename=C:\Users\hozak\science26\animals.001
+	Label: Fish
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:52:54
+	i=
+	e=
+	filename=C:\Users\hozak\science26\animals.003
+	Label: Ocelot
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:55:38
+	i=
+	e=
+	filename=C:\Users\hozak\science26\animals.004
+	Label: 
+UNVERIFIED:
+ Instrument optimized at 2018-07-25 13:55:41
+UNVERIFIED:
+ White reference taken at 2018-07-25 13:55:54
+UNVERIFIED:
+ Instrument optimized at 2018-07-25 13:56:11
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:56:43
+	i=5
+	e=60
+	filename=C:\Users\hozak\science26\animals.005
+	Label: Cat
+UNVERIFIED:
+ White reference taken at 2018-07-25 13:57:59
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:58:17
+	i=
+	e=
+	filename=C:\Users\hozak\science26\animals.006
+	Label: wr
+SUCCESS:
+ Spectrum saved at 2018-07-25 13:58:29
+	i=
+	e=
+	filename=C:\Users\hozak\science26\animals.007
+	Label: wr2

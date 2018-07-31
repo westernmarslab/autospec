@@ -1,0 +1,21 @@
+2018-07-25 14:25:21.223798
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:26:40
+	i=
+	e=
+	filename=C:\Users\hozak\science32\animals.000
+	Label: 
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:26:55
+	i=
+	e=
+	filename=C:\Users\hozak\science32\animals.001
+	Label: rabbit
+SUCCESS:
+ Spectrum saved at 2018-07-25 14:27:18
+	i=
+	e=
+	filename=C:\Users\hozak\science32\animals.003
+	Label: 
+UNVERIFIED:
+ Instrument optimized at 2018-07-25 14:28:36
