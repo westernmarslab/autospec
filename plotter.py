@@ -63,19 +63,34 @@ class Plotter():
     #     print(reflectance)
     #     return wavelengths, reflectance
     #     
-    def plot_spectra(self, title, file, caption):
-        print(file)
+
+    def plot_spectra(self, title, file, caption, loglabels):
         try:
-            wavelengths, reflectance, labels=self.load_data(file)
+            wavelengths, reflectance, default_labels=self.load_data(file)
         except:
             print('Error loading data!')
             raise('Error loading data!')
             return
+        
+        for i, label in enumerate(default_labels):
+            print(label)
+            print(label[0:-3])
+            if label in loglabels:
+                if loglabels[label]!='':
+                    print(loglabels[label])
+                    default_labels[i]=loglabels[label]
+            label2=label[0:-3]
+            if label2 in loglabels:
+                print('scolabel')
+                if loglabels[label2]!='':
+                    print(loglabels[label2])
+                    default_labels[i]=loglabels[label2]
+            
         self.new_plot(title)
         #self.num=0
         colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
         for i,spectrum in enumerate(reflectance):
-            self.plots[title].plot(wavelengths, spectrum, label=labels[i+1], color=colors[i])
+            self.plots[title].plot(wavelengths, spectrum, label=default_labels[i+1], color=colors[i])
         self.plots[title].set_title(title, fontsize=24)
         self.plots[title].set_ylabel('Relative Reflectance',fontsize=18)
         self.plots[title].set_xlabel('Wavelength (nm)',fontsize=18)
@@ -84,10 +99,10 @@ class Plotter():
         self.canvases[title].draw()
         
     def load_data(self, file):
-        print('about to load')
-        print(file)
         data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
-        print('got it')
+
+        data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
+
         labels=list(data.dtype.names)
         data=zip(*data)
         wavelengths=[]
@@ -101,7 +116,7 @@ class Plotter():
                 #d2=d/np.max(d) #d2 is normalized reflectance
                 #reflectance[0].append(d)
                 #reflectance[1].append(d2)
-
+        print('that went fine')
         return wavelengths, reflectance, labels
             
         

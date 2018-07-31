@@ -79,7 +79,8 @@ class Model:
         try:
             file=open(self.command_loc+'/'+filename,'w+')
         except:
-            print('ignoring error in process')
+            pass
+            #print('ignoring error in process')
         file=open(self.command_loc+'/'+filename,'w+')
         
 
@@ -147,7 +148,8 @@ class Model:
         try:
             file=open(self.command_loc+filename,'w')
         except:
-            print('Ignoring file write error')
+            pass
+            #print('Ignoring file write error')
         self.spectrum_num+=1
         # if self.spec_compy_connected: 
         #     cmd='touch c:/Kathleen/test'+str(np.random.rand())
@@ -202,7 +204,8 @@ class Model:
         try:
             file=open(self.command_loc+filename,'w')
         except:
-            print('ignoring error in set_save_path')
+            pass
+            #print('ignoring error in set_save_path')
         self.saveconfig_num+=1
     
     def configure_instrument(self,number):
@@ -210,7 +213,8 @@ class Model:
         try:
             file=open(self.command_loc+filename,'w')
         except:
-            print('ignoring error in set_save_path')
+            pass
+            #print('ignoring error in set_save_path')
         self.instrumentconfig_num+=1
             
 
