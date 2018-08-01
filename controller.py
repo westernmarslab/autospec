@@ -28,6 +28,7 @@ import platform
 
 if dev:
     sys.path.append('C:\\Users\\hozak\\Python\\autospectroscopy')
+    sys.path.append('/home/khoza/Python/autospectroscopy')
 
 import robot_model
 import robot_view
@@ -50,19 +51,30 @@ def main():
     #Figure out where this file is hanging out and tell python to look there for modules.
     package_loc=os.path.dirname(sys.argv[0])
     sys.path.append(package_loc)
-    if package_loc=='' and dev:
-        package_loc='C:\\Users\\hozak\\Python\\autospectroscopy'
     
     #Figure out all of your various directory locations. These will depend on what operating system you are using.
     opsys=platform.system()
     if opsys=='Darwin': opsys='Mac' #For some reason Macs identify themselves as Darwin. I don't know why but I think this is more intuitive.
+    
+    #Make it so I can run from my interactive shell, which has sys.argv[0]==''
+    if package_loc=='' and dev:
+        if opsys=='Windows':
+            package_loc='C:\\Users\\hozak\\Python\\autospectroscopy'
+            sys.path.append(package_loc)
+        elif opsys=='Linux':
+            package_loc='/home/khoza/Python/autospectroscopy'
+            sys.path.append(package_loc)
+        else:
+            print('Ahhh I am on a Mac!')
+    
+
     if opsys=='Linux':
         share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+share+'/'
         delimiter='/'
         write_command_loc=share_loc+'commands/from_control/'
         read_command_loc=share_loc+'commands/from_spec/'
         package_loc=package_loc+'/'
-        config_loc=package_loc+'/'+'config/'
+        config_loc=package_loc+'config/'
     elif opsys=='Windows':
         share_loc='\\\\MELISSA\\SpecShare\\'
         write_command_loc=share_loc+'commands\\from_control\\'
@@ -770,9 +782,14 @@ class Controller():
             return
 
         save_timeout=0
+        config_timeout=0
+        
         if new_spec_save_dir != self.spec_save_path or new_spec_basename != self.spec_basename or self.spec_num==None or new_spec_num!=self.spec_num:
-            print('set save config!')
-            self.set_save_config()
+            error=self.set_save_config()
+            if error!=None:
+                dialog=ErrorDialog(self, label='Error setting save configuration:\n'+error.strerror)
+                return
+                
             save_timeout=10
         if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
             print('configure!')
@@ -816,7 +833,9 @@ class Controller():
             spec_num='0'+spec_num
         self.listener.waiting_for_saveconfig='waiting'
         print('set save path, model!')
-        self.model.set_save_path(self.spec_save_path, self.spec_basename, spec_num)
+        error=self.model.set_save_path(self.spec_save_path, self.spec_basename, spec_num)
+        return error
+            
             
     def increment_num(self):
         try:
@@ -845,12 +864,15 @@ class Controller():
             dialog=ErrorDialog(self, label='Error: Enter an output file name')
             return
         if '.' not in output_file: output_file=output_file+'.tsv'
-        try:
-            self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
-        except:
-            print("error:", sys.exc_info()[0])
-            dialog=ErrorDialog(self)
-            self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
+        error=self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
+        if error!=None:
+            dialog=ErrorDialog(self, label='Error sending process command:\n'+error.strerror)
+        # try:
+        #     self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
+        # except:
+        #     print("error:", sys.exc_info()[0])
+        #     dialog=ErrorDialog(self)
+        #     self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
         
         if self.process_save_dir.get():
             file=open(self.config_loc+'/process_directories','w')
@@ -1168,7 +1190,9 @@ class WaitDialog(Dialog):
             elif self.controller.listener.noconfig=='noconfig':
                 self.controller.listener.noconfig=''
                 print('got noconfig, saving to current')
-                self.controller.set_save_config()
+                error=self.controller.set_save_config()
+                if error !=None:
+                    self.interrupt(error.strerror)
                 self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get())
             elif self.controller.listener.nonumspectra=='nonumspectra':
                 self.controller.listener.nonumspectra=''
