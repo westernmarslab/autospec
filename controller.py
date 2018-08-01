@@ -48,6 +48,8 @@ def main():
     server='melissa'
     share='specshare'
     
+    print(sys.argv[])
+    
     #Figure out where this file is hanging out and tell python to look there for modules.
     package_loc=os.path.dirname(sys.argv[0])
     sys.path.append(package_loc)
@@ -1193,10 +1195,14 @@ class WaitDialog(Dialog):
                 error=self.controller.set_save_config()
                 if error !=None:
                     self.interrupt(error.strerror)
+<<<<<<< HEAD
                 numstr=str(self.spec_num)
                 while len(numstr)<3:
                     numstr='0'+numstr
                 self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.spec_save_path, self.spec_basename, numstr)
+=======
+                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get())
+>>>>>>> e860f46c61350a684f408bf973e9beeb657984c2
             elif self.controller.listener.nonumspectra=='nonumspectra':
                 self.controller.listener.nonumspectra=''
                 print('got nonumspectra, saving to current')

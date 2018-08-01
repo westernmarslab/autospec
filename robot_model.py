@@ -10,6 +10,7 @@ import numpy as np
 
 sys.path.append('C:\\Users\\hozak\\Python\\')
 sys.path.append('/home/khoza/Python')
+<<<<<<< HEAD
 
 import sample
 from sample import Sample
@@ -19,6 +20,10 @@ import detector
 from detector import Detector
 import motor
 from motor import Motor
+=======
+import autospectroscopy
+imp.reload(autospectroscopy)
+>>>>>>> e860f46c61350a684f408bf973e9beeb657984c2
 
 
 class Model:
@@ -147,10 +152,18 @@ class Model:
         # self.m_i.position=i
     
         
+<<<<<<< HEAD
     def take_spectrum(self, inc, em, path, basename, startnum):
         print('take a spectrum')
         filename=cmd_to_filename('spectrum',self.spectrum_num,[path,basename,startnum])
 
+=======
+    def take_spectrum(self,inc,em):
+        print('take a spectrum!')
+        filename=cmd_to_filename('spectrum',self.spectrum_num)
+        print(filename)
+        print(self.command_loc)
+>>>>>>> e860f46c61350a684f408bf973e9beeb657984c2
         try:
             file=open(self.command_loc+filename,'w')
         except OSError as e:
