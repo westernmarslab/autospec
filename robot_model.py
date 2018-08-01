@@ -9,13 +9,17 @@ import imp
 import numpy as np
 
 sys.path.append('C:\\Users\\hozak\\Python\\')
-import autospectroscopy
-imp.reload(autospectroscopy)
+sys.path.append('/home/khoza/Python')
 
-from autospectroscopy.sample import Sample
-from autospectroscopy.sample_holder import Sample_holder
-from autospectroscopy.detector import Detector
-from autospectroscopy.motor import Motor
+import sample
+from sample import Sample
+import sample_holder
+from sample_holder import Sample_holder
+import detector
+from detector import Detector
+import motor
+from motor import Motor
+
 
 class Model:
 
@@ -78,10 +82,13 @@ class Model:
         self.process_num=self.process_num+1
         try:
             file=open(self.command_loc+'/'+filename,'w+')
-        except:
-            pass
-            #print('ignoring error in process')
-        file=open(self.command_loc+'/'+filename,'w+')
+        except OSError as e:
+            if e.errno==22:
+                pass
+            else:
+                return e
+        except Exception as e:
+            return e
         
 
     def go(self, incidence, emission):
@@ -140,15 +147,19 @@ class Model:
         # self.m_i.position=i
     
         
-    def take_spectrum(self,i,e):
-        print('take a spectrum!')
-        filename=cmd_to_filename('spectrum',self.spectrum_num)
-        print(filename)
-        print(self.command_loc)
+    def take_spectrum(self, inc, em, path, basename, startnum):
+        print('take a spectrum')
+        filename=cmd_to_filename('spectrum',self.spectrum_num,[path,basename,startnum])
+
         try:
             file=open(self.command_loc+filename,'w')
-        except:
-            pass
+        except OSError as e:
+            if e.errno==22:
+                pass
+            else:
+                raise e
+        except Exception as e:
+            raise e
             #print('Ignoring file write error')
         self.spectrum_num+=1
         # if self.spec_compy_connected: 
@@ -160,7 +171,7 @@ class Model:
 
         # self.view.take_spectrum()
         # self.detector.take_spectrum()
-        self.i_e_tuples.append((i,e))
+        self.i_e_tuples.append((inc,em))
         
         # name='test_'+str(i)+'_'+str(e)+'.csv'
         # file=open('test_data/'+name,'w')
@@ -178,16 +189,26 @@ class Model:
         filename=cmd_to_filename('opt',self.opt_num)
         try:
             file=open(self.command_loc+filename,'w+')
-        except:
-            print('ignore error in model.opr()')
+        except OSError as e:
+            if e.errno==22:
+                pass
+            else:
+                raise e
+        except Exception as e:
+            raise e
         self.opt_num=self.opt_num+1
     
     def white_reference(self):
         filename='wr_'+str(self.wr_num)
         try:
             file=open(self.command_loc+filename,'w+')
-        except:
-            print('ignore error in model.white_reference()')
+        except OSError as e:
+            if e.errno==22:
+                pass
+            else:
+                raise e
+        except Exception as e:
+            raise e
         self.wr_num+=1
         
             
@@ -199,12 +220,18 @@ class Model:
 
     def set_save_path(self, path, basename, startnum):
         filename=cmd_to_filename('saveconfig',self.saveconfig_num,[path,basename,startnum])
+        print('here I am saying to set save path')
         print(self.command_loc)
         print(filename)
         try:
             file=open(self.command_loc+filename,'w')
-        except:
-            pass
+        except OSError as e:
+            if e.errno==22:
+                pass
+            else:
+                return e
+        except Exception as e:
+            return e
             #print('ignoring error in set_save_path')
         self.saveconfig_num+=1
     
@@ -221,6 +248,7 @@ class Model:
 def cmd_to_filename(cmd, num, parameters=[]):
     filename=cmd+str(num)
     for param in parameters:
+        param=param.replace('/','+')
         param=param.replace('\\','+')
         param=param.replace(':','=')
         filename=filename+'&'+param

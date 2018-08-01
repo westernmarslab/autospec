@@ -25,7 +25,7 @@ from threading import Thread
 
 #From pyzo shell, looks in /home/khoza/Python for modules
 #From terminal, it will look in current directory
-if dev: sys.path.append('auto_goniometer')
+if dev: sys.path.append('autospectroscopy')
 
 import robot_model
 import robot_view
@@ -359,16 +359,16 @@ def main():
     view=View()
     view.start()
     
-    master=Tk()
-    notebook=ttk.Notebook(master)
-    plotter=Plotter(master)
+    self.master=Tk()
+    notebook=ttk.Notebook(self.master)
+    plotter=Plotter(self.master)
 
-    model=Model(view, plotter, share_loc, write_command_loc, False, False)
+    model=Model(view, plotter, write_command_loc, False, False)
     
 
         
     master_bg='white'
-    master.configure(background = master_bg)
+    self.master.configure(background = master_bg)
     self.master.title('Control')
    
     padx=3
