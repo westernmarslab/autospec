@@ -20,11 +20,6 @@ from detector import Detector
 import motor
 from motor import Motor
 
-from autospectroscopy.sample import Sample
-from autospectroscopy.sample_holder import Sample_holder
-from autospectroscopy.detector import Detector
-from autospectroscopy.motor import Motor
-
 class Model:
 
     def __init__(self, view, plotter,command_loc, spec_compy_connected=True, raspberry_pi_connected=True):
