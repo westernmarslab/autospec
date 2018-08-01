@@ -10,8 +10,15 @@ import numpy as np
 
 sys.path.append('C:\\Users\\hozak\\Python\\')
 sys.path.append('/home/khoza/Python')
-import autospectroscopy
-imp.reload(autospectroscopy)
+
+import sample
+from sample import Sample
+import sample_holder
+from sample_holder import Sample_holder
+import detector
+from detector import Detector
+import motor
+from motor import Motor
 
 from autospectroscopy.sample import Sample
 from autospectroscopy.sample_holder import Sample_holder
