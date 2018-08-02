@@ -44,7 +44,6 @@ if dev:
     from plotter import Plotter
 
 def main():
-    print(sys.argv)
     #Server and share location. Could change if spectroscopy computer changes.
     server='melissa'
     share='specshare'
@@ -67,6 +66,10 @@ def main():
             sys.path.append(package_loc)
         else:
             print('Ahhh I am on a Mac!')
+            
+        if sys.argv[1] == 'Lena':
+            print("This is for Lena's computer!")
+            package_loc='C:\\users\\gibbs\\Python\\autospectroscopy'
     
 
     if opsys=='Linux':
