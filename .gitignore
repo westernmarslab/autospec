@@ -1,5 +1,4 @@
-config/process_directories
-config/spec_save
-
+config/
+config/
 __pycache__/
 not__init__.py
