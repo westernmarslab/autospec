@@ -1201,7 +1201,7 @@ class WaitDialog(Dialog):
                 if error !=None:
                     self.interrupt(error.strerror)
 
-                numstr=str(self.spec_num)
+                numstr=str(self.controller.spec_num)
                 while len(numstr)<3:
                     numstr='0'+numstr
                 self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.spec_save_path, self.spec_basename, numstr)
