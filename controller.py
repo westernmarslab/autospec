@@ -66,10 +66,11 @@ def main():
             sys.path.append(package_loc)
         else:
             print('Ahhh I am on a Mac!')
-            
-        if sys.argv[1] == 'Lena':
-            print("This is for Lena's computer!")
-            package_loc='C:\\users\\gibbs\\Python\\autospectroscopy'
+        
+        if len(sys.argv)>1:
+            if sys.argv[1] == 'Lena':
+                print("This is for Lena's computer!")
+                package_loc='C:\\users\\gibbs\\Python\\autospectroscopy'
     
 
     if opsys=='Linux':
