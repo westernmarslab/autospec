@@ -44,6 +44,7 @@ if dev:
     from plotter import Plotter
 
 def main():
+    print(sys.argv)
     #Server and share location. Could change if spectroscopy computer changes.
     server='melissa'
     share='specshare'
