@@ -1211,7 +1211,7 @@ class WaitDialog(Dialog):
                 print('got nonumspectra, saving to current')
                 self.controller.configure_instrument()
                 numstr=str(self.controller.spec_num)
-                while len(numstr<3):
+                while len(numstr)<3:
                     numstr='0'+numstr
                 self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.controller.spec_save_path, self.controller.spec_basename, numstr)
                 
