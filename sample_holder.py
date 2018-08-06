@@ -36,13 +36,13 @@ class Sample_holder:
                     for i in self.full_trays:
                         if self.full_trays[i]==None:
                             self.add_sample(s, i)
-                            print('putting '+s.composition+' at position '+str(s.position))
+                            #print('putting '+s.composition+' at position '+str(s.position))
                             return
         else:
             for i in self.full_trays:
                 if self.full_trays[i]==None:
                     self.add_sample(s, i)
-                    print('Putting '+s.composition+ ' in tray '+str(i))
+                    #print('Putting '+s.composition+ ' in tray '+str(i))
                     return
                 
             

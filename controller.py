@@ -7,7 +7,7 @@ online=False
 
 from tkinter import *
 from tkinter import messagebox
-import imp
+import importlib
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -26,67 +26,68 @@ import os
 import sys
 import platform
 
-if dev:
-    sys.path.append('C:\\Users\\hozak\\Python\\autospectroscopy')
-    sys.path.append('/home/khoza/Python/autospectroscopy')
+
+
+#Figure out where this file is hanging out and tell python to look there for modules. This will depend on what operating system you are using.
+
+global opsys
+opsys=platform.system()
+if opsys=='Darwin': opsys='Mac' #For some reason Macs identify themselves as Darwin. I don't know why but I think this is more intuitive.
+
+global package_loc
+package_loc=''
+
+if opsys=='Windows':
+    try:
+        rel_package_loc='\\'.join(__file__.split('\\')[:-1])+'\\'
+        package_loc=os.getcwd()+'\\'+rel_package_loc
+    except:
+        print('Developer mode!')
+        dev=True
+        package_loc='C:\\Users\\hozak\\Python\\autospectroscopy\\'
+
+elif opsys=='Linux':
+    try:
+        rel_package_loc='/'.join(__file__.split('/')[:-1])+'/'
+        package_loc=os.getcwd()+'/'+rel_package_loc
+    except:
+        print('Developer mode!')
+        dev=True
+        package_loc='/home/khoza/Python/autospectroscopy/'
+else:
+    print("AHH I'm on a Mac!!")
+    
+sys.path.append(package_loc)
 
 import robot_model
 import robot_view
 import plotter
 
-#This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't change
+#This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't changing
 if dev:
-    imp.reload(robot_model)
+    importlib.reload(robot_model)
     from robot_model import Model
-    imp.reload(robot_view)
+    importlib.reload(robot_view)
     from robot_view import View
-    imp.reload(plotter)
+    importlib.reload(plotter)
     from plotter import Plotter
+    
+#Server and share location. Could change if spectroscopy computer changes.
+server='melissa'
+share='specshare'
 
 def main():
-    #Server and share location. Could change if spectroscopy computer changes.
-    server='melissa'
-    share='specshare'
-    
-    print(sys.argv)
-    
-    #Figure out where this file is hanging out and tell python to look there for modules.
-    package_loc=os.path.dirname(sys.argv[0])
-    sys.path.append(package_loc)
-    
-    #Figure out all of your various directory locations. These will depend on what operating system you are using.
-    opsys=platform.system()
-    if opsys=='Darwin': opsys='Mac' #For some reason Macs identify themselves as Darwin. I don't know why but I think this is more intuitive.
-    
-    #Make it so I can run from my interactive shell, which has sys.argv[0]==''
-    if package_loc=='' and dev:
-        if opsys=='Windows':
-            package_loc='C:\\Users\\hozak\\Python\\autospectroscopy'
-            sys.path.append(package_loc)
-        elif opsys=='Linux':
-            package_loc='/home/khoza/Python/autospectroscopy'
-            sys.path.append(package_loc)
-        else:
-            print('Ahhh I am on a Mac!')
-        
-        if len(sys.argv)>1:
-            if sys.argv[1] == 'Lena':
-                print("This is for Lena's computer!")
-                package_loc='C:\\users\\gibbs\\Python\\autospectroscopy'
-    
 
     if opsys=='Linux':
         share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+share+'/'
         delimiter='/'
         write_command_loc=share_loc+'commands/from_control/'
         read_command_loc=share_loc+'commands/from_spec/'
-        package_loc=package_loc+'/'
         config_loc=package_loc+'config/'
     elif opsys=='Windows':
         share_loc='\\\\MELISSA\\SpecShare\\'
         write_command_loc=share_loc+'commands\\from_control\\'
         read_command_loc=share_loc+'commands\\from_spec\\'
-        package_loc=package_loc+'\\'
         config_loc=package_loc+'config\\'
     elif opsys=='Mac':
         mac=ErrorDialog(self, label="ahhhhh I don't know what to do on a Mac!!")
@@ -1315,7 +1316,7 @@ class Listener(threading.Thread):
         
     @nonumspectra.setter
     def nonumspectra(self, val):
-        print('changing noconfig2 to '+str(val))
+        #print('changing noconfig2 to '+str(val))
         self.__noconfig2=val
         
     def set_controller(self,controller):
