@@ -40,7 +40,9 @@ package_loc=''
 if opsys=='Windows':
     try:
         rel_package_loc='\\'.join(__file__.split('\\')[:-1])+'\\'
-        package_loc=os.getcwd()+'\\'+rel_package_loc
+        if 'C:' in rel_package_loc:
+            package_loc=rel_package_loc
+        else: package_loc=os.getcwd()+'\\'+rel_package_loc
     except:
         print('Developer mode!')
         dev=True
@@ -49,7 +51,9 @@ if opsys=='Windows':
 elif opsys=='Linux':
     try:
         rel_package_loc='/'.join(__file__.split('/')[:-1])+'/'
-        package_loc=os.getcwd()+'/'+rel_package_loc
+        if rel_package_loc[0]=='/':
+            package_loc=rel_package_loc
+        else: package_loc=os.getcwd()+'/'+rel_package_loc
     except:
         print('Developer mode!')
         dev=True
@@ -74,7 +78,12 @@ if dev:
     
 #Server and share location. Could change if spectroscopy computer changes.
 server='melissa'
+server='GEOL-CHZC5Q2'
+
 share='specshare'
+
+
+
 
 def main():
 
@@ -84,11 +93,13 @@ def main():
         write_command_loc=share_loc+'commands/from_control/'
         read_command_loc=share_loc+'commands/from_spec/'
         config_loc=package_loc+'config/'
+        log_loc=package_loc+'log/'
     elif opsys=='Windows':
-        share_loc='\\\\MELISSA\\SpecShare\\'
+        share_loc='\\\\'+server.upper()+'\\'+share+'\\'
         write_command_loc=share_loc+'commands\\from_control\\'
         read_command_loc=share_loc+'commands\\from_spec\\'
         config_loc=package_loc+'config\\'
+        log_loc=package_loc+'log\\'
     elif opsys=='Mac':
         mac=ErrorDialog(self, label="ahhhhh I don't know what to do on a Mac!!")
         
@@ -118,7 +129,7 @@ class Controller():
         
         #Log your actions!
         self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
-
+        print(os.getcwd())
         with open(self.log_filename,'w+') as log:
             log.write(str(datetime.datetime.now())+'\n')
         if dev: plt.close('all')
