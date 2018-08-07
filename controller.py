@@ -26,9 +26,7 @@ import os
 import sys
 import platform
 
-
-
-#Figure out where this file is hanging out and tell python to look there for modules. This will depend on what operating system you are using.
+#Figure out where this file is hanging out and tell python to look there for custom modules. This will depend on what operating system you are using.
 
 global opsys
 opsys=platform.system()
@@ -38,6 +36,7 @@ global package_loc
 package_loc=''
 
 if opsys=='Windows':
+    #If I am running this script from my IDE, __file__ is not defined. In that case, go with a hard-coded file location.
     try:
         rel_package_loc='\\'.join(__file__.split('\\')[:-1])+'\\'
         if 'C:' in rel_package_loc:
@@ -67,7 +66,7 @@ import robot_model
 import robot_view
 import plotter
 
-#This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't changing
+#This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't changing the modules.
 if dev:
     importlib.reload(robot_model)
     from robot_model import Model
@@ -76,32 +75,32 @@ if dev:
     importlib.reload(plotter)
     from plotter import Plotter
     
-#Server and share location. Could change if spectroscopy computer changes.
-server='melissa'
-server='GEOL-CHZC5Q2'
+#Server and share location. Can change if spectroscopy computer changes.
+server='melissa' #old computer
+#server='GEOL-CHZC5Q2' #new computer
 
 share='specshare'
 
-
+if opsys=='Linux':
+    share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+share+'/'
+    delimiter='/'
+    write_command_loc=share_loc+'commands/from_control/'
+    read_command_loc=share_loc+'commands/from_spec/'
+    config_loc=package_loc+'config/'
+    log_loc=package_loc+'log/'
+elif opsys=='Windows':
+    share_loc='\\\\'+server.upper()+'\\'+share+'\\'
+    write_command_loc=share_loc+'commands\\from_control\\'
+    read_command_loc=share_loc+'commands\\from_spec\\'
+    config_loc=package_loc+'config\\'
+    log_loc=package_loc+'log\\'
+elif opsys=='Mac':
+    mac=ErrorDialog(self, label="ahhhhh I don't know what to do on a Mac!!")
 
 
 def main():
 
-    if opsys=='Linux':
-        share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+share+'/'
-        delimiter='/'
-        write_command_loc=share_loc+'commands/from_control/'
-        read_command_loc=share_loc+'commands/from_spec/'
-        config_loc=package_loc+'config/'
-        log_loc=package_loc+'log/'
-    elif opsys=='Windows':
-        share_loc='\\\\'+server.upper()+'\\'+share+'\\'
-        write_command_loc=share_loc+'commands\\from_control\\'
-        read_command_loc=share_loc+'commands\\from_spec\\'
-        config_loc=package_loc+'config\\'
-        log_loc=package_loc+'log\\'
-    elif opsys=='Mac':
-        mac=ErrorDialog(self, label="ahhhhh I don't know what to do on a Mac!!")
+
         
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
     delme=os.listdir(write_command_loc)
