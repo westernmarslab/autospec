@@ -4,6 +4,7 @@
 dev=True
 test=True
 online=False
+computer='old'
 
 import os
 import sys
@@ -82,8 +83,11 @@ if dev:
     from plotter import Plotter
     
 #Server and share location. Can change if spectroscopy computer changes.
-#server='melissa' #old computer
-server='geol-chzc5q2' #new computer
+server=''
+if computer=='old':
+    server='melissa' #old computer
+elif computer=='new':
+    server='geol-chzc5q2' #new computer
 
 share='specshare'
 
@@ -637,9 +641,8 @@ class Controller():
                 file.write(self.spec_save_path_entry.get()+'\n')
                 file.write(self.spec_basename_entry.get()+'\n')
                 file.write(self.spec_startnum_entry.get()+'\n')
+                
     def wr(self, opt_check=True):
-        
-
         if opt_check and self.optfailsafe.get():
             label=''
             now=int(time.time())
@@ -697,6 +700,8 @@ class Controller():
         with open(self.log_filename,'a') as log:
             log.write(info_string)
         self.textbox.insert(END,info_string)
+        time.sleep(5)
+        self.take_spectrum()
     def opt(self):
         self.model.opt()
         self.opt_time=int(time.time())
@@ -839,7 +844,7 @@ class Controller():
             self.input_dir_entry.delete(0,'end')
             self.input_dir_entry.insert(0,self.spec_save_path_entry.get())
 
-        timeout=new_spec_config_count+20+save_timeout+config_timeout
+        timeout=new_spec_config_count*2+20+save_timeout+config_timeout
 
         wait_dialog=WaitDialog(self, timeout=timeout)
         return wait_dialog
