@@ -5,6 +5,10 @@ dev=True
 test=True
 online=False
 
+import os
+import sys
+import platform
+
 from tkinter import *
 from tkinter import messagebox
 import importlib
@@ -12,7 +16,11 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 #import pygame
-import pexpect
+try:
+    import pexpect
+except:
+    os.system('python -m pip install pexpect')
+    
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
@@ -22,9 +30,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import datetime
 import time
 from threading import Thread
-import os
-import sys
-import platform
+
 
 #Figure out where this file is hanging out and tell python to look there for custom modules. This will depend on what operating system you are using.
 
@@ -76,8 +82,8 @@ if dev:
     from plotter import Plotter
     
 #Server and share location. Can change if spectroscopy computer changes.
-server='melissa' #old computer
-#server='GEOL-CHZC5Q2' #new computer
+#server='melissa' #old computer
+server='geol-chzc5q2' #new computer
 
 share='specshare'
 
