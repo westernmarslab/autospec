@@ -1221,7 +1221,7 @@ class WaitDialog(Dialog):
                 numstr=str(self.controller.spec_num)
                 while len(numstr)<3:
                     numstr='0'+numstr
-                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.spec_save_path, self.spec_basename, numstr)
+                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.controller.spec_save_path, self.controller.spec_basename, numstr)
 
             elif self.controller.listener.nonumspectra=='nonumspectra':
                 self.controller.listener.nonumspectra=''
