@@ -4,7 +4,7 @@
 dev=True
 test=True
 online=False
-computer='old'
+computer='new'
 
 import os
 import sys
