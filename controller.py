@@ -1232,6 +1232,7 @@ class Dialog:
             elif 'exit' in button.lower():
                 self.exit_button=Button(self.button_frame, text='Exit',command=self.exit, width=self.button_width)
                 self.exit_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+
             # else:
             #     #For each button, only handle one function with no arguments here 
             #     #the for loop is just a way to grab the function.
