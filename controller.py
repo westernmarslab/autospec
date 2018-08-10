@@ -87,6 +87,9 @@ if dev:
 #Server and share location. Can change if spectroscopy computer changes.
 server=''
 global NUMLEN
+global tk_master
+tk_master=None
+
 NUMLEN=500
 if computer=='old':
     #global NUMLEN
@@ -115,8 +118,33 @@ elif opsys=='Windows':
 elif opsys=='Mac':
     mac=ErrorDialog(self, label="ahhhhh I don't know what to do on a Mac!!")
 
+def donothing():
+    pass
+def exit_func():
+    print('exit!')
+    exit()
+    
+def retry_func():
+     os.execl(sys.executable, os.path.abspath(__file__), *sys.argv) 
 
 def main():
+    #if tk_master !=None:
+    #    tk_master.destroy()
+    #Check if you are connected to the server. If not, exit.
+    try:
+        files=os.listdir(read_command_loc)
+    except:
+        buttons={
+            'retry':{
+                main:[],
+                },
+            'exit':{
+                exit_func:[]
+            }
+        }
+            
+        dialog=Dialog(controller=None, title='Not Connected',label='Error: No connection with server.\n\nCheck you are on the correct WiFi\nnetwork and server is mounted.',buttons=buttons)
+        return
 
 
         
@@ -555,6 +583,15 @@ class Controller():
         # self.plot_caption_entry=Entry(self.plot_frame, width=50)
         # self.plot_caption_entry.pack()
         
+        self.no_wr_frame=Frame(self.plot_frame, bg=bg)
+        self.no_wr_frame.pack()
+        self.no_wr=IntVar()
+        self.no_wr_check=Checkbutton(self.no_wr_frame, text='Exclude white references', bg=bg, pady=pady,highlightthickness=0, variable=self.no_wr, command=self.no_wr_cmd)
+        self.no_wr_check.pack(pady=(5,5))
+        self.no_wr_check.select()
+        
+        #self.no_wr_entry=Entry(self.load_labels_frame, width=50)
+        
         self.load_labels_frame=Frame(self.plot_frame, bg=bg)
         self.load_labels_frame.pack()
         self.load_labels=IntVar()
@@ -618,7 +655,11 @@ class Controller():
 
         self.view.join()
         
+    def no_wr_cmd(self):
+        pass
+        
     def load_labels_cmd(self):
+        print('labels!')
         if self.load_labels.get():
             self.load_labels_entry.pack()
             if self.load_labels_entry.get()=='':
@@ -730,7 +771,6 @@ class Controller():
             self.label_entry.insert(0,'White reference')
 
         if not override:
-            print('not overriding')
             valid_input=self.input_check(self.wr,[True])
             print(valid_input)
         #If the input wasn't valid, we already popped up an error dialog. If the user says to continue, wr will be called again with override=True
@@ -746,8 +786,15 @@ class Controller():
         except:
             dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return 
+            
+        print('new config count'+str(new_spec_config_count))
+        print('old config count'+str(self.spec_config_count))
         if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
+            print('time to configure!')
+            
             self.configure_instrument()
+            time.sleep(5)
+            print('ok done waiting')
         config=self.check_save_config()
         if config:
             self.set_save_config(self.wr, [override])
@@ -817,15 +864,6 @@ class Controller():
         #If input isn't valid and the user asks to continue, take_spectrum will be called again with override set to True
         if not valid_input:
             return
-            
-            
-
-        
-        
-            
-            
-            
-                
 
         try:
             new_spec_num=int(self.spec_startnum_entry.get())
@@ -843,7 +881,7 @@ class Controller():
             
         if self.check_save_config():
             print('setting save_config from inside take spectrum')
-            self.set_save_config(self.take_spectrum,[True,None])
+            self.set_save_config(self.take_spectrum,[True])
             return
         config_timeout=0
         if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
@@ -983,8 +1021,10 @@ class Controller():
                             nextfile=line[-1].strip('\n')
                             nextfile=nextfile.split('.')
                             nextfile=nextfile[0]+nextfile[1]
+                            print(nextfile)
                         elif 'Label' in line:
                             nextnote=line.split('Label: ')[-1]
+                            print(nextnote)
                         if nextfile != None and nextnote != None:
                             labels[nextfile]=nextnote.strip('\n')
                             nextfile=None
@@ -1122,32 +1162,45 @@ class Controller():
 class Dialog:
     def __init__(self, controller, title, label, buttons, width=None, height=None):
         self.controller=controller
-        if width==None or height==None:
-            self.top = tk.Toplevel(controller.master, bg='white')
-        else:
-            self.top=tk.Toplevel(controller.master, width=width, height=height, bg='white')
-            self.top.pack_propagate(0)
-        self.top.wm_title(title)
-        #self.buttons=buttons
-
-        
-        self.button_width=20
         self.bg='white'
         
+        #If we are starting a new master, we'll need to start a new mainloop after settin everything up. 
+        #If this creates a new toplevel for an existing master, we will leave it as False.
+        start_mainloop=False
+        if controller==None:
+            self.top=Tk()
+            start_mainloop=True
+            global tk_master
+            tk_master=self.top
+            self.top.configure(background=self.bg)
+        else:
+            if width==None or height==None:
+                self.top = tk.Toplevel(controller.master, bg=self.bg)
+            else:
+                self.top=tk.Toplevel(controller.master, width=width, height=height, bg='white')
+                self.top.pack_propagate(0)
+
         self.label_frame=Frame(self.top, bg=self.bg)
         self.label_frame.pack(side=TOP)
         self.label = tk.Label(self.label_frame, text=label, bg=self.bg)
         self.label.pack(pady=(10,10), padx=(10,10))
-        
-
+    
+        self.button_width=20
         self.buttons=buttons
         self.set_buttons(buttons)
 
-
-
+        self.top.wm_title(title)
+        
+        if start_mainloop:
+            self.top.mainloop()
             
     def set_label_text(self, newlabel):
         self.label.config(text=newlabel)
+        
+    def close_and_exec(self,func):
+        print(func)
+        func()
+        self.top.destroy()
         
     def set_buttons(self, buttons):
         self.buttons=buttons
@@ -1157,20 +1210,47 @@ class Dialog:
             pass
         self.button_frame=Frame(self.top, bg=self.bg)
         self.button_frame.pack(side=BOTTOM)
+        tk_buttons={}
 
-        if 'ok' in buttons:
-            self.ok_button = Button(self.button_frame, text='OK', command=self.ok, width=self.button_width)
-            self.ok_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
-        if 'yes' in buttons:
-            self.yes_button=Button(self.button_frame, text='Yes', bg='light gray', command=self.yes, width=self.button_width)
-            self.yes_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
-        if 'no' in buttons:
-            self.no_button=Button(self.button_frame, text='No',command=self.no, width=self.button_width)
-            self.no_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
-        if 'cancel' in buttons:
-            self.cancel_button=Button(self.button_frame, text='Cancel',command=self.cancel, width=self.button_width)
-            self.cancel_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+        for button in buttons:
+            if 'ok' in button.lower():
+                self.ok_button = Button(self.button_frame, text='OK', command=self.ok, width=self.button_width)
+                self.ok_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+            elif 'yes' in button.lower():
+                self.yes_button=Button(self.button_frame, text='Yes', bg='light gray', command=self.yes, width=self.button_width)
+                self.yes_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+            elif 'no' in button.lower():
+                self.no_button=Button(self.button_frame, text='No',command=self.no, width=self.button_width)
+                self.no_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+            elif 'cancel' in button.lower():
+                self.cancel_button=Button(self.button_frame, text='Cancel',command=self.cancel, width=self.button_width)
+                self.cancel_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+            elif 'retry' in button.lower():
+                print('retry button added')
+                self.retry_button=Button(self.button_frame, text='Retry',command=self.retry, width=self.button_width)
+                self.retry_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+            # else:
+            #     #For each button, only handle one function with no arguments here 
+            #     #the for loop is just a way to grab the function.
+            #     #It would be cool to do better than this, but it will work for now.
+            #     for func in buttons[button]:
+            #         print(button)
+            #         print(func)
+            #         tk_buttons[button]=Button(self.button_frame, text=button,command=func)
+            #         tk_buttons[button].pack(side=LEFT, padx=(10,10),pady=(10,10))
         
+    def retry(self):
+        print('retry')
+        dict=self.buttons['retry']
+        print(dict)
+        self.top.destroy()
+        for func in dict:
+            if len(dict[func])>0:
+                arg=dict[func][0]
+                func(arg)
+            else:
+                print(func)
+                func()
     def ok(self):
         dict=self.buttons['ok']
         self.top.destroy()
@@ -1204,22 +1284,21 @@ class Dialog:
             arg=dict[func][0]
             func(arg)
 
-# class CustomButton(Button):
-#     def __init__(text, func_dict):
-#         
-#         super(frame, text=text, command=self.command, width=width)
-#         
-#     def command(self, func_dict):
-        
+
+
 class WaitDialog(Dialog):
     def __init__(self, controller, title='Working...', label='Working...', buttons={'cancel':{}}, timeout=30):
-        t0=time.clock()
-        t=time.clock()
-        self.canceled=False
-
         super().__init__(controller, title, label,buttons,width=300, height=150)
         
+        #We'll keep track of elapsed time so we can cancel the operation if it takes too long
+        self.t0=time.clock()
+        self.t=time.clock()
+        self.timeout_s=timeout
+        
+        #I think these three attributes are useless and should be deleted
+        self.canceled=False
         self.interrupted=False
+        self.fileexists=False
         
         self.frame=Frame(self.top, bg=self.bg, width=200, height=30)
         self.frame.pack()
@@ -1230,10 +1309,11 @@ class WaitDialog(Dialog):
         self.pbar.start([10])
         self.pbar.pack(padx=(10,10),pady=(10,10))
         
+        #A Listener object is always running a loop in a separate thread. It  listens for files dropped into a command folder and changes its attributes based on what it finds.
         self.listener=self.controller.listener
         self.timeout_s=timeout
-        self.fileexists=False
-        
+
+        #Start the wait function, which will watch the listener to see what attributes change and react accordingly.
         thread = Thread(target =self.wait, args = (self.timeout_s, ))
         thread.start()
         
@@ -1243,21 +1323,16 @@ class WaitDialog(Dialog):
         
     @timeout_s.setter
     def timeout_s(self, val):
-        #print('changing noconfig2 to '+str(val))
         self.__timeout_s=val
-    
-    def cancel(self):
-
-        self.canceled=True
         
-    def interrupt(self,label):
-        self.interrupted=True
-        self.set_label_text(label)
-        self.pbar.stop()
-        self.set_buttons({'ok':{}})
-            
-
-                
+    def wait(self, timeout_s):
+        while True:
+            print('waiting in super...')
+            self.timeout_s-=1
+            if self.timeout<0:
+                self.timeout()
+            time.sleep(1)
+               
     def timeout(self):
         self.set_label_text('Error: Operation timed out')
         self.pbar.stop()
@@ -1265,15 +1340,22 @@ class WaitDialog(Dialog):
         
     def finish(self):
         self.top.destroy()
+        
+    def cancel(self):
+        self.canceled=True
+        
+    def interrupt(self,label):
+        self.interrupted=True
+        self.set_label_text(label)
+        self.pbar.stop()
+        self.set_buttons({'ok':{}})
                 
     def send(self):
         global username
         username = self.myEntryBox.get()
         self.top.destroy()
         
-    def wait(self, timeout_s):
-        print('waiting in super...')
-        time.sleep(1)
+
         
 # class WaitForUnexpectedDialog(WaitDialog):
 #     def __init__(self, controller, title='Setting Save Configuration...', label='Working...', buttons={'cancel':{}}, timeout=30):
@@ -1396,7 +1478,7 @@ class WaitForSaveConfigDialog(WaitDialog):
                         self.interrupt('Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.')
                         #dialog=ErrorDialog(self.controller, label='Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.')
                     else:
-                        self.interrupt('Error: There was a problem with setting the save configuration.')
+                        self.interrupt('Error: There was a problem with\nsetting the save configuration.\nIs the spectrometer connected?')
                         self.controller.spec_save_path=''
                         self.controller.spec_basename=''
                         self.controller.spec_num=None
@@ -1479,7 +1561,7 @@ class WaitForSpectrumDialog(WaitDialog):
                 
             elif self.controller.listener.noconfig=='noconfig':
                 self.controller.listener.noconfig=''
-                error=self.controller.set_save_config(self.controller.take_spectrum, [True,None])
+                error=self.controller.set_save_config(self.controller.take_spectrum, [True])
                 self.finish()
                 return
                 if error !=None:
@@ -1555,9 +1637,6 @@ class Listener(threading.Thread):
         threading.Thread.__init__(self)
         self.read_command_loc=read_command_loc
         self.saved_files=[]
-        #self.__ex_files=()
-        # print('expected data files:')
-        # print(self.ex_files)
         self.controller=None
         
         self.failed=False
@@ -1609,28 +1688,28 @@ class Listener(threading.Thread):
         
     def clear_unexpected_files():
         self.unexpected_files=[]
+        
+    def set_new_dialogs(self):
+        print('got here')
+        self.new_dialogs=True
     
     def run(self):
         files0=os.listdir(self.read_command_loc)
 
         while True:
-            # if self.wait_for_unexpected_count>4:
-            #     pass
-            #     # try:
-            #     #     if len(self.unexpected_files)>1:
-            #     #         
-            #     #         dialog=ErrorDialog(self.controller, title='Untracked Files',label='There are untracked files in data directory.\nDo these belong here?\n\n'+str('\n'.join(self.unexpected_files)))
-            #     #     else:
-            #     #         dialog=ErrorDialog(self.controller, title='Untracked Files',label='There is an untracked file in the data directory.\nDoes this belong here?\n\n'+str('\n'.join(self.unexpected_files)))
-            #     # except:
-            #     #     print('Ignoring RuntimeError: Main thread not in main loop.')
-            #     # self.wait_for_unexpected_count=0
-            #     # self.wait_for_unexpected=False
-            #     # self.unexpect_files=[]
-            # elif self.wait_for_unexpected==True:
-            #     self.wait_for_unexpected_count+=1
+            try:
+                files=os.listdir(self.read_command_loc)
+            except:
+                if self.new_dialogs:
+                    try:
+                        self.new_dialogs=False
+                        dialog=ErrorDialog(self.controller, title='Lost Connection',label='Error: Lost connection with server.\nCheck you are on the correct WiFi network and server is mounted.\n\n Exiting',buttons={'retry':{self.set_new_dialogs:[]}})
+
+                    except:
+                        print('Ignoring an error in Listener when I make a new error dialog')
+                        time.sleep(10)
+                        exit()
                 
-            files=os.listdir(self.read_command_loc)
             if files==files0:
 
                 pass
@@ -1694,7 +1773,7 @@ class Listener(threading.Thread):
                 #This line always prints twice if it's uncommented, I'm not sure why.
                 #print('forward!')
                 
-            files0=files
+            files0=list(files)
                             
             time.sleep(0.5)
             
