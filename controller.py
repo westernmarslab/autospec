@@ -1294,7 +1294,7 @@ class Dialog:
 
 class WaitDialog(Dialog):
     def __init__(self, controller, title='Working...', label='Working...', buttons={'cancel':{}}, timeout=30):
-        super().__init__(controller, title, label,buttons,width=300, height=150)
+        super().__init__(controller, title, label,buttons,width=400, height=150)
         
         #We'll keep track of elapsed time so we can cancel the operation if it takes too long
         self.t0=time.clock()
