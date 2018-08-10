@@ -197,8 +197,10 @@ class Model:
         self.opt_num=self.opt_num+1
     
     def white_reference(self):
+        print('the model is going to white reference')
         filename='wr_'+str(self.wr_num)
         try:
+            print(filename)
             file=open(self.command_loc+filename,'w+')
         except OSError as e:
             if e.errno==22:
