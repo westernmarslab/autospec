@@ -31,6 +31,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import datetime
 import time
 from threading import Thread
+from tkinter.filedialog import *
+
 
 #Which computer are you using? This should probably be new. I don't know why you would use the old one.
 computer='new'
@@ -126,6 +128,9 @@ def exit_func():
     
 def retry_func():
      os.execl(sys.executable, os.path.abspath(__file__), *sys.argv) 
+     
+
+
 
 def main():
     #if tk_master !=None:
@@ -143,7 +148,7 @@ def main():
             }
         }
             
-        dialog=Dialog(controller=None, title='Not Connected',label='Error: No connection with server.\n\nCheck you are on the correct WiFi\nnetwork and server is mounted.',buttons=buttons)
+        dialog=Dialog(controller=None, title='Not Connected',label='Error: No connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
         return
 
 
@@ -172,12 +177,7 @@ class Controller():
         self.config_loc=config_loc
         self.opsys=opsys
         
-        #Log your actions!
-        self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
-        print(os.getcwd())
-        with open(self.log_filename,'w+') as log:
-            log.write(str(datetime.datetime.now())+'\n')
-        if dev: plt.close('all')
+        self.log_filename=None
         
         #These will get set via user input.
         self.spec_save_path=''
@@ -236,15 +236,17 @@ class Controller():
         except:
             print('invalid config')
         
-        self.auto_frame=Frame(self.notebook, bg=bg)
-    
-        self.spec_save_path_label=Label(self.auto_frame,padx=padx,pady=pady,bg=bg,text='Save directory:')
+        self.control_frame=Frame(self.notebook, bg=bg)
+        self.control_frame.pack()
+        self.save_config_frame=Frame(self.control_frame,bg=bg,highlightthickness=1)
+        self.save_config_frame.pack(fill=BOTH,expand=True)
+        self.spec_save_path_label=Label(self.save_config_frame,padx=padx,pady=pady,bg=bg,text='Spectra save configuration:')
         self.spec_save_path_label.pack(padx=padx,pady=(15,5))
-        self.spec_save_path_entry=Entry(self.auto_frame, width=50,bd=bd)
+        self.spec_save_path_entry=Entry(self.save_config_frame, width=50,bd=bd)
         self.spec_save_path_entry.insert(0, self.spec_save_path)
         self.spec_save_path_entry.pack(padx=padx, pady=pady)
     
-        self.spec_save_frame=Frame(self.auto_frame, bg=bg)
+        self.spec_save_frame=Frame(self.save_config_frame, bg=bg)
         self.spec_save_frame.pack()
         
         self.spec_basename_label=Label(self.spec_save_frame,pady=pady,bg=bg,text='Base name:')
@@ -259,12 +261,35 @@ class Controller():
         self.spec_startnum_entry.insert(0,spec_startnum)
         self.spec_startnum_entry.pack(side=RIGHT, pady=pady)
         
+        
+        
+            
+        self.log_frame=Frame(self.control_frame, bg=bg,highlightthickness=1)
+        self.log_frame.pack(fill=BOTH,expand=True)
+        self.logfile_label=Label(self.log_frame,padx=padx,pady=pady,bg=bg,text='Log file:')
+        self.logfile_label.pack(padx=padx,pady=(10,0))
+        self.logfile_entry_frame=Frame(self.log_frame, bg=bg)
+        self.logfile_entry_frame.pack()
+        self.logfile_entry=Entry(self.logfile_entry_frame, width=50,bd=bd)
+        self.logfile_entry.pack(padx=padx, pady=(5,15))
+        self.logfile_entry.enabled=False
+        self.select_logfile_button=Button(self.logfile_entry_frame, text='Select existing',command=self.chooselogfile, width=13, height=1)
+        self.select_logfile_button.pack(side=LEFT,padx=(50,5), pady=(0,10))
+        self.new_logfile_button=Button(self.logfile_entry_frame, text='New log file',command=self.newlog, width=13, height=1)
+        self.new_logfile_button.pack(side=LEFT,padx=padx, pady=(0,10))
+        
+        
+        
         self.spec_save_config=IntVar()
-        self.spec_save_config_check=Checkbutton(self.auto_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=self.spec_save_config)
-        self.spec_save_config_check.pack(pady=(0,5))
+        self.spec_save_config_check=Checkbutton(self.save_config_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=self.spec_save_config)
+        #self.spec_save_config_check.pack(pady=(0,5))
         self.spec_save_config_check.select()
         
-        self.instrument_config_frame=Frame(self.auto_frame, bg=bg)
+        self.spectrum_settings_frame=Frame(self.control_frame,bg=bg, highlightcolor="green", highlightthickness=1)
+        self.spectrum_settings_frame.pack(fill=BOTH,expand=True)
+        self.spec_settings_label=Label(self.spectrum_settings_frame,padx=padx,pady=pady,bg=bg,text='Settings for this spectrum:')
+        self.spec_settings_label.pack(padx=padx,pady=(10,0))
+        self.instrument_config_frame=Frame(self.spectrum_settings_frame, bg=bg)
         self.instrument_config_frame.pack(pady=(15,15))
         self.instrument_config_label=Label(self.instrument_config_frame, text='Number of spectra to average:', bg=bg)
         self.instrument_config_label.pack(side=LEFT)
@@ -277,24 +302,27 @@ class Controller():
 
 
         
-        self.manual_frame=Frame(self.auto_frame, bg=bg)
-        self.manual_frame.pack()
+        # self.manual_frame=Frame(self.auto_frame, bg=bg)
+        # self.manual_frame.pack()
         
-        self.man_incidence_label=Label(self.manual_frame,padx=padx,pady=pady,bg=bg,text='Incidence angle:')
+        self.spectrum_angles_frame=Frame(self.spectrum_settings_frame, bg=bg)
+        self.spectrum_angles_frame.pack()
+        self.man_incidence_label=Label(self.spectrum_angles_frame,padx=padx,pady=pady,bg=bg,text='Incidence angle:')
         self.man_incidence_label.pack(side=LEFT, padx=padx,pady=(0,8))
-        self.man_incidence_entry=Entry(self.manual_frame, width=10, bd=bd)
+        self.man_incidence_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd)
         self.man_incidence_entry.pack(side=LEFT)
-        self.man_emission_label=Label(self.manual_frame, padx=padx,pady=pady,bg=bg, text='Emission angle:')
+        self.man_emission_label=Label(self.spectrum_angles_frame, padx=padx,pady=pady,bg=bg, text='Emission angle:')
         self.man_emission_label.pack(side=LEFT, padx=(10,0))
-        self.man_emission_entry=Entry(self.manual_frame, width=10, bd=bd)
+        self.man_emission_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd)
         self.man_emission_entry.pack(side=LEFT, padx=(0,20))
         
-        self.label_label=Label(self.auto_frame, padx=padx,pady=pady,bg=bg, text='Label:')
+
+        self.label_label=Label(self.spectrum_settings_frame, padx=padx,pady=pady,bg=bg, text='Label:')
         self.label_label.pack()
-        self.label_entry=Entry(self.auto_frame, width=50, bd=bd)
+        self.label_entry=Entry(self.spectrum_settings_frame, width=50, bd=bd)
         self.label_entry.pack(pady=(0,15))
         
-        self.top_frame=Frame(self.auto_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=bg)
+        self.top_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=bg)
         #self.top_frame.pack()
         self.light_frame=Frame(self.top_frame,bg=bg)
         self.light_frame.pack(side=LEFT)
@@ -355,7 +383,7 @@ class Controller():
         detector_increment_entry=Entry(detector_entries_frame,bd=bd,width=10, highlightbackground='white')
         detector_increment_entry.pack(padx=padx,pady=pady)
         
-        self.auto_check_frame=Frame(self.auto_frame, bg=bg)
+        self.auto_check_frame=Frame(self.control_frame, bg=bg)
         #self.auto_check_frame.pack()
         self.auto_process=IntVar()
         self.auto_process_check=Checkbutton(self.auto_check_frame, text='Process data', bg=bg, highlightthickness=0)
@@ -367,7 +395,7 @@ class Controller():
         
         gen_bg=bg
         
-        self.gen_frame=Frame(self.auto_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=gen_bg)
+        self.gen_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=gen_bg)
         self.gen_frame.pack()
         
         self.opt_button=Button(self.gen_frame, text='Optimize', padx=padx, pady=pady,width=button_width, bg='light gray', command=self.opt)
@@ -636,7 +664,7 @@ class Controller():
         self.textbox.pack(fill=BOTH,expand=True)
         self.console_entry.focus()
     
-        self.notebook.add(self.auto_frame, text='Spectrometer control')
+        self.notebook.add(self.control_frame, text='Spectrometer control')
         self.notebook.add(self.dumb_frame, text='Settings')
         self.notebook.add(self.process_frame, text='Data processing')
         self.notebook.add(self.plot_frame, text='Plot')
@@ -666,7 +694,24 @@ class Controller():
                 self.load_labels_entry.insert(0,self.log_filename)
         else:
             self.load_labels_entry.pack_forget()
-    
+            
+    def chooselogfile(self):
+        self.log_filename = askopenfilename(initialdir=log_loc,title='Select existing log file to append to')
+        self.logfile_entry.delete(0,'end')
+        self.logfile_entry.insert(0, self.log_filename)
+
+        # with open(self.log_filename,'w+') as log:
+        #     log.write(str(datetime.datetime.now())+'\n')
+        
+    def newlog(self):
+        log = asksaveasfile(mode='w', defaultextension=".txt",title='Save a new log file')
+        if log is None: # asksaveasfile return `None` if dialog closed with "cancel".
+            return
+        self.log_filename=log.name
+        log.write(str(datetime.datetime.now())+'\n')
+        self.logfile_entry.delete(0,'end')
+        self.logfile_entry.insert(0, self.log_filename)
+        
     def go(self):    
         if not self.auto.get():
             self.take_spectrum()
@@ -760,9 +805,29 @@ class Controller():
                 return False
             else: #if there were no errors
                 return True
+                
+    def check_logfile(self):
+        if self.log_filename==None and self.logfile_entry.get()=='':
+            self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
+            with open(self.log_filename,'w+') as log:
+                log.write(str(datetime.datetime.now())+'\n')
+            if opsys=='Linux':
+                self.logfile_entry.insert(0,os.getcwd()+'/'+self.log_filename)
+            elif opsys=='Windows':
+                self.logfile_entry.insert(0,os.getcwd()+'\\'+self.log_filename)
+        elif self.logfile_entry.get()!=self.log_filename:
+            self.log_filename=self.logfile_entry.get()
+            if not os.path.isfile(self.logfile_entry.get()):
+                with open(self.log_filename,'w+') as log:
+                    log.write(str(datetime.datetime.now())+'\n')
+            
         
+            
     def wr(self, override=False):#opt_check=True):
-        print('Going to white reference!')
+        self.check_logfile()
+        #If the user didn't choose a log file, make one in working directory
+
+        
         valid_input=True #We'll check this in a moment if override=False
         self.wr_time=int(time.time())
         if self.label_entry.get()!='' and 'White reference' not in self.label_entry.get():
@@ -852,6 +917,7 @@ class Controller():
         
             
     def take_spectrum(self, override=False):
+        self.check_logfile()
         
         incidence=self.man_incidence_entry.get()
         emission=self.man_emission_entry.get()
@@ -1148,7 +1214,7 @@ class Controller():
         for d in datestringlist:
             datestring=datestring+d
             
-        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+self.spec_save_path+'\\'+self.spec_basename+'.'+numstr+'\n\tNotes: '+self.label_entry.get()+'\n'
+        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+self.spec_save_path+'\\'+self.spec_basename+numstr+'.asd'+'\n\tNotes: '+self.label_entry.get()+'\n'
         
         self.textbox.insert(END,info_string)
         with open(self.log_filename,'a') as log:
@@ -1160,8 +1226,9 @@ class Controller():
 
     
 class Dialog:
-    def __init__(self, controller, title, label, buttons, width=None, height=None):
+    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True):
         self.controller=controller
+        
         self.bg='white'
         
         #If we are starting a new master, we'll need to start a new mainloop after settin everything up. 
@@ -1179,6 +1246,8 @@ class Dialog:
             else:
                 self.top=tk.Toplevel(controller.master, width=width, height=height, bg='white')
                 self.top.pack_propagate(0)
+                
+        self.top.grab_set()
 
         self.label_frame=Frame(self.top, bg=self.bg)
         self.label_frame.pack(side=TOP)
@@ -1193,6 +1262,9 @@ class Dialog:
         
         if start_mainloop:
             self.top.mainloop()
+            
+        if not allow_exit:
+            self.top.protocol("WM_DELETE_WINDOW", self.on_closing)
             
     def set_label_text(self, newlabel):
         self.label.config(text=newlabel)
@@ -1242,6 +1314,11 @@ class Dialog:
             #         print(func)
             #         tk_buttons[button]=Button(self.button_frame, text=button,command=func)
             #         tk_buttons[button].pack(side=LEFT, padx=(10,10),pady=(10,10))
+            
+    def on_closing(self):
+        pass
+    
+
         
     def retry(self):
         dict=self.buttons['retry']
@@ -1389,7 +1466,7 @@ class WaitDialog(Dialog):
 
 class WaitForWRDialog(WaitDialog):
     def __init__(self, controller, title='White referencing...', label='White referencing...', buttons={'cancel':{}}, timeout=200):
-        super().__init__(controller, title, label,buttons={},timeout=2*timeout)
+        super().__init__(controller, title, label,timeout=2*timeout)
         self.loc_buttons=buttons
         print(self.loc_buttons)
 
@@ -1420,7 +1497,7 @@ class WaitForWRDialog(WaitDialog):
             
 class WaitForProcessDialog(WaitDialog):
     def __init__(self, controller, title='Processing...', label='Processing...', buttons={'cancel':{}}, timeout=200):
-        super().__init__(controller, title, label,buttons={},timeout=2*timeout)
+        super().__init__(controller, title, label,timeout=2*timeout)
 
     def wait(self, timeout_s):
         while self.timeout_s>0:
@@ -1446,7 +1523,7 @@ class WaitForProcessDialog(WaitDialog):
         
 class WaitForSaveConfigDialog(WaitDialog):
     def __init__(self, controller, title='Setting Save Configuration...', label='Setting save configuration...', buttons={'cancel':{}}, timeout=30):
-        super().__init__(controller, title, label,buttons={},timeout=2*timeout)
+        super().__init__(controller, title, label,timeout=2*timeout)
         self.keep_around=False
         self.loc_buttons=buttons
         self.unexpected_files=[]
@@ -1544,12 +1621,10 @@ class WaitForSpectrumDialog(WaitDialog):
         super().__init__(controller, title, label, buttons={},timeout=2*timeout)
         
     def wait(self, timeout_s):
-        print('waiting where I want to be')
         old_files=list(self.controller.listener.saved_files)
         while self.timeout_s>0:
             self.timeout_s-=1
             if self.canceled==True:
-                print('canceled!')
                 self.interrupt("Operation canceled by user. Warning! This really\ndoesn't do anything except stop tkinter from waiting\n, you probably still saved a spectrum")
                 return
                 
@@ -1617,9 +1692,9 @@ class WaitForSpectrumDialog(WaitDialog):
 
         
 class ErrorDialog(Dialog):
-    def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None):
+    def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False):
         self.listener=None
-        super().__init__(controller, title, label,buttons)
+        super().__init__(controller, title, label,buttons,allow_exit=False)
 
         
 def rm_reserved_chars(input):
@@ -1637,6 +1712,9 @@ def validate_int_input(input, min, max):
     if input<min: return False
     
     return True
+    
+    
+
 
 class Listener(threading.Thread):
     def __init__(self, read_command_loc, test=False):
@@ -1709,15 +1787,12 @@ class Listener(threading.Thread):
                 if self.new_dialogs:
                     try:
                         self.new_dialogs=False
-                        dialog=ErrorDialog(self.controller, title='Lost Connection',label='Error: Lost connection with server.\nCheck you are on the correct WiFi network and server is mounted.\n\n Exiting',buttons={'retry':{self.set_new_dialogs:[]}})
-
+                        dialog=ErrorDialog(self.controller, title='Lost Connection',label='Error: Lost connection with server.\nCheck you are on the correct WiFi network and server is mounted.',buttons={'retry':{self.set_new_dialogs:[]},'exit':{}},allow_exit=False)
                     except:
                         print('Ignoring an error in Listener when I make a new error dialog')
                         time.sleep(10)
                         exit()
-                
             if files==files0:
-
                 pass
             else:
                 for file in files:
@@ -1792,6 +1867,8 @@ class Listener(threading.Thread):
                 found=True
             i=i+1
         return found
+        
+
     
         
         
