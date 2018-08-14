@@ -102,19 +102,20 @@ elif computer=='new':
     NUMLEN=5
     server='geol-chzc5q2' #new computer
 
-share='specshare'
+command_share='specshare'
+data_share='users'
 
 if opsys=='Linux':
-    share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+share+'/'
+    command_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+command_share+'/'
     delimiter='/'
-    write_command_loc=share_loc+'commands/from_control/'
-    read_command_loc=share_loc+'commands/from_spec/'
+    write_command_loc=command_share_loc+'commands/from_control/'
+    read_command_loc=command_share_loc+'commands/from_spec/'
     config_loc=package_loc+'config/'
     log_loc=package_loc+'log/'
 elif opsys=='Windows':
-    share_loc='\\\\'+server.upper()+'\\'+share+'\\'
-    write_command_loc=share_loc+'commands\\from_control\\'
-    read_command_loc=share_loc+'commands\\from_spec\\'
+    command_share_loc='\\\\'+server.upper()+'\\'+command_share+'\\'
+    write_command_loc=command_share_loc+'commands\\from_control\\'
+    read_command_loc=command_share_loc+'commands\\from_spec\\'
     config_loc=package_loc+'config\\'
     log_loc=package_loc+'log\\'
 elif opsys=='Mac':
@@ -163,16 +164,18 @@ def main():
     
     #Create a listener, which listens for commands, and a controller, which manages the model (which writes commands) and the view.
     listener=Listener(read_command_loc)
-    control=Controller(listener, share_loc, write_command_loc, config_loc,opsys)
+    control=Controller(listener, command_share_loc, read_command_loc,write_command_loc, config_loc,opsys)
 
 class Controller():
-    def __init__(self, listener, share_loc, write_command_loc, config_loc, opsys):
+    def __init__(self, listener, command_share_loc, read_command_loc, write_command_loc, config_loc, opsys):
         self.listener=listener
         self.listener.set_controller(self)
         self.listener.start()
+        self.read_command_loc=read_command_loc
+
         
 
-        self.share_loc=share_loc
+        self.command_share_loc=command_share_loc
         self.write_command_loc=write_command_loc
         self.config_loc=config_loc
         self.opsys=opsys
@@ -192,6 +195,8 @@ class Controller():
         self.master=Tk()
         self.notebook=ttk.Notebook(self.master)
         
+        
+        
         #The plotter, surprisingly, plots things.
         self.plotter=Plotter(self.master)
         
@@ -201,6 +206,8 @@ class Controller():
     
         #The model keeps track of the goniometer state and sends commands to the raspberry pi and spectrometer
         self.model=Model(self.view, self.plotter, self.write_command_loc, False, False)
+        
+
         
         #Yay formatting
         bg='white'
@@ -240,11 +247,13 @@ class Controller():
         self.control_frame.pack()
         self.save_config_frame=Frame(self.control_frame,bg=bg,highlightthickness=1)
         self.save_config_frame.pack(fill=BOTH,expand=True)
-        self.spec_save_path_label=Label(self.save_config_frame,padx=padx,pady=pady,bg=bg,text='Spectra save configuration:')
-        self.spec_save_path_label.pack(padx=padx,pady=(15,5))
-        self.spec_save_path_entry=Entry(self.save_config_frame, width=50,bd=bd)
-        self.spec_save_path_entry.insert(0, self.spec_save_path)
-        self.spec_save_path_entry.pack(padx=padx, pady=pady)
+        self.spec_save_label=Label(self.save_config_frame,padx=padx,pady=pady,bg=bg,text='Spectra save configuration:')
+        self.spec_save_label.pack(pady=(15,5))
+        self.spec_save_path_label=Label(self.save_config_frame,padx=padx,pady=pady,bg=bg,text='Directory:')
+        self.spec_save_path_label.pack(padx=padx)
+        self.spec_save_dir_entry=Entry(self.save_config_frame, width=50,bd=bd)
+        self.spec_save_dir_entry.insert(0, self.spec_save_path)
+        self.spec_save_dir_entry.pack(padx=padx, pady=pady)
     
         self.spec_save_frame=Frame(self.save_config_frame, bg=bg)
         self.spec_save_frame.pack()
@@ -395,15 +404,16 @@ class Controller():
         
         gen_bg=bg
         
-        self.gen_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=gen_bg)
-        self.gen_frame.pack()
+        self.gen_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=1,bg=gen_bg)
+        self.gen_frame.pack(fill=BOTH, expand=True)
         
-        self.opt_button=Button(self.gen_frame, text='Optimize', padx=padx, pady=pady,width=button_width, bg='light gray', command=self.opt)
+        button_width=20
+        self.opt_button=Button(self.gen_frame, text='Optimize', padx=padx, pady=pady,width=button_width, bg='light gray', command=self.opt, height=2)
         self.opt_button.pack(padx=padx,pady=pady, side=LEFT)
-        self.wr_button=Button(self.gen_frame, text='White Reference', padx=padx, pady=pady, width=button_width, bg='light gray', command=self.wr)
+        self.wr_button=Button(self.gen_frame, text='White Reference', padx=padx, pady=pady, width=button_width, bg='light gray', command=self.wr, height=2)
         self.wr_button.pack(padx=padx,pady=pady, side=LEFT)
     
-        self.go_button=Button(self.gen_frame, text='Take Spectrum', padx=padx, pady=pady, width=button_width,bg='light gray', command=self.go)
+        self.go_button=Button(self.gen_frame, text='Take Spectrum', padx=padx, pady=pady, width=button_width,height=2,bg='light gray', command=self.go)
         self.go_button.pack(padx=padx,pady=pady, side=LEFT)
         
         #***************************************************************
@@ -677,9 +687,9 @@ class Controller():
         #self.timer interval: 
         #Number of spectra to collect:
         self.notebook.pack(fill=BOTH, expand=True)
-        self.master.mainloop()
         
-    
+        r=RemoteFileExplorer(self,write_command_loc)
+        self.master.mainloop()
 
         self.view.join()
         
@@ -704,7 +714,11 @@ class Controller():
         #     log.write(str(datetime.datetime.now())+'\n')
         
     def newlog(self):
-        log = asksaveasfile(mode='w', defaultextension=".txt",title='Save a new log file')
+        try:
+            dir = asksaveasfile(mode='w', defaultextension=".txt",title='Create a new log file')
+        except:
+            print('this is the log')
+            print('log')
         if log is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
         self.log_filename=log.name
@@ -740,7 +754,7 @@ class Controller():
         
             if self.spec_save_config.get():
                 file=open('spec_save','w')
-                file.write(self.spec_save_path_entry.get()+'\n')
+                file.write(self.spec_save_dir_entry.get()+'\n')
                 file.write(self.spec_basename_entry.get()+'\n')
                 file.write(self.spec_startnum_entry.get()+'\n')
                 
@@ -896,7 +910,7 @@ class Controller():
     def check_save_config(self):
 
         
-        new_spec_save_dir=self.spec_save_path_entry.get()
+        new_spec_save_dir=self.spec_save_dir_entry.get()
         new_spec_basename=self.spec_basename_entry.get()
         new_spec_num=int(self.spec_startnum_entry.get())
         
@@ -961,7 +975,7 @@ class Controller():
 
         self.model.take_spectrum(self.man_incidence_entry.get(), self.man_emission_entry.get(),self.spec_save_path, self.spec_basename, startnum_str)
         
-        #filename=self.spec_save_path_entry.get()+'\\'+self.spec_basename_entry.get()+'.'+startnum_str
+        #filename=self.spec_save_dir_entry.get()+'\\'+self.spec_basename_entry.get()+'.'+startnum_str
         #print('telling listener to expect '+filename)
         #filetupe=(filename,)
         #self.listener.ex_files=self.listener.ex_files+filetupe
@@ -970,12 +984,12 @@ class Controller():
         
         if self.spec_save_config.get():
             file=open(self.config_loc+'/spec_save','w')
-            file.write(self.spec_save_path_entry.get()+'\n')
+            file.write(self.spec_save_dir_entry.get()+'\n')
             file.write(self.spec_basename_entry.get()+'\n')
             file.write(self.spec_startnum_entry.get()+'\n')
 
             self.input_dir_entry.delete(0,'end')
-            self.input_dir_entry.insert(0,self.spec_save_path_entry.get())
+            self.input_dir_entry.insert(0,self.spec_save_dir_entry.get())
 
         timeout=new_spec_config_count*2+20+config_timeout
 
@@ -989,7 +1003,7 @@ class Controller():
         
     def set_save_config(self, func, args):
         
-        self.spec_save_path=self.spec_save_path_entry.get()
+        self.spec_save_path=self.spec_save_dir_entry.get()
         self.spec_basename = self.spec_basename_entry.get()
         spec_num=self.spec_startnum_entry.get()
         self.spec_num=int(spec_num)
@@ -1068,7 +1082,7 @@ class Controller():
             
     def plot(self):
         filename=self.plot_input_dir_entry.get()
-        filename=filename.replace('C:\\SpecShare',self.share_loc)
+        filename=filename.replace('C:\\SpecShare',self.command_share_loc)
         if self.opsys=='Windows': filename=filename.replace('\\','/')
         title=self.plot_title_entry.get()
         caption=''#self.plot_caption_entry.get()
@@ -1226,7 +1240,7 @@ class Controller():
 
     
 class Dialog:
-    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True):
+    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=30):
         self.controller=controller
         
         self.bg='white'
@@ -1247,14 +1261,14 @@ class Dialog:
                 self.top=tk.Toplevel(controller.master, width=width, height=height, bg='white')
                 self.top.pack_propagate(0)
                 
-        self.top.grab_set()
+        #self.top.grab_set()
 
         self.label_frame=Frame(self.top, bg=self.bg)
         self.label_frame.pack(side=TOP)
         self.label = tk.Label(self.label_frame, text=label, bg=self.bg)
         self.label.pack(pady=(10,10), padx=(10,10))
     
-        self.button_width=20
+        self.button_width=button_width
         self.buttons=buttons
         self.set_buttons(buttons)
 
@@ -1322,7 +1336,7 @@ class Dialog:
         
     def retry(self):
         dict=self.buttons['retry']
-        self.top.destroy()
+        
         for func in dict:
             if len(dict[func])>0:
                 arg=dict[func][0]
@@ -1330,20 +1344,26 @@ class Dialog:
             else:
                 print(func)
                 func()
+        self.top.destroy()
+        
     def exit(self):
         self.top.destroy()
         exit()
 
     def ok(self):
         dict=self.buttons['ok']
-        self.top.destroy()
+        
         for func in dict:
-            arg=dict[func][0]
-            func(arg)
+            if len(dict[func])==0:
+                func()
+            elif len(dict[func])==1:
+                arg=dict[func][0]
+                func(arg)
+        self.top.destroy()
         
     def yes(self):
         dict=self.buttons['yes']
-        self.top.destroy()
+        
         for func in dict:
             arg=dict[func][0]
             try:
@@ -1351,6 +1371,7 @@ class Dialog:
                 func(arg, arg1)
             except:
                 func(arg)
+        self.top.destroy()
         
     def no(self):
         dict=self.buttons['no']
@@ -1713,6 +1734,153 @@ def validate_int_input(input, min, max):
     
     return True
     
+
+class RemoteFileExplorer(Dialog):
+    def __init__(self,controller,write_command_loc, title='Select a directory',buttons={'ok':{},'cancel':{}}):
+        
+        self.cmdnum=0
+        super().__init__(controller, title=title, buttons=buttons,label='Select a directory to save your spectra', button_width=20)
+        self.controller=controller
+        self.listener=self.controller.listener
+        self.write_command_loc=write_command_loc
+        
+        self.nav_frame=Frame(self.top,bg=self.bg)
+        self.nav_frame.pack()
+        self.new_button=Button(self.nav_frame, text='New Folder',command=self.askfornewdir, width=10)
+        self.new_button.pack(side=RIGHT, pady=(5,5),padx=(0,10))
+
+        self.path_entry=Entry(self.nav_frame, width=40)
+        self.path_entry.pack(padx=(5,5),pady=(5,5),side=RIGHT)
+        self.back_button=Button(self.nav_frame, text='<-',command=self.back,width=1)
+        self.back_button.pack(side=RIGHT, pady=(5,5),padx=(10,0))
+        
+        self.scroll_frame=Frame(self.top,bg=self.bg)
+        self.scroll_frame.pack(fill=BOTH, expand=True)
+        self.scrollbar = Scrollbar(self.scroll_frame, orient=VERTICAL)
+        self.listbox = Listbox(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=SINGLE)
+
+        self.scrollbar.config(command=self.listbox.yview)
+        self.scrollbar.pack(side=RIGHT, fill=Y,padx=(0,10))
+        self.listbox.pack(side=LEFT,expand=True, fill=BOTH,padx=(10,0))
+        self.listbox.bind("<Double-Button-1>", self.expand)
+        self.path_entry.bind('<Return>',self.go_to_path)
+        self.current_parent='C:\\Users'
+        #self.controller.spec_save_dir_entry.get()
+        if True:#self.controller.spec_save_dir_entry.get()=='':
+            self.expand(newparent='C:\\Users')
+        #self.expand(newparent=self.controller.spec_save_dir_entry.get())
+        
+        
+        
+    def askfornewdir(self):
+        input_dialog=InputDialog(self.controller, self)
+
+    def mkdir(self, dir):
+        filename=self.controller.model.cmd_to_filename('mkdir',self.cmdnum, parameters=[self.current_parent+'\\'+dir])
+        self.cmdnum+=1
+        try:
+            with open(self.write_command_loc+filename,'w+') as f:
+                pass
+        except:
+                pass
+                
+        while True:
+            if 'mkdirsuccess' in self.listener.queue:
+                print('success')
+                self.listener.queue.remove('mkdirsuccess')
+                self.path_entry.delete(0,'end')
+                self.expand(newparent=self.current_parent)
+                break
+            elif 'mkdirfailed' in self.listener.queue:
+                print('failed')
+                self.listener.queue.remove('mkdirfailed')
+                dialog=ErrorDialog(self.controller,label='Error: Failed to create directory.\n Do you have write permission here?')
+                break
+            time.sleep(0.1)
+        
+        
+    def back(self):
+        if self.path_entry.get()=='C:' or self.path_entry.get()=='C:\\':
+            return
+        parent='\\'.join(self.path_entry.get().split('\\')[0:-1])
+        self.path_entry.delete(0,'end')
+        print(parent)
+        self.expand(newparent=parent)
+        
+    def go_to_path(self, source):
+        print(source)
+        parent=self.path_entry.get()
+        self.path_entry.delete(0,'end')
+        self.expand(newparent=parent)
+        
+    
+    def expand(self, source=None, newparent=None):
+        print(newparent)
+        if newparent==None:
+            newparent=self.current_parent+'\\'+self.listbox.get(self.listbox.curselection()[0])
+            print('no newparent')
+        #Send a command to the spec compy asking it for directory contents
+        
+        cmdfilename=self.controller.model.cmd_to_filename('listdir',self.cmdnum, parameters=[newparent])
+        self.cmdnum+=1
+        try:
+            with open(self.write_command_loc+cmdfilename,'w+') as f:
+                pass
+        except:
+                pass
+                
+        #Wait to hear what the listener finds
+        while True:
+            #If we get a file back with a list of the contents, replace the old listbox contents with new ones.
+            if cmdfilename in self.listener.queue:
+                self.listbox.delete(0,'end')
+                with open(self.controller.read_command_loc+cmdfilename,'r') as f:
+                    next=f.readline()
+                    while next!='':
+                        print(next)
+                        self.listbox.insert(END,next.strip('\n'))
+                        next=f.readline()
+                self.listener.queue.remove(cmdfilename)
+                
+                #Since we succeeded, set current parent to the new one path entry text to the new parent.
+                self.current_parent=newparent
+                self.path_entry.delete(0,'end')
+                if self.path_entry.get()!='':
+                    self.path_entry.insert('end','\\'+newparent)
+                else:
+                    self.path_entry.insert('end',newparent)
+                    
+                break
+            elif 'listdirfailed' in self.listener.queue:
+                self.listener.queue.remove('listdirfailed')
+                break
+            time.sleep(0.1)
+    
+    def ok(self):
+        if len(self.listbox.curselection())>0:
+            self.controller.spec_save_dir_entry.delete(0,'end')
+            i=self.listbox.curselection()
+
+            self.controller.spec_save_dir_entry.insert(0,self.current_parent+'\\'+self.listbox.get(i))
+            self.top.destroy()
+        else:
+            dialog=ErrorDialog(self.controller,label='Error: No save directory selected.')
+
+
+class InputDialog(Dialog):
+    def __init__(self, controller, fexplorer,label='Enter input', title='Enter input'):
+        super().__init__(controller,label=label,title=title, buttons={'ok':{self.get:[]}})
+        self.dir_entry=Entry(self.top,width=40)
+        self.dir_entry.pack(padx=(10,10))
+        self.dir_entry.insert(0,'foo')
+        print(self.dir_entry)
+
+        self.fexplorer=fexplorer
+        
+    def get(self):
+        dir=self.dir_entry.get()
+        self.fexplorer.mkdir(dir)      
+        print('dont in input dialog')
     
 
 
@@ -1737,6 +1905,8 @@ class Listener(threading.Thread):
         self.fileexists=False
         
         self.new_dialogs=True
+        
+        self.queue=[]
         
     # @property
     # def ex_files(self):
@@ -1849,6 +2019,17 @@ class Listener(threading.Thread):
                             self.saveconfig_status='failure:fileexists'
                             print('The listener knows a file exists')
                             
+                        elif 'listdir' in cmd:
+                            # cmd,filename=unencrypt(cmd)
+                            # print(filename)
+                            print('here is what I am putting in my queue')
+                            print(file)
+                            self.queue.append(file)
+                            #os.remove(read_command_loc+file)
+                            
+
+                        elif 'mkdirsuccess' in cmd:
+                            self.queue.append('mkdirsuccess')
                         else:
                             print('unexpected cmd: '+file)
                 #This line always prints twice if it's uncommented, I'm not sure why.
@@ -1868,10 +2049,20 @@ class Listener(threading.Thread):
             i=i+1
         return found
         
+    
+        
 
     
         
-        
+def unencrypt(encrypted):
+    cmd=encrypted.split('&')[0]
+    params=encrypted.split('&')[1:]
+    i=0
+    for param in params:
+        params[i]=param.replace('+','\\').replace('=',':')
+        params[i]=params[i].replace('++','+')
+        i=i+1
+    return cmd,params
 
 def filename_to_cmd(filename):
     cmd=filename.split('&')[0]

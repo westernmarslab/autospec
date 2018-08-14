@@ -77,7 +77,7 @@ class Model:
         self.plotter.plot_spectrum(10,10,[[1,2,3,4,5],[1,2,3,4,5]])
         
     def process(self,input_dir, output_dir, output_file):
-        filename=cmd_to_filename('process',self.process_num,[input_dir,output_dir,output_file])
+        filename=self.cmd_to_filename('process',self.process_num,[input_dir,output_dir,output_file])
         self.process_num=self.process_num+1
         try:
             file=open(self.command_loc+'/'+filename,'w+')
@@ -147,7 +147,7 @@ class Model:
     
     def take_spectrum(self, inc, em, path, basename, startnum):
         print('take a spectrum')
-        filename=cmd_to_filename('spectrum',self.spectrum_num,[path,basename,startnum])
+        filename=self.cmd_to_filename('spectrum',self.spectrum_num,[path,basename,startnum])
 
         try:
             file=open(self.command_loc+filename,'w')
@@ -184,7 +184,7 @@ class Model:
         #         file.write(',')
         # file.close()
     def opt(self):
-        filename=cmd_to_filename('opt',self.opt_num)
+        filename=self.cmd_to_filename('opt',self.opt_num)
         try:
             file=open(self.command_loc+filename,'w+')
         except OSError as e:
@@ -219,7 +219,7 @@ class Model:
         
 
     def set_save_path(self, path, basename, startnum):
-        filename=cmd_to_filename('saveconfig',self.saveconfig_num,[path,basename,startnum])
+        filename=self.cmd_to_filename('saveconfig',self.saveconfig_num,[path,basename,startnum])
         print('here I am saying to set save path')
         print(self.command_loc)
         print(filename)
@@ -236,7 +236,7 @@ class Model:
         self.saveconfig_num+=1
     
     def configure_instrument(self,number):
-        filename=cmd_to_filename('instrumentconfig',self.instrumentconfig_num,[number])
+        filename=self.cmd_to_filename('instrumentconfig',self.instrumentconfig_num,[number])
         try:
             file=open(self.command_loc+filename,'w')
         except:
@@ -245,14 +245,14 @@ class Model:
         self.instrumentconfig_num+=1
             
 
-def cmd_to_filename(cmd, num, parameters=[]):
-    filename=cmd+str(num)
-    for param in parameters:
-        param=param.replace('/','+')
-        param=param.replace('\\','+')
-        param=param.replace(':','=')
-        filename=filename+'&'+param
-    return filename
+    def cmd_to_filename(self,cmd, num, parameters=[]):
+        filename=cmd+str(num)
+        for param in parameters:
+            param=param.replace('/','+')
+            param=param.replace('\\','+')
+            param=param.replace(':','=')
+            filename=filename+'&'+param
+        return filename
         
     
 def take_wr():
