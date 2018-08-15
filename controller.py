@@ -46,6 +46,9 @@ if opsys=='Darwin': opsys='Mac' #For some reason Macs identify themselves as Dar
 global package_loc
 package_loc=''
 
+global cmdnum
+cmdnum=[0]
+
 if opsys=='Windows':
     #If I am running this script from my IDE, __file__ is not defined. In that case, go with a hard-coded file location.
     try:
@@ -190,6 +193,8 @@ class Controller():
         self.take_spectrum_with_bad_i_or_e=False
         self.wr_time=None
         self.opt_time=None
+        self.i=-1000
+        self.e=-1000
         
         #Tkinter notebook GUI
         self.master=Tk()
@@ -210,14 +215,19 @@ class Controller():
 
         
         #Yay formatting
-        bg='white'
+        self.bg='#555555'
+        self.textcolor='light gray'
+        self.buttontextcolor='white'
         bd=2
         padx=3
         pady=3
         border_color='light gray'
         button_width=15
+        self.buttonbackgroundcolor='#888888'
+        self.highlightbackgroundcolor='#222222'
+        self.entry_background='light gray'
         
-        self.master.configure(background = bg)
+        self.master.configure(background = self.bg)
         self.master.title('Control')
     
         process_config=open(self.config_loc+'process_directories','r')
@@ -243,429 +253,467 @@ class Controller():
         except:
             print('invalid config')
         
-        self.control_frame=Frame(self.notebook, bg=bg)
+        self.control_frame=Frame(self.notebook, bg=self.bg)
         self.control_frame.pack()
-        self.save_config_frame=Frame(self.control_frame,bg=bg,highlightthickness=1)
+        self.save_config_frame=Frame(self.control_frame,bg=self.bg,highlightthickness=1)
         self.save_config_frame.pack(fill=BOTH,expand=True)
-        self.spec_save_label=Label(self.save_config_frame,padx=padx,pady=pady,bg=bg,text='Spectra save configuration:')
+        self.spec_save_label=Label(self.save_config_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Spectra save configuration:')
         self.spec_save_label.pack(pady=(15,5))
-        self.spec_save_path_label=Label(self.save_config_frame,padx=padx,pady=pady,bg=bg,text='Directory:')
+        self.spec_save_path_label=Label(self.save_config_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Directory:')
         self.spec_save_path_label.pack(padx=padx)
-        self.spec_save_dir_entry=Entry(self.save_config_frame, width=50,bd=bd)
+        
+        self.spec_save_dir_frame=Frame(self.save_config_frame,bg=self.bg)
+        self.spec_save_dir_frame.pack()
+        
+        self.spec_save_dir_browse_button=Button(self.spec_save_dir_frame,text='Browse',command=self.choose_spec_save_dir)
+        self.spec_save_dir_browse_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.spec_save_dir_browse_button.pack(side=RIGHT, padx=padx)
+        
+        self.spec_save_dir_entry=Entry(self.spec_save_dir_frame, width=50,bd=bd,bg=self.entry_background)
         self.spec_save_dir_entry.insert(0, self.spec_save_path)
-        self.spec_save_dir_entry.pack(padx=padx, pady=pady)
+        self.spec_save_dir_entry.pack(padx=padx, pady=pady, side=RIGHT)
+        
+        
     
-        self.spec_save_frame=Frame(self.save_config_frame, bg=bg)
+        self.spec_save_frame=Frame(self.save_config_frame, bg=self.bg)
         self.spec_save_frame.pack()
         
-        self.spec_basename_label=Label(self.spec_save_frame,pady=pady,bg=bg,text='Base name:')
+        self.spec_basename_label=Label(self.spec_save_frame,pady=pady,bg=self.bg,fg=self.textcolor,text='Base name:')
         self.spec_basename_label.pack(side=LEFT,pady=(5,15),padx=(0,0))
-        self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=bd)
+        self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=bd,bg=self.entry_background)
         self.spec_basename_entry.pack(side=LEFT,padx=(5,5), pady=pady)
         self.spec_basename_entry.insert(0,self.spec_basename)
         
-        self.spec_startnum_label=Label(self.spec_save_frame,padx=padx,pady=pady,bg=bg,text='Number:')
+        self.spec_startnum_label=Label(self.spec_save_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Number:')
         self.spec_startnum_label.pack(side=LEFT,pady=pady)
-        self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=bd)
+        self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=bd,bg=self.entry_background)
         self.spec_startnum_entry.insert(0,spec_startnum)
         self.spec_startnum_entry.pack(side=RIGHT, pady=pady)
         
         
         
             
-        self.log_frame=Frame(self.control_frame, bg=bg,highlightthickness=1)
+        self.log_frame=Frame(self.control_frame, bg=self.bg,highlightthickness=1)
         self.log_frame.pack(fill=BOTH,expand=True)
-        self.logfile_label=Label(self.log_frame,padx=padx,pady=pady,bg=bg,text='Log file:')
+        self.logfile_label=Label(self.log_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Log file:')
         self.logfile_label.pack(padx=padx,pady=(10,0))
-        self.logfile_entry_frame=Frame(self.log_frame, bg=bg)
+        self.logfile_entry_frame=Frame(self.log_frame, bg=self.bg)
         self.logfile_entry_frame.pack()
-        self.logfile_entry=Entry(self.logfile_entry_frame, width=50,bd=bd)
+        self.logfile_entry=Entry(self.logfile_entry_frame, width=50,bd=bd,bg=self.entry_background)
         self.logfile_entry.pack(padx=padx, pady=(5,15))
         self.logfile_entry.enabled=False
-        self.select_logfile_button=Button(self.logfile_entry_frame, text='Select existing',command=self.chooselogfile, width=13, height=1)
+        self.select_logfile_button=Button(self.logfile_entry_frame, fg=self.textcolor,text='Select existing',command=self.chooselogfile, width=13, height=1,bg=self.buttonbackgroundcolor)
+        self.select_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor)
         self.select_logfile_button.pack(side=LEFT,padx=(50,5), pady=(0,10))
-        self.new_logfile_button=Button(self.logfile_entry_frame, text='New log file',command=self.newlog, width=13, height=1)
+        
+        self.new_logfile_button=Button(self.logfile_entry_frame, fg=self.textcolor,text='New log file',command=self.newlog, width=13, height=1)
+        self.new_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.new_logfile_button.pack(side=LEFT,padx=padx, pady=(0,10))
         
         
         
         self.spec_save_config=IntVar()
-        self.spec_save_config_check=Checkbutton(self.save_config_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=self.spec_save_config)
+        self.spec_save_config_check=Checkbutton(self.save_config_frame, fg=self.textcolor,text='Save file configuration', bg=self.bg, pady=pady,highlightthickness=0, variable=self.spec_save_config)
         #self.spec_save_config_check.pack(pady=(0,5))
         self.spec_save_config_check.select()
         
-        self.spectrum_settings_frame=Frame(self.control_frame,bg=bg, highlightcolor="green", highlightthickness=1)
+        self.spectrum_settings_frame=Frame(self.control_frame,bg=self.bg, highlightcolor="green", highlightthickness=1)
         self.spectrum_settings_frame.pack(fill=BOTH,expand=True)
-        self.spec_settings_label=Label(self.spectrum_settings_frame,padx=padx,pady=pady,bg=bg,text='Settings for this spectrum:')
+        self.spec_settings_label=Label(self.spectrum_settings_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Settings for this spectrum:')
         self.spec_settings_label.pack(padx=padx,pady=(10,0))
-        self.instrument_config_frame=Frame(self.spectrum_settings_frame, bg=bg)
+        self.instrument_config_frame=Frame(self.spectrum_settings_frame, bg=self.bg)
         self.instrument_config_frame.pack(pady=(15,15))
-        self.instrument_config_label=Label(self.instrument_config_frame, text='Number of spectra to average:', bg=bg)
+        self.instrument_config_label=Label(self.instrument_config_frame, fg=self.textcolor,text='Number of spectra to average:', bg=self.bg)
         self.instrument_config_label.pack(side=LEFT)
-        self.instrument_config_entry=Entry(self.instrument_config_frame, width=10, bd=bd)
+        self.instrument_config_entry=Entry(self.instrument_config_frame, width=10, bd=bd,bg=self.entry_background)
         self.instrument_config_entry.insert(0, 5)
         self.instrument_config_entry.pack(side=LEFT)
-        #self.filler_label=Label(self.instrument_config_frame,bg=bg,text='       ')
+        #self.filler_label=Label(self.instrument_config_frame,bg=self.bg,fg=self.textcolor,text='       ')
         # self.filler_label.pack(side=LEFT)
         
 
 
         
-        # self.manual_frame=Frame(self.auto_frame, bg=bg)
+        # self.manual_frame=Frame(self.auto_frame, bg=self.bg)
         # self.manual_frame.pack()
         
-        self.spectrum_angles_frame=Frame(self.spectrum_settings_frame, bg=bg)
+        self.spectrum_angles_frame=Frame(self.spectrum_settings_frame, bg=self.bg)
         self.spectrum_angles_frame.pack()
-        self.man_incidence_label=Label(self.spectrum_angles_frame,padx=padx,pady=pady,bg=bg,text='Incidence angle:')
+        self.man_incidence_label=Label(self.spectrum_angles_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Incidence angle:')
         self.man_incidence_label.pack(side=LEFT, padx=padx,pady=(0,8))
-        self.man_incidence_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd)
+        self.man_incidence_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd,bg=self.entry_background)
         self.man_incidence_entry.pack(side=LEFT)
-        self.man_emission_label=Label(self.spectrum_angles_frame, padx=padx,pady=pady,bg=bg, text='Emission angle:')
+        self.man_emission_label=Label(self.spectrum_angles_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Emission angle:')
         self.man_emission_label.pack(side=LEFT, padx=(10,0))
-        self.man_emission_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd)
+        self.man_emission_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd,bg=self.entry_background)
         self.man_emission_entry.pack(side=LEFT, padx=(0,20))
         
 
-        self.label_label=Label(self.spectrum_settings_frame, padx=padx,pady=pady,bg=bg, text='Label:')
+        self.label_label=Label(self.spectrum_settings_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Label:')
         self.label_label.pack()
-        self.label_entry=Entry(self.spectrum_settings_frame, width=50, bd=bd)
+        self.label_entry=Entry(self.spectrum_settings_frame, width=50, bd=bd,bg=self.entry_background)
         self.label_entry.pack(pady=(0,15))
         
-        self.top_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=bg)
+        self.top_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=self.bg)
         #self.top_frame.pack()
-        self.light_frame=Frame(self.top_frame,bg=bg)
+        self.light_frame=Frame(self.top_frame,bg=self.bg)
         self.light_frame.pack(side=LEFT)
-        self.light_label=Label(self.light_frame,padx=padx, pady=pady,bg=bg,text='Light Source')
+        self.light_label=Label(self.light_frame,padx=padx, pady=pady,bg=self.bg,fg=self.textcolor,text='Light Source')
         self.light_label.pack()
         
-        light_labels_frame = Frame(self.light_frame,bg=bg,padx=padx,pady=pady)
+        light_labels_frame = Frame(self.light_frame,bg=self.bg,padx=padx,pady=pady)
         light_labels_frame.pack(side=LEFT)
         
-        light_start_label=Label(light_labels_frame,padx=padx,pady=pady,bg=bg,text='Start:')
+        light_start_label=Label(light_labels_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Start:')
         light_start_label.pack(pady=(0,8))
-        light_end_label=Label(light_labels_frame,bg=bg,padx=padx,pady=pady,text='End:',fg='lightgray')
-        light_end_label.pack(pady=(0,5))
+        #light_end_label=Label(light_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='End:',fg='lightgray')
+        #light_end_label.pack(pady=(0,5))
     
-        light_increment_label=Label(light_labels_frame,bg=bg,padx=padx,pady=pady,text='Increment:',fg='lightgray')
-        light_increment_label.pack(pady=(0,5))
+        #light_increment_label=Label(light_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='Increment:',fg='lightgray')
+       # light_increment_label.pack(pady=(0,5))
     
         
-        light_entries_frame=Frame(self.light_frame,bg=bg,padx=padx,pady=pady)
+        light_entries_frame=Frame(self.light_frame,bg=self.bg,padx=padx,pady=pady)
         light_entries_frame.pack(side=RIGHT)
         
-        light_start_entry=Entry(light_entries_frame,width=10, bd=bd)
+        light_start_entry=Entry(light_entries_frame,width=10, bd=bd,bg=self.entry_background)
         light_start_entry.pack(padx=padx,pady=pady)
         light_start_entry.insert(0,'10')
         
-        light_end_entry=Entry(light_entries_frame,width=10, highlightbackground='white', bd=bd)
+        light_end_entry=Entry(light_entries_frame,width=10, highlightbackground='white', bd=bd,bg=self.entry_background)
         light_end_entry.pack(padx=padx,pady=pady)    
-        light_increment_entry=Entry(light_entries_frame,width=10,highlightbackground='white', bd=bd)
+        light_increment_entry=Entry(light_entries_frame,width=10,highlightbackground='white', bd=bd,bg=self.entry_background)
         light_increment_entry.pack(padx=padx,pady=pady)
         
-        detector_frame=Frame(self.top_frame,bg=bg)
+        detector_frame=Frame(self.top_frame,bg=self.bg)
         detector_frame.pack(side=RIGHT)
         
-        detector_label=Label(detector_frame,padx=padx, pady=pady,bg=bg,text='Detector')
+        detector_label=Label(detector_frame,padx=padx, pady=pady,bg=self.bg,fg=self.textcolor,text='Detector')
         detector_label.pack()
         
-        detector_labels_frame = Frame(detector_frame,bg=bg,padx=padx,pady=pady)
+        detector_labels_frame = Frame(detector_frame,bg=self.bg,padx=padx,pady=pady)
         detector_labels_frame.pack(side=LEFT)
         
-        detector_start_label=Label(detector_labels_frame,padx=padx,pady=pady,bg=bg,text='Start:')
+        detector_start_label=Label(detector_labels_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Start:')
         detector_start_label.pack(pady=(0,8))
-        detector_end_label=Label(detector_labels_frame,bg=bg,padx=padx,pady=pady,text='End:',fg='lightgray')
-        detector_end_label.pack(pady=(0,5))
+        #detector_end_label=Label(detector_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='End:',fg='lightgray')
+        #detector_end_label.pack(pady=(0,5))
     
-        detector_increment_label=Label(detector_labels_frame,bg=bg,padx=padx,pady=pady,text='Increment:',fg='lightgray')
-        detector_increment_label.pack(pady=(0,5))
+        #detector_increment_label=Label(detector_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='Increment:',fg='lightgray')
+        #detector_increment_label.pack(pady=(0,5))
     
         
-        detector_entries_frame=Frame(detector_frame,bg=bg,padx=padx,pady=pady)
+        detector_entries_frame=Frame(detector_frame,bg=self.bg,padx=padx,pady=pady)
         detector_entries_frame.pack(side=RIGHT)
-        detector_start_entry=Entry(detector_entries_frame,bd=bd,width=10)
+        detector_start_entry=Entry(detector_entries_frame,bd=bd,width=10,bg=self.entry_background)
         detector_start_entry.pack(padx=padx,pady=pady)
         detector_start_entry.insert(0,'0')
         
-        detector_end_entry=Entry(detector_entries_frame,bd=bd,width=10,highlightbackground='white')
+        detector_end_entry=Entry(detector_entries_frame,bd=bd,width=10,highlightbackground='white',bg=self.entry_background)
         detector_end_entry.pack(padx=padx,pady=pady)
         
-        detector_increment_entry=Entry(detector_entries_frame,bd=bd,width=10, highlightbackground='white')
+        detector_increment_entry=Entry(detector_entries_frame,bd=bd,width=10, highlightbackground='white',bg=self.entry_background)
         detector_increment_entry.pack(padx=padx,pady=pady)
         
-        self.auto_check_frame=Frame(self.control_frame, bg=bg)
+        self.auto_check_frame=Frame(self.control_frame, bg=self.bg)
         #self.auto_check_frame.pack()
         self.auto_process=IntVar()
-        self.auto_process_check=Checkbutton(self.auto_check_frame, text='Process data', bg=bg, highlightthickness=0)
+        self.auto_process_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Process data', bg=self.bg, highlightthickness=0)
         self.auto_process_check.pack(side=LEFT)
         
         self.auto_plot=IntVar()
-        self.auto_plot_check=Checkbutton(self.auto_check_frame, text='Plot spectra', bg=bg, highlightthickness=0)
+        self.auto_plot_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, highlightthickness=0)
         self.auto_plot_check.pack(side=LEFT)
         
-        gen_bg=bg
+        gen_bg=self.bg
         
         self.gen_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=1,bg=gen_bg)
         self.gen_frame.pack(fill=BOTH, expand=True)
         
         button_width=20
-        self.opt_button=Button(self.gen_frame, text='Optimize', padx=padx, pady=pady,width=button_width, bg='light gray', command=self.opt, height=2)
+        self.opt_button=Button(self.gen_frame, fg=self.textcolor,text='Optimize', padx=padx, pady=pady,width=button_width, bg='light gray', command=self.opt, height=2)
+        self.opt_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.opt_button.pack(padx=padx,pady=pady, side=LEFT)
-        self.wr_button=Button(self.gen_frame, text='White Reference', padx=padx, pady=pady, width=button_width, bg='light gray', command=self.wr, height=2)
+        self.wr_button=Button(self.gen_frame, fg=self.textcolor,text='White Reference', padx=padx, pady=pady, width=button_width, bg='light gray', command=self.wr, height=2)
         self.wr_button.pack(padx=padx,pady=pady, side=LEFT)
+        self.wr_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
     
-        self.go_button=Button(self.gen_frame, text='Take Spectrum', padx=padx, pady=pady, width=button_width,height=2,bg='light gray', command=self.go)
+        self.go_button=Button(self.gen_frame, fg=self.textcolor,text='Take Spectrum', padx=padx, pady=pady, width=button_width,height=2,bg='light gray', command=self.go)
         self.go_button.pack(padx=padx,pady=pady, side=LEFT)
+        self.go_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         
         #***************************************************************
         # Frame for settings
         
-        self.dumb_frame=Frame(self.notebook, bg=bg, pady=2*pady)
+        self.dumb_frame=Frame(self.notebook, bg=self.bg, pady=2*pady)
         self.dumb_frame.pack()
-        # entries_frame=Frame(man_frame, bg=bg)
+        # entries_frame=Frame(man_frame, bg=self.bg)
         # entries_frame.pack(fill=BOTH, expand=True)
-        # man_light_label=Label(entries_frame,padx=padx, pady=pady,bg=bg,text='Instrument positions:')
+        # man_light_label=Label(entries_frame,padx=padx, pady=pady,bg=self.bg,fg=self.textcolor,text='Instrument positions:')
         # man_light_label.pack()
-        # man_light_label=Label(entries_frame,padx=padx,pady=pady,bg=bg,text='Incidence:')
+        # man_light_label=Label(entries_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Incidence:')
         # man_light_label.pack(side=LEFT, padx=(30,5),pady=(0,8))
         # man_light_entry=Entry(entries_frame, width=10)
         # man_light_entry.insert(0,'10')
         # man_light_entry.pack(side=LEFT)
-        # man_detector_label=Label(entries_frame, padx=padx,pady=pady,bg=bg, text='Emission:')
+        # man_detector_label=Label(entries_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Emission:')
         # man_detector_label.pack(side=LEFT, padx=(10,0))
-        # man_detector_entry=Entry(entries_frame, width=10,text='0')
+        # man_detector_entry=Entry(entries_frame, width=10,fg=self.textcolor,text='0')
         # man_detector_entry.insert(0,'10')
         # man_detector_entry.pack(side=LEFT)
 
-        # self.instrument_config_title_frame=Frame(self.dumb_frame, bg=bg)
+        # self.instrument_config_title_frame=Frame(self.dumb_frame, bg=self.bg)
         # self.instrument_config_title_frame.pack(pady=pady)
-        # self.instrument_config_label0=Label(self.instrument_config_title_frame, text='Instrument Configuration:                                ', bg=bg)
+        # self.instrument_config_label0=Label(self.instrument_config_title_frame, fg=self.textcolor,text='Instrument Configuration:                                ', bg=self.bg)
         # self.instrument_config_label0.pack(side=LEFT)
 
         
-        self.automation_title_frame=Frame(self.dumb_frame, bg=bg)
+        self.automation_title_frame=Frame(self.dumb_frame, bg=self.bg)
         self.automation_title_frame.pack(pady=pady)
-        self.automation_label0=Label(self.automation_title_frame, text='Automation:                                               ', bg=bg)
+        self.automation_label0=Label(self.automation_title_frame, fg=self.textcolor,text='Automation:                                               ', bg=self.bg)
         self.automation_label0.pack(side=LEFT)
         
         
-        self.auto_check_frame=Frame(self.dumb_frame, bg=bg)
+        self.auto_check_frame=Frame(self.dumb_frame, bg=self.bg)
         self.auto_check_frame.pack()
         self.auto=IntVar()
-        self.auto_check=Checkbutton(self.auto_check_frame, text='Automatically iterate through viewing geometries', bg=bg, pady=pady,highlightthickness=0, variable=self.auto, command=self.auto_cycle_check)
+        self.auto_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Automatically iterate through viewing geometries', bg=self.bg, pady=pady,highlightthickness=0, variable=self.auto, command=self.auto_cycle_check)
         self.auto_check.pack(side=LEFT, pady=pady)
         
-        self.timer_title_frame=Frame(self.dumb_frame, bg=bg)
+        self.timer_title_frame=Frame(self.dumb_frame, bg=self.bg)
         self.timer_title_frame.pack(pady=(10,0))
-        self.timer_label0=Label(self.timer_title_frame, text='Timer:                                                   ', bg=bg)
+        self.timer_label0=Label(self.timer_title_frame, fg=self.textcolor,text='Timer:                                                   ', bg=self.bg)
         self.timer_label0.pack(side=LEFT)
-        self.timer_frame=Frame(self.dumb_frame, bg=bg, pady=pady)
+        self.timer_frame=Frame(self.dumb_frame, bg=self.bg, pady=pady)
         self.timer_frame.pack()
-        self.timer_check_frame=Frame(self.timer_frame, bg=bg)
+        self.timer_check_frame=Frame(self.timer_frame, bg=self.bg)
         self.timer_check_frame.pack(pady=pady)
         self.timer=IntVar()
-        self.timer_check=Checkbutton(self.timer_check_frame, text='Collect sets of spectra using a timer           ', bg=bg, pady=pady,highlightthickness=0, variable=self.timer)
+        self.timer_check=Checkbutton(self.timer_check_frame, fg=self.textcolor,text='Collect sets of spectra using a timer           ', bg=self.bg, pady=pady,highlightthickness=0, variable=self.timer)
         self.timer_check.pack(side=LEFT, pady=pady)
         
-        self.timer_duration_frame=Frame(self.timer_frame, bg=bg)
+        self.timer_duration_frame=Frame(self.timer_frame, bg=self.bg)
         self.timer_duration_frame.pack()
-        self.timer_spectra_label=Label(self.timer_duration_frame,padx=padx,pady=pady,bg=bg,text='Total duration (min):')
+        self.timer_spectra_label=Label(self.timer_duration_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Total duration (min):')
         self.timer_spectra_label.pack(side=LEFT, padx=padx,pady=(0,8))
-        self.timer_spectra_entry=Entry(self.timer_duration_frame, bd=1,width=10)
+        self.timer_spectra_entry=Entry(self.timer_duration_frame, bd=1,width=10,bg=self.entry_background)
         self.timer_spectra_entry.pack(side=LEFT)
-        self.filler_label=Label(self.timer_duration_frame,bg=bg,text='              ')
+        self.filler_label=Label(self.timer_duration_frame,bg=self.bg,fg=self.textcolor,text='              ')
         self.filler_label.pack(side=LEFT)
         
-        self.timer_interval_frame=Frame(self.timer_frame, bg=bg)
+        self.timer_interval_frame=Frame(self.timer_frame, bg=self.bg)
         self.timer_interval_frame.pack()
-        self.timer_interval_label=Label(self.timer_interval_frame, padx=padx,pady=pady,bg=bg, text='Interval (min):')
+        self.timer_interval_label=Label(self.timer_interval_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Interval (min):')
         self.timer_interval_label.pack(side=LEFT, padx=(10,0))
-        self.timer_interval_entry=Entry(self.timer_interval_frame,bd=bd,width=10,text='0')
+        self.timer_interval_entry=Entry(self.timer_interval_frame,bd=bd,width=10,fg=self.textcolor,text='0',bg=self.entry_background)
     # self.timer_interval_entry.insert(0,'-1')
         self.timer_interval_entry.pack(side=LEFT, padx=(0,20))
-        self.filler_label=Label(self.timer_interval_frame,bg=bg,text='                   ')
+        self.filler_label=Label(self.timer_interval_frame,bg=self.bg,fg=self.textcolor,text='                   ')
         self.filler_label.pack(side=LEFT)
         
-        self.failsafe_title_frame=Frame(self.dumb_frame, bg=bg)
+        self.failsafe_title_frame=Frame(self.dumb_frame, bg=self.bg)
         self.failsafe_title_frame.pack(pady=(10,0))
-        self.failsafe_label0=Label(self.failsafe_title_frame, text='Failsafes:                                              ', bg=bg)
+        self.failsafe_label0=Label(self.failsafe_title_frame, fg=self.textcolor,text='Failsafes:                                              ', bg=self.bg)
         self.failsafe_label0.pack(side=LEFT)
-        self.failsafe_frame=Frame(self.dumb_frame, bg=bg, pady=pady)
+        self.failsafe_frame=Frame(self.dumb_frame, bg=self.bg, pady=pady)
         self.failsafe_frame.pack(pady=pady)
 
         
         self.wrfailsafe=IntVar()
-        self.wrfailsafe_check=Checkbutton(self.failsafe_frame, text='Prompt if no white reference has been taken.    ', bg=bg, pady=pady,highlightthickness=0, variable=self.wrfailsafe)
+        self.wrfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Prompt if no white reference has been taken.    ', bg=self.bg, pady=pady,highlightthickness=0, variable=self.wrfailsafe)
         self.wrfailsafe_check.pack()#side=LEFT, pady=pady)
         self.wrfailsafe_check.select()
         
-        self.wr_timeout_frame=Frame(self.failsafe_frame, bg=bg)
+        self.wr_timeout_frame=Frame(self.failsafe_frame, bg=self.bg)
         self.wr_timeout_frame.pack(pady=(0,10))
-        self.wr_timeout_label=Label(self.wr_timeout_frame, text='Timeout (minutes):', bg=bg)
+        self.wr_timeout_label=Label(self.wr_timeout_frame, fg=self.textcolor,text='Timeout (minutes):', bg=self.bg)
         self.wr_timeout_label.pack(side=LEFT, padx=(10,0))
-        self.wr_timeout_entry=Entry(self.wr_timeout_frame, bd=bd,width=10)
+        self.wr_timeout_entry=Entry(self.wr_timeout_frame, bd=bd,width=10,bg=self.entry_background)
         self.wr_timeout_entry.pack(side=LEFT, padx=(0,20))
         self.wr_timeout_entry.insert(0,'8')
-        self.filler_label=Label(self.wr_timeout_frame,bg=bg,text='              ')
+        self.filler_label=Label(self.wr_timeout_frame,bg=self.bg,fg=self.textcolor,text='              ')
         self.filler_label.pack(side=LEFT)
         
         
         self.optfailsafe=IntVar()
-        self.optfailsafe_check=Checkbutton(self.failsafe_frame, text='Prompt if the instrument has not been optimized.', bg=bg, pady=pady,highlightthickness=0, variable=self.optfailsafe)
+        self.optfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Prompt if the instrument has not been optimized.', bg=self.bg, pady=pady,highlightthickness=0, variable=self.optfailsafe)
         self.optfailsafe_check.pack()#side=LEFT, pady=pady)
         self.optfailsafe_check.select()
         
-        self.opt_timeout_frame=Frame(self.failsafe_frame, bg=bg)
+        self.opt_timeout_frame=Frame(self.failsafe_frame, bg=self.bg)
         self.opt_timeout_frame.pack()
-        self.opt_timeout_label=Label(self.opt_timeout_frame, text='Timeout (minutes):', bg=bg)
+        self.opt_timeout_label=Label(self.opt_timeout_frame, fg=self.textcolor,text='Timeout (minutes):', bg=self.bg)
         self.opt_timeout_label.pack(side=LEFT, padx=(10,0))
-        self.opt_timeout_entry=Entry(self.opt_timeout_frame,bd=bd, width=10)
+        self.opt_timeout_entry=Entry(self.opt_timeout_frame,bd=bd, width=10,bg=self.entry_background)
         self.opt_timeout_entry.pack(side=LEFT, padx=(0,20))
         self.opt_timeout_entry.insert(0,'60')
-        self.filler_label=Label(self.opt_timeout_frame,bg=bg,text='              ')
+        self.filler_label=Label(self.opt_timeout_frame,bg=self.bg,fg=self.textcolor,text='              ')
         self.filler_label.pack(side=LEFT)
         
         self.anglesfailsafe=IntVar()
-        self.anglesfailsafe_check=Checkbutton(self.failsafe_frame, text='Check validity of emission and incidence angles.', bg=bg, pady=pady,highlightthickness=0, variable=self.anglesfailsafe)
+        self.anglesfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Check validity of emission and incidence angles.', bg=self.bg, pady=pady,highlightthickness=0, variable=self.anglesfailsafe)
         self.anglesfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=pady)
         self.anglesfailsafe_check.select()
         
         self.labelfailsafe=IntVar()
-        self.labelfailsafe_check=Checkbutton(self.failsafe_frame, text='Require a label for each spectrum.', bg=bg, pady=pady,highlightthickness=0, variable=self.labelfailsafe)
+        self.labelfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Require a label for each spectrum.', bg=self.bg, pady=pady,highlightthickness=0, variable=self.labelfailsafe)
         self.labelfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=pady)
         self.labelfailsafe_check.select()
         
+        self.anglechangefailsafe=IntVar()
+        self.anglechangefailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Remind me to check the goniometer if\nincidence and/or emission angles change.', bg=self.bg, pady=pady,highlightthickness=0, variable=self.anglechangefailsafe)
+        self.anglechangefailsafe_check.pack(pady=(6,5))#side=LEFT, pady=pady)
+        self.anglechangefailsafe_check.select()
         
-        # check_frame=Frame(man_frame, bg=bg)
+        
+        # check_frame=Frame(man_frame, bg=self.bg)
         # check_frame.pack()
         # process=IntVar()
-        # process_check=Checkbutton(check_frame, text='Process data', bg=bg, pady=pady,highlightthickness=0)
+        # process_check=Checkbutton(check_frame, fg=self.textcolor,text='Process data', bg=self.bg, pady=pady,highlightthickness=0)
         # process_check.pack(side=LEFT, pady=(5,15))
         # 
         # plot=IntVar()
-        # plot_check=Checkbutton(check_frame, text='Plot spectrum', bg=bg, pady=pady,highlightthickness=0)
+        # plot_check=Checkbutton(check_frame, fg=self.textcolor,text='Plot spectrum', bg=self.bg, pady=pady,highlightthickness=0)
         # plot_check.pack(side=LEFT, pady=(5,15))
     
-        #   move_button=Button(man_frame, text='Move', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=go)
+        #   move_button=Button(man_frame, fg=self.textcolor,text='Move', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=go)
         # move_button.pack(padx=padx,pady=pady, side=LEFT)
-        # spectrum_button=Button(man_frame, text='Collect data', padx=padx, pady=pady, width=int(button_width*1.6), bg='light gray', command=take_spectrum)
+        # spectrum_button=Button(man_frame, fg=self.textcolor,text='Collect data', padx=padx, pady=pady, width=int(button_width*1.6), bg='light gray', command=take_spectrum)
         # spectrum_button.pack(padx=padx,pady=pady, side=LEFT)
         
     
         #********************** Process frame ******************************
     
-        self.process_frame=Frame(self.notebook, bg=bg, pady=2*pady)
+        self.process_frame=Frame(self.notebook, bg=self.bg, pady=2*pady)
         self.process_frame.pack()
-        self.input_frame=Frame(self.process_frame, bg=bg)
-        self.input_frame.pack()
-        self.input_dir_label=Label(self.process_frame,padx=padx,pady=pady,bg=bg,text='Input directory:')
+
+        self.input_dir_label=Label(self.process_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Input directory:')
         self.input_dir_label.pack(padx=padx,pady=pady)
+        
+        self.input_frame=Frame(self.process_frame, bg=self.bg)
+        self.input_frame.pack()
+        
+        self.process_input_browse_button=Button(self.input_frame,text='Browse',command=self.choose_process_input_dir)
+        self.process_input_browse_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.process_input_browse_button.pack(side=RIGHT, padx=padx)
+        
+        
         self.input_dir_var = StringVar()
         self.input_dir_var.trace('w', self.validate_input_dir)
-        self.input_dir_entry=Entry(self.process_frame, width=50,bd=bd, textvariable=self.input_dir_var)
+         
+        self.input_dir_entry=Entry(self.input_frame, width=50,bd=bd, textvariable=self.input_dir_var,bg=self.entry_background)
         self.input_dir_entry.insert(0, input_dir)
-        self.input_dir_entry.pack()
+        self.input_dir_entry.pack(side=RIGHT,padx=padx)
         
-        self.output_frame=Frame(self.process_frame, bg=bg)
-        self.output_frame.pack()
-        self.output_dir_label=Label(self.process_frame,padx=padx,pady=pady,bg=bg,text='Output directory:')
+
+        self.output_dir_label=Label(self.process_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Output directory:')
         self.output_dir_label.pack(padx=padx,pady=pady)
-        self.output_dir_entry=Entry(self.process_frame, width=50,bd=bd)
-        self.output_dir_entry.insert(0, output_dir)
-        self.output_dir_entry.pack()
         
-        self.output_file_frame=Frame(self.process_frame, bg=bg)
+        self.output_frame=Frame(self.process_frame, bg=self.bg)
+        self.output_frame.pack()
+        self.process_output_browse_button=Button(self.output_frame,text='Browse',command=self.choose_process_output_dir)
+        self.process_output_browse_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.process_output_browse_button.pack(side=RIGHT, padx=padx)
+        
+        self.output_dir_entry=Entry(self.output_frame, width=50,bd=bd,bg=self.entry_background)
+        self.output_dir_entry.insert(0, output_dir)
+        self.output_dir_entry.pack(side=RIGHT,padx=padx)
+        
+        self.output_file_frame=Frame(self.process_frame, bg=self.bg)
         self.output_file_frame.pack()
-        self.output_file_label=Label(self.process_frame,padx=padx,pady=pady,bg=bg,text='Output file name:')
+        self.output_file_label=Label(self.process_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Output file name:')
         self.output_file_label.pack(padx=padx,pady=pady)
-        self.output_file_entry=Entry(self.process_frame, width=50,bd=bd)
+        self.output_file_entry=Entry(self.process_frame, width=50,bd=bd,bg=self.entry_background)
         self.output_file_entry.pack()
         
         
-        self.process_check_frame=Frame(self.process_frame, bg=bg)
+        self.process_check_frame=Frame(self.process_frame, bg=self.bg)
         self.process_check_frame.pack(pady=(15,5))
         self.process_save_dir=IntVar()
-        self.process_save_dir_check=Checkbutton(self.process_check_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=self.process_save_dir)
+        self.process_save_dir_check=Checkbutton(self.process_check_frame, fg=self.textcolor,text='Save file configuration', bg=self.bg, pady=pady,highlightthickness=0, variable=self.process_save_dir)
         self.process_save_dir_check.pack(side=LEFT, pady=(5,15))
         self.process_save_dir_check.select()
         # self.process_plot=IntVar()
-        # self.process_plot_check=Checkbutton(self.process_check_frame, text='Plot spectra', bg=bg, pady=pady,highlightthickness=0)
+        # self.process_plot_check=Checkbutton(self.process_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, pady=pady,highlightthickness=0)
         # self.process_plot_check.pack(side=LEFT, pady=(5,15))
         
-        self.process_button=Button(self.process_frame, text='Process', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=self.process_cmd)
+        self.process_button=Button(self.process_frame, fg=self.textcolor,text='Process', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=self.process_cmd)
+        self.process_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.process_button.pack()
         
         #********************** Plot frame ******************************
         
-        self.plot_frame=Frame(self.notebook, bg=bg, pady=2*pady)
+        self.plot_frame=Frame(self.notebook, bg=self.bg, pady=2*pady)
         #self.process_frame.pack()
         self.plot_frame.pack()
-        self.plot_input_frame=Frame(self.plot_frame, bg=bg)
+        self.plot_input_frame=Frame(self.plot_frame, bg=self.bg)
         self.plot_input_frame.pack()
-        self.plot_input_dir_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Path to .tsv file:')
+        self.plot_input_dir_label=Label(self.plot_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Path to .tsv file:')
         self.plot_input_dir_label.pack(padx=padx,pady=pady)
-        self.plot_input_dir_entry=Entry(self.plot_frame, width=50,bd=bd)
+        self.plot_input_dir_entry=Entry(self.plot_frame, width=50,bd=bd,bg=self.entry_background)
         self.plot_input_dir_entry.insert(0, input_dir)
         self.plot_input_dir_entry.pack()
         
-        # self.plot_title_frame=Frame(self.plot_frame, bg=bg)
+        # self.plot_title_frame=Frame(self.plot_frame, bg=self.bg)
         # self.plot_title_frame.pack()
-        self.plot_title_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot title:')
+        self.plot_title_label=Label(self.plot_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Plot title:')
         self.plot_title_label.pack(padx=padx,pady=pady)
-        self.plot_title_entry=Entry(self.plot_frame, width=50,bd=bd)
+        self.plot_title_entry=Entry(self.plot_frame, width=50,bd=bd,bg=self.entry_background)
         self.plot_title_entry.pack()
         
-        # self.plot_caption_frame=Frame(self.plot_frame, bg=bg)
+        # self.plot_caption_frame=Frame(self.plot_frame, bg=self.bg)
         # self.plot_caption_frame.pack()
-        # self.plot_caption_label=Label(self.plot_frame,padx=padx,pady=pady,bg=bg,text='Plot caption:')
+        # self.plot_caption_label=Label(self.plot_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Plot caption:')
         # self.plot_caption_label.pack(padx=padx,pady=pady)
         # self.plot_caption_entry=Entry(self.plot_frame, width=50)
         # self.plot_caption_entry.pack()
         
-        self.no_wr_frame=Frame(self.plot_frame, bg=bg)
+        self.no_wr_frame=Frame(self.plot_frame, bg=self.bg)
         self.no_wr_frame.pack()
         self.no_wr=IntVar()
-        self.no_wr_check=Checkbutton(self.no_wr_frame, text='Exclude white references', bg=bg, pady=pady,highlightthickness=0, variable=self.no_wr, command=self.no_wr_cmd)
+        self.no_wr_check=Checkbutton(self.no_wr_frame, fg=self.textcolor,text='Exclude white references', bg=self.bg, pady=pady,highlightthickness=0, variable=self.no_wr, command=self.no_wr_cmd)
         self.no_wr_check.pack(pady=(5,5))
         self.no_wr_check.select()
         
         #self.no_wr_entry=Entry(self.load_labels_frame, width=50)
         
-        self.load_labels_frame=Frame(self.plot_frame, bg=bg)
+        self.load_labels_frame=Frame(self.plot_frame, bg=self.bg)
         self.load_labels_frame.pack()
         self.load_labels=IntVar()
-        self.load_labels_check=Checkbutton(self.load_labels_frame, text='Load labels from log file', bg=bg, pady=pady,highlightthickness=0, variable=self.load_labels, command=self.load_labels_cmd)
+        self.load_labels_check=Checkbutton(self.load_labels_frame, fg=self.textcolor,text='Load labels from log file', bg=self.bg, pady=pady,highlightthickness=0, variable=self.load_labels, command=self.load_labels_cmd)
         self.load_labels_check.pack(pady=(5,5))
         
-        self.load_labels_entry=Entry(self.load_labels_frame, width=50)
+        self.load_labels_entry=Entry(self.load_labels_frame, width=50,bg=self.entry_background)
         #self.load_labels_entry.pack()
         
         
-        # pr_check_frame=Frame(self.process_frame, bg=bg)
+        # pr_check_frame=Frame(self.process_frame, bg=self.bg)
         # self.process_check_frame.pack(pady=(15,5))
         # self.process_save_dir=IntVar()
-        # self.process_save_dir_check=Checkbutton(self.process_check_frame, text='Save file configuration', bg=bg, pady=pady,highlightthickness=0, variable=self.process_save_dir)
+        # self.process_save_dir_check=Checkbutton(self.process_check_frame, fg=self.textcolor,text='Save file configuration', bg=self.bg, pady=pady,highlightthickness=0, variable=self.process_save_dir)
         # self.process_save_dir_check.pack(side=LEFT, pady=(5,15))
         # self.process_save_dir_check.select()
         # self.process_plot=IntVar()
-        # self.process_plot_check=Checkbutton(self.process_check_frame, text='Plot spectra', bg=bg, pady=pady,highlightthickness=0)
+        # self.process_plot_check=Checkbutton(self.process_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, pady=pady,highlightthickness=0)
         # self.process_plot_check.pack(side=LEFT, pady=(5,15))
         
-        self.plot_button=Button(self.plot_frame, text='Plot', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=self.plot)
+        self.plot_button=Button(self.plot_frame, fg=self.textcolor,text='Plot', padx=padx, pady=pady, width=int(button_width*1.6),bg='light gray', command=self.plot)
+        self.plot_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.plot_button.pack(pady=(10,5))
     
         #************************Console********************************
-        self.console_frame=Frame(self.notebook, bg=bg)
+        self.console_frame=Frame(self.notebook, bg=self.bg)
         self.console_frame.pack(fill=BOTH, expand=True)
         self.text_frame=Frame(self.console_frame)
         self.scrollbar = Scrollbar(self.text_frame)
         self.notebook_width=self.notebook.winfo_width()
         self.notebook_height=self.notebook.winfo_width()
-        self.textbox = Text(self.text_frame, width=self.notebook_width)
+        self.textbox = Text(self.text_frame, width=self.notebook_width,bg=self.bg, fg=self.textcolor)
         self.scrollbar.pack(side=RIGHT, fill=Y)
     
         self.scrollbar.config(command=self.textbox.yview)
         self.textbox.configure(yscrollcommand=self.scrollbar.set)
-        self.console_entry=Entry(self.console_frame, width=self.notebook_width,bd=bd)
+        self.console_entry=Entry(self.console_frame, width=self.notebook_width,bd=bd,bg=self.entry_background)
         self.console_entry.bind("<Return>",self.run)
         self.console_entry.bind('<Up>',self.run)
         self.console_entry.bind('<Down>',self.run)
@@ -678,8 +726,8 @@ class Controller():
         self.notebook.add(self.dumb_frame, text='Settings')
         self.notebook.add(self.process_frame, text='Data processing')
         self.notebook.add(self.plot_frame, text='Plot')
-        self.notebook.add(self.console_frame, text='Console')
-        #self.notebook.add(val_frame, text='Validation tools')
+        self.notebook.add(self.console_frame,text='Console')
+        #self.notebook.add(val_frame, fg=self.textcolor,text='Validation tools')
         #checkbox: Iterate through a range of geometries
         #checkbox: Choose a single geometry
         #checkbox: Take one spectrum
@@ -688,7 +736,7 @@ class Controller():
         #Number of spectra to collect:
         self.notebook.pack(fill=BOTH, expand=True)
         
-        r=RemoteFileExplorer(self,write_command_loc)
+        #r=RemoteFileExplorer(self,write_command_loc)
         self.master.mainloop()
 
         self.view.join()
@@ -799,9 +847,41 @@ class Controller():
                     label+='The emission and/or incidence angle is invalid\n'
                     
             if self.labelfailsafe.get():
-                print('label check!')
                 if self.label_entry.get()=='':
                     label +='This spectrum has no label.\n'
+            onlyanglechange=False
+            if label=='':
+                onlyanglechange=True
+            if self.anglechangefailsafe.get() and 'angle is invalid' not in label:
+                print('checking')
+                anglechangealert=False
+                if self.e==-1000 and self.i==-1000:
+                    label+='This is the first time emission and incidence angles are being set.\n'
+                    anglechangealert=True
+                elif self.e==-1000:
+                    label+='This is the first time the emission angle is being set.\n'
+                    anglechangealert=True
+                    if incidence!=self.i:
+                        label+='The emission angle has changed since last spectrum.\n'
+                    anglechangealert=True
+                elif self.i==-1000:
+                    label+='This is the first time the incidence angle is being set.\n'
+                    anglechangealert=True
+                    if emission!=self.e:
+                        label+='The emission angle has changed since last spectrum.\n' 
+                    anglechangealert=True
+                elif emission!=self.e and incidence !=self.i:
+                    label+='The emission and incidence angles have changed since last spectrum.\n'
+                    anglechangealert=True
+                elif emission!=self.e:
+                    label+='The emission angle has changed since last spectrum.\n'
+                elif incidence!=self.i:
+                    label+='The incidence angle has changed since last spectrum.\n' 
+                    anglechangealert=True
+                    
+                if anglechangealert:#and onlyanglechange:
+                   label+='The goniometer arms may need to change to match.\n'
+                   pass
 
             if label !='': #if we came up with errors
                 title='Warning!'
@@ -813,8 +893,8 @@ class Controller():
                     },
                     'no':{}
                 }
-                label='Warning!\n'+label
-                label+='Do you want to continue?'
+                label='Warning!\n\n'+label
+                label+='\nDo you want to continue?'
                 dialog=Dialog(self,title,label,buttons)
                 return False
             else: #if there were no errors
@@ -893,7 +973,7 @@ class Controller():
     def opt(self):
         self.model.opt()
         self.opt_time=int(time.time())
-        #self.model.white_reference()
+        self.check_logfile()
         datestring=''
         datestringlist=str(datetime.datetime.now()).split('.')[:-1]
         for d in datestringlist:
@@ -909,13 +989,10 @@ class Controller():
         
     def check_save_config(self):
 
-        
         new_spec_save_dir=self.spec_save_dir_entry.get()
         new_spec_basename=self.spec_basename_entry.get()
         new_spec_num=int(self.spec_startnum_entry.get())
-        
-
-            
+ 
         if new_spec_save_dir=='' or new_spec_basename=='':
             dialog=ErrorDialog(self,'Error: Please enter a save directory and a basename')
             return
@@ -941,9 +1018,13 @@ class Controller():
         if not override:  
             valid_input=self.input_check(self.take_spectrum,[True])
             
+            
         #If input isn't valid and the user asks to continue, take_spectrum will be called again with override set to True
         if not valid_input:
             return
+    
+        self.i=incidence
+        self.e=emission
 
         try:
             new_spec_num=int(self.spec_startnum_entry.get())
@@ -960,12 +1041,10 @@ class Controller():
             return    
             
         if self.check_save_config():
-            print('setting save_config from inside take spectrum')
             self.set_save_config(self.take_spectrum,[True])
             return
         config_timeout=0
         if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
-            print('configure!')
             self.configure_instrument()
             config_timeout=15
             
@@ -975,10 +1054,6 @@ class Controller():
 
         self.model.take_spectrum(self.man_incidence_entry.get(), self.man_emission_entry.get(),self.spec_save_path, self.spec_basename, startnum_str)
         
-        #filename=self.spec_save_dir_entry.get()+'\\'+self.spec_basename_entry.get()+'.'+startnum_str
-        #print('telling listener to expect '+filename)
-        #filetupe=(filename,)
-        #self.listener.ex_files=self.listener.ex_files+filetupe
         
         
         
@@ -1002,7 +1077,6 @@ class Controller():
         self.model.configure_instrument(self.spec_config_count)
         
     def set_save_config(self, func, args):
-        
         self.spec_save_path=self.spec_save_dir_entry.get()
         self.spec_basename = self.spec_basename_entry.get()
         spec_num=self.spec_startnum_entry.get()
@@ -1192,6 +1266,15 @@ class Controller():
                 next=user_cmds[user_cmd_index]
                 self.console_entry.delete(0,'end')
                 self.console_entry.insert(0,next)
+                
+    def choose_spec_save_dir(self):
+        r=RemoteFileExplorer(self,write_command_loc,label='Select a directory to save raw spectral data.\nThis must be on the spectrometer control computer.', target=self.spec_save_dir_entry)
+        
+    def choose_process_input_dir(self):
+        r=RemoteFileExplorer(self,write_command_loc,label='Select the directory containing the data you want to process.\nThis must be on the spectrometer control computer.',target=self.input_dir_entry)
+        
+    def choose_process_output_dir(self):
+        r=RemoteFileExplorer(self,write_command_loc,label='Select the directory where you want to save your processed data.\nThis must be on the spectrometer control computer.',target=self.output_dir_entry)
     
     def validate_basename(self,*args):
         basename=limit_len(self.spec_basename_entry.get())
@@ -1242,8 +1325,20 @@ class Controller():
 class Dialog:
     def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=30):
         self.controller=controller
-        
-        self.bg='white'
+        try:
+            self.textcolor=self.controller.textcolor
+            self.bg=self.controller.bg
+            self.buttonbackgroundcolor=self.controller.buttonbackgroundcolor
+            self.highlightbackgroundcolor=self.controller.highlightbackgroundcolor
+            self.entry_background=self.controller.entry_background
+            self.buttontextcolor=self.controller.buttontextcolor
+        except:
+            self.textcolor='black'
+            self.bg='white'
+            self.buttonbackgroundcolor='gray'
+            self.highlightbackgroundcolor='white'
+            self.entry_background='white'
+            self.buttontextcolor=self.controller.buttontextcolor
         
         #If we are starting a new master, we'll need to start a new mainloop after settin everything up. 
         #If this creates a new toplevel for an existing master, we will leave it as False.
@@ -1258,14 +1353,14 @@ class Dialog:
             if width==None or height==None:
                 self.top = tk.Toplevel(controller.master, bg=self.bg)
             else:
-                self.top=tk.Toplevel(controller.master, width=width, height=height, bg='white')
+                self.top=tk.Toplevel(controller.master, width=width, height=height, bg=self.bg)
                 self.top.pack_propagate(0)
                 
         #self.top.grab_set()
 
         self.label_frame=Frame(self.top, bg=self.bg)
         self.label_frame.pack(side=TOP)
-        self.label = tk.Label(self.label_frame, text=label, bg=self.bg)
+        self.label = tk.Label(self.label_frame, fg=self.textcolor,text=label, bg=self.bg)
         self.label.pack(pady=(10,10), padx=(10,10))
     
         self.button_width=button_width
@@ -1281,7 +1376,7 @@ class Dialog:
             self.top.protocol("WM_DELETE_WINDOW", self.on_closing)
             
     def set_label_text(self, newlabel):
-        self.label.config(text=newlabel)
+        self.label.config(fg=self.textcolor,text=newlabel)
         
     def close_and_exec(self,func):
         print(func)
@@ -1296,28 +1391,37 @@ class Dialog:
             pass
         self.button_frame=Frame(self.top, bg=self.bg)
         self.button_frame.pack(side=BOTTOM)
-        tk_buttons={}
+        self.tk_buttons=[]
 
         for button in buttons:
             if 'ok' in button.lower():
-                self.ok_button = Button(self.button_frame, text='OK', command=self.ok, width=self.button_width)
+                self.ok_button = Button(self.button_frame, fg=self.textcolor,text='OK', command=self.ok, width=self.button_width)
+                self.tk_buttons.append(self.ok_button)
                 self.ok_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
             elif 'yes' in button.lower():
-                self.yes_button=Button(self.button_frame, text='Yes', bg='light gray', command=self.yes, width=self.button_width)
+                self.yes_button=Button(self.button_frame, fg=self.textcolor,text='Yes', bg='light gray', command=self.yes, width=self.button_width)
+                self.tk_buttons.append(self.yes_button)
                 self.yes_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
             elif 'no' in button.lower():
-                self.no_button=Button(self.button_frame, text='No',command=self.no, width=self.button_width)
+                self.no_button=Button(self.button_frame, fg=self.textcolor,text='No',command=self.no, width=self.button_width)
                 self.no_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+                self.tk_buttons.append(self.no_button)
             elif 'cancel' in button.lower():
-                self.cancel_button=Button(self.button_frame, text='Cancel',command=self.cancel, width=self.button_width)
+                self.cancel_button=Button(self.button_frame, fg=self.textcolor,text='Cancel',command=self.cancel, width=self.button_width)
                 self.cancel_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+                self.tk_buttons.append(self.cancel_button)
             elif 'retry' in button.lower():
-                print('retry button added')
-                self.retry_button=Button(self.button_frame, text='Retry',command=self.retry, width=self.button_width)
+                self.retry_button=Button(self.button_frame, fg=self.textcolor,text='Retry',command=self.retry, width=self.button_width)
                 self.retry_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+                self.tk_buttons.append(self.retry_button)
             elif 'exit' in button.lower():
-                self.exit_button=Button(self.button_frame, text='Exit',command=self.exit, width=self.button_width)
+                self.exit_button=Button(self.button_frame, fg=self.textcolor,text='Exit',command=self.exit, width=self.button_width)
                 self.exit_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+                self.tk_buttons.append(self.exit_button)
+                
+            for button in self.tk_buttons:
+                button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+            
 
             # else:
             #     #For each button, only handle one function with no arguments here 
@@ -1326,7 +1430,7 @@ class Dialog:
             #     for func in buttons[button]:
             #         print(button)
             #         print(func)
-            #         tk_buttons[button]=Button(self.button_frame, text=button,command=func)
+            #         tk_buttons[button]=Button(self.button_frame, fg=self.textcolor,text=button,command=func)
             #         tk_buttons[button].pack(side=LEFT, padx=(10,10),pady=(10,10))
             
     def on_closing(self):
@@ -1736,39 +1840,48 @@ def validate_int_input(input, min, max):
     
 
 class RemoteFileExplorer(Dialog):
-    def __init__(self,controller,write_command_loc, title='Select a directory',buttons={'ok':{},'cancel':{}}):
-        
-        self.cmdnum=0
-        super().__init__(controller, title=title, buttons=buttons,label='Select a directory to save your spectra', button_width=20)
+    def __init__(self,controller,write_command_loc, target=None,title='Select a directory',label='Select a directory',buttons={'ok':{},'cancel':{}}):
+        global cmdnum
+        self.cmdnum=cmdnum
+        super().__init__(controller, title=title, buttons=buttons,label=label, button_width=20)
         self.controller=controller
         self.listener=self.controller.listener
         self.write_command_loc=write_command_loc
+        self.target=target
         
         self.nav_frame=Frame(self.top,bg=self.bg)
         self.nav_frame.pack()
-        self.new_button=Button(self.nav_frame, text='New Folder',command=self.askfornewdir, width=10)
+        self.new_button=Button(self.nav_frame, fg=self.textcolor,text='New Folder',command=self.askfornewdir, width=10)
+        self.new_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.new_button.pack(side=RIGHT, pady=(5,5),padx=(0,10))
 
-        self.path_entry=Entry(self.nav_frame, width=40)
+        self.path_entry=Entry(self.nav_frame, width=40,bg=self.entry_background)
         self.path_entry.pack(padx=(5,5),pady=(5,5),side=RIGHT)
-        self.back_button=Button(self.nav_frame, text='<-',command=self.back,width=1)
+        self.back_button=Button(self.nav_frame, fg=self.textcolor,text='<-',command=self.back,width=1)
+        self.back_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.back_button.pack(side=RIGHT, pady=(5,5),padx=(10,0))
         
         self.scroll_frame=Frame(self.top,bg=self.bg)
         self.scroll_frame.pack(fill=BOTH, expand=True)
         self.scrollbar = Scrollbar(self.scroll_frame, orient=VERTICAL)
-        self.listbox = Listbox(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=SINGLE)
+        self.listbox = Listbox(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=SINGLE,bg=self.entry_background)
 
         self.scrollbar.config(command=self.listbox.yview)
         self.scrollbar.pack(side=RIGHT, fill=Y,padx=(0,10))
         self.listbox.pack(side=LEFT,expand=True, fill=BOTH,padx=(10,0))
         self.listbox.bind("<Double-Button-1>", self.expand)
         self.path_entry.bind('<Return>',self.go_to_path)
-        self.current_parent='C:\\Users'
-        #self.controller.spec_save_dir_entry.get()
-        if True:#self.controller.spec_save_dir_entry.get()=='':
+        if target.get()=='':
             self.expand(newparent='C:\\Users')
-        #self.expand(newparent=self.controller.spec_save_dir_entry.get())
+            self.current_parent='C:\\Users'
+        else:
+            success=self.expand(newparent=target.get())
+            print('success?'+str(success))
+            if success:
+                self.current_parent=target.get()
+            else:
+                self.expand(newparent='C:\\Users')
+                self.current_parent='C:\\Users'
         
         
         
@@ -1777,7 +1890,7 @@ class RemoteFileExplorer(Dialog):
 
     def mkdir(self, dir):
         filename=self.controller.model.cmd_to_filename('mkdir',self.cmdnum, parameters=[self.current_parent+'\\'+dir])
-        self.cmdnum+=1
+        self.cmdnum[0]=self.cmdnum[0]+1
         try:
             with open(self.write_command_loc+filename,'w+') as f:
                 pass
@@ -1818,11 +1931,10 @@ class RemoteFileExplorer(Dialog):
         print(newparent)
         if newparent==None:
             newparent=self.current_parent+'\\'+self.listbox.get(self.listbox.curselection()[0])
-            print('no newparent')
         #Send a command to the spec compy asking it for directory contents
         
-        cmdfilename=self.controller.model.cmd_to_filename('listdir',self.cmdnum, parameters=[newparent])
-        self.cmdnum+=1
+        cmdfilename=self.controller.model.cmd_to_filename('listdir',self.cmdnum[0], parameters=[newparent])
+        self.cmdnum[0]=self.cmdnum[0]+1
         try:
             with open(self.write_command_loc+cmdfilename,'w+') as f:
                 pass
@@ -1837,7 +1949,6 @@ class RemoteFileExplorer(Dialog):
                 with open(self.controller.read_command_loc+cmdfilename,'r') as f:
                     next=f.readline()
                     while next!='':
-                        print(next)
                         self.listbox.insert(END,next.strip('\n'))
                         next=f.readline()
                 self.listener.queue.remove(cmdfilename)
@@ -1849,28 +1960,34 @@ class RemoteFileExplorer(Dialog):
                     self.path_entry.insert('end','\\'+newparent)
                 else:
                     self.path_entry.insert('end',newparent)
-                    
+                return True
                 break
             elif 'listdirfailed' in self.listener.queue:
+                print('railed.')
                 self.listener.queue.remove('listdirfailed')
+                self.path_entry.delete(0,'end')
+                self.path_entry.insert(0,self.current_parent)
+                return False
                 break
             time.sleep(0.1)
     
     def ok(self):
+        self.target.delete(0,'end')
         if len(self.listbox.curselection())>0:
-            self.controller.spec_save_dir_entry.delete(0,'end')
             i=self.listbox.curselection()
 
-            self.controller.spec_save_dir_entry.insert(0,self.current_parent+'\\'+self.listbox.get(i))
+            self.target.insert(0,self.current_parent+'\\'+self.listbox.get(i))
             self.top.destroy()
         else:
-            dialog=ErrorDialog(self.controller,label='Error: No save directory selected.')
+            self.target.insert(0,self.current_parent)
+            self.top.destroy()
+            #dialog=ErrorDialog(self.controller,label='Error: No save directory selected.')
 
 
 class InputDialog(Dialog):
     def __init__(self, controller, fexplorer,label='Enter input', title='Enter input'):
         super().__init__(controller,label=label,title=title, buttons={'ok':{self.get:[]}})
-        self.dir_entry=Entry(self.top,width=40)
+        self.dir_entry=Entry(self.top,width=40,bg=self.entry_background)
         self.dir_entry.pack(padx=(10,10))
         self.dir_entry.insert(0,'foo')
         print(self.dir_entry)
@@ -2023,8 +2140,11 @@ class Listener(threading.Thread):
                             # cmd,filename=unencrypt(cmd)
                             # print(filename)
                             print('here is what I am putting in my queue')
-                            print(file)
-                            self.queue.append(file)
+                            if 'listdirfailed' in cmd:
+                                self.queue.append('listdirfailed')
+                            else:
+                                print(file)
+                                self.queue.append(file)
                             #os.remove(read_command_loc+file)
                             
 
