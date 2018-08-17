@@ -17,10 +17,10 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 #import pygame
-try:
-    import pexpect
-except:
-    os.system('python -m pip install pexpect')
+# try:
+#     import pexpect
+# except:
+#     os.system('python -m pip install pexpect')
     
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -33,6 +33,10 @@ import time
 from threading import Thread
 from tkinter.filedialog import *
 
+try:
+    import httplib
+except:
+    import http.client as httplib
 
 #Which computer are you using? This should probably be new. I don't know why you would use the old one.
 computer='new'
@@ -47,7 +51,7 @@ global package_loc
 package_loc=''
 
 global cmdnum
-cmdnum=[0]
+cmdnum=0
 
 if opsys=='Windows':
     #If I am running this script from my IDE, __file__ is not defined. In that case, go with a hard-coded file location.
@@ -73,6 +77,7 @@ elif opsys=='Linux':
         package_loc='/home/khoza/Python/autospectroscopy/'
 else:
     print("AHH I'm on a Mac!!")
+    exit()
     
 sys.path.append(package_loc)
 
@@ -88,7 +93,6 @@ if dev:
     from robot_view import View
     importlib.reload(plotter)
     from plotter import Plotter
-    
 #Server and share location. Can change if spectroscopy computer changes.
 server=''
 global NUMLEN
@@ -133,30 +137,76 @@ def exit_func():
 def retry_func():
      os.execl(sys.executable, os.path.abspath(__file__), *sys.argv) 
      
+import signal
 
+ 
 
+class ConnectionChecker():
+    def __init__(self,dir,thread, controller=None):
+        self.thread=thread
+        self.dir=dir
+        self.controller=controller
+    def alert_lost_connection(self, signum=None, frame=None):
+            buttons={
+                'retry':{
+                    self.check_connection:[False],
+                    },
+                'exit':{
+                    exit_func:[]
+                }
+            }
+            dialog=Dialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
 
-def main():
-    #if tk_master !=None:
-    #    tk_master.destroy()
-    #Check if you are connected to the server. If not, exit.
-    try:
-        files=os.listdir(read_command_loc)
-    except:
+    def alert_not_connected(self, signum=None, frame=None):
         buttons={
             'retry':{
-                main:[],
+                self.check_connection:[True],
                 },
             'exit':{
                 exit_func:[]
             }
         }
-            
-        dialog=Dialog(controller=None, title='Not Connected',label='Error: No connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
-        return
+        dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: No connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
+    def have_internet(self):
+        conn = httplib.HTTPConnection("www.google.com", timeout=5)
+        try:
+            conn.request("HEAD", "/")
+            conn.close()
+            return True
+        except:
+            conn.close()
+            return False
+    
+    def check_connection(self,firstconnection, attempt=0):
+        connected=True
+        if self.thread=='main':
+            signal.signal(signal.SIGALRM, self.alert_not_connected)
+            signal.alarm(2)
+            # This may take a while to complete
+            connected = os.path.isdir(self.dir)
+            signal.alarm(0)          # Disable the alarm
 
+        else:
+            if self.have_internet()==False:
+                connected=False
+            else: 
+                connected=os.path.isdir(self.dir)
+                
+        if connected==False:
+            #For some reason reconnecting only seems to work on the second attempt. This seems like a pretty poor way to handle that, but I just call check_connection twice if it fails the first time.
+            if attempt>0:
+                self.alert_not_connected(None, None)
+            else:
+                time.sleep(0.5)
+                self.check_connection(firstconnection, attempt=1)
+        else:
+            return True
 
-        
+def main():
+    #Check if you are connected to the server. 
+    connection_checker=ConnectionChecker(read_command_loc, thread='main')
+    connection_checker.check_connection(True)
+
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
     delme=os.listdir(write_command_loc)
     for file in delme:
@@ -174,15 +224,12 @@ class Controller():
         self.listener=listener
         self.listener.set_controller(self)
         self.listener.start()
-        self.read_command_loc=read_command_loc
-
         
-
+        self.read_command_loc=read_command_loc
         self.command_share_loc=command_share_loc
         self.write_command_loc=write_command_loc
         self.config_loc=config_loc
         self.opsys=opsys
-        
         self.log_filename=None
         
         #These will get set via user input.
@@ -198,9 +245,8 @@ class Controller():
         
         #Tkinter notebook GUI
         self.master=Tk()
+        self.tk_master=self.master
         self.notebook=ttk.Notebook(self.master)
-        
-        
         
         #The plotter, surprisingly, plots things.
         self.plotter=Plotter(self.master)
@@ -212,9 +258,7 @@ class Controller():
         #The model keeps track of the goniometer state and sends commands to the raspberry pi and spectrometer
         self.model=Model(self.view, self.plotter, self.write_command_loc, False, False)
         
-
-        
-        #Yay formatting
+        #Yay formatting. Might not work for Macs.
         self.bg='#555555'
         self.textcolor='light gray'
         self.buttontextcolor='white'
@@ -226,10 +270,11 @@ class Controller():
         self.buttonbackgroundcolor='#888888'
         self.highlightbackgroundcolor='#222222'
         self.entry_background='light gray'
-        
+        self.listboxhighlightcolor='white'
         self.master.configure(background = self.bg)
         self.master.title('Control')
     
+        #If the user has saved spectra with this program before, load in their previously used directories.
         process_config=open(self.config_loc+'process_directories','r')
         input_dir=''
         output_dir=''
@@ -237,8 +282,7 @@ class Controller():
             input_dir=process_config.readline().strip('\n')
             output_dir=process_config.readline().strip('\n')
         except:
-            print('invalid config')
-    
+            pass
         self.spec_save_config=open(self.config_loc+'spec_save','r')
         self.spec_save_path=''
         self.spec_basename=''
@@ -251,7 +295,7 @@ class Controller():
             while len(spec_startnum)<NUMLEN:
                 spec_startnum='0'+spec_startnum
         except:
-            print('invalid config')
+            print('invalid config file')
         
         self.control_frame=Frame(self.notebook, bg=self.bg)
         self.control_frame.pack()
@@ -328,14 +372,7 @@ class Controller():
         self.instrument_config_entry=Entry(self.instrument_config_frame, width=10, bd=bd,bg=self.entry_background)
         self.instrument_config_entry.insert(0, 5)
         self.instrument_config_entry.pack(side=LEFT)
-        #self.filler_label=Label(self.instrument_config_frame,bg=self.bg,fg=self.textcolor,text='       ')
-        # self.filler_label.pack(side=LEFT)
-        
 
-
-        
-        # self.manual_frame=Frame(self.auto_frame, bg=self.bg)
-        # self.manual_frame.pack()
         
         self.spectrum_angles_frame=Frame(self.spectrum_settings_frame, bg=self.bg)
         self.spectrum_angles_frame.pack()
@@ -416,7 +453,6 @@ class Controller():
         detector_increment_entry.pack(padx=padx,pady=pady)
         
         self.auto_check_frame=Frame(self.control_frame, bg=self.bg)
-        #self.auto_check_frame.pack()
         self.auto_process=IntVar()
         self.auto_process_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Process data', bg=self.bg, highlightthickness=0)
         self.auto_process_check.pack(side=LEFT)
@@ -425,20 +461,20 @@ class Controller():
         self.auto_plot_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, highlightthickness=0)
         self.auto_plot_check.pack(side=LEFT)
         
-        gen_bg=self.bg
-        
-        self.gen_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=1,bg=gen_bg)
-        self.gen_frame.pack(fill=BOTH, expand=True)
+        self.gen_frame=Frame(self.control_frame, bg=self.bg,highlightthickness=1)
+        self.gen_frame.pack(fill=BOTH,expand=True)
+        self.action_button_frame=Frame(self.gen_frame, bg=self.bg)
+        self.action_button_frame.pack()
         
         button_width=20
-        self.opt_button=Button(self.gen_frame, fg=self.textcolor,text='Optimize', padx=padx, pady=pady,width=button_width, bg='light gray', command=self.opt, height=2)
+        self.opt_button=Button(self.action_button_frame, fg=self.textcolor,text='Optimize', padx=padx, pady=pady,width=button_width, bg='light gray', command=self.opt, height=2)
         self.opt_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.opt_button.pack(padx=padx,pady=pady, side=LEFT)
-        self.wr_button=Button(self.gen_frame, fg=self.textcolor,text='White Reference', padx=padx, pady=pady, width=button_width, bg='light gray', command=self.wr, height=2)
+        self.wr_button=Button(self.action_button_frame, fg=self.textcolor,text='White Reference', padx=padx, pady=pady, width=button_width, bg='light gray', command=self.wr, height=2)
         self.wr_button.pack(padx=padx,pady=pady, side=LEFT)
         self.wr_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
     
-        self.go_button=Button(self.gen_frame, fg=self.textcolor,text='Take Spectrum', padx=padx, pady=pady, width=button_width,height=2,bg='light gray', command=self.go)
+        self.go_button=Button(self.action_button_frame, fg=self.textcolor,text='Take Spectrum', padx=padx, pady=pady, width=button_width,height=2,bg='light gray', command=self.go)
         self.go_button.pack(padx=padx,pady=pady, side=LEFT)
         self.go_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         
@@ -708,18 +744,18 @@ class Controller():
         self.scrollbar = Scrollbar(self.text_frame)
         self.notebook_width=self.notebook.winfo_width()
         self.notebook_height=self.notebook.winfo_width()
-        self.textbox = Text(self.text_frame, width=self.notebook_width,bg=self.bg, fg=self.textcolor)
+        self.console_log = Text(self.text_frame, width=self.notebook_width,bg=self.bg, fg=self.textcolor)
         self.scrollbar.pack(side=RIGHT, fill=Y)
     
-        self.scrollbar.config(command=self.textbox.yview)
-        self.textbox.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.config(command=self.console_log.yview)
+        self.console_log.configure(yscrollcommand=self.scrollbar.set)
         self.console_entry=Entry(self.console_frame, width=self.notebook_width,bd=bd,bg=self.entry_background)
         self.console_entry.bind("<Return>",self.run)
         self.console_entry.bind('<Up>',self.run)
         self.console_entry.bind('<Down>',self.run)
         self.console_entry.pack(fill=BOTH, side=BOTTOM)
         self.text_frame.pack(fill=BOTH, expand=True)
-        self.textbox.pack(fill=BOTH,expand=True)
+        self.console_log.pack(fill=BOTH,expand=True)
         self.console_entry.focus()
     
         self.notebook.add(self.control_frame, text='Spectrometer control')
@@ -777,13 +813,7 @@ class Controller():
     def go(self):    
         if not self.auto.get():
             self.take_spectrum()
-            # print('hi?')
-            # for i in range(3):
-            #     time.sleep(1)
-            #     print(i)
-            # if waiter != None:
-            #     print('trying to wait...')
-            #     waiter.wait(3)
+
         else:
             incidence={'start':-1,'end':-1,'increment':-1}
             emission={'start':-1,'end':-1,'increment':-1}
@@ -805,7 +835,8 @@ class Controller():
                 file.write(self.spec_save_dir_entry.get()+'\n')
                 file.write(self.spec_basename_entry.get()+'\n')
                 file.write(self.spec_startnum_entry.get()+'\n')
-                
+             
+    #If the user has failsafes activated, check that requirements are met. Always require a valid number of spectra.
     def input_check(self, func, args=[]):
             label=''
             now=int(time.time())
@@ -899,7 +930,8 @@ class Controller():
                 return False
             else: #if there were no errors
                 return True
-                
+              
+    #If the user didn't choose a log file, make one in working directory
     def check_logfile(self):
         if self.log_filename==None and self.logfile_entry.get()=='':
             self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
@@ -917,11 +949,10 @@ class Controller():
             
         
             
-    def wr(self, override=False):#opt_check=True):
-        self.check_logfile()
+    def wr(self, override=False):
         #If the user didn't choose a log file, make one in working directory
+        self.check_logfile()
 
-        
         valid_input=True #We'll check this in a moment if override=False
         self.wr_time=int(time.time())
         if self.label_entry.get()!='' and 'White reference' not in self.label_entry.get():
@@ -931,8 +962,8 @@ class Controller():
 
         if not override:
             valid_input=self.input_check(self.wr,[True])
-            print(valid_input)
-        #If the input wasn't valid, we already popped up an error dialog. If the user says to continue, wr will be called again with override=True
+            
+        #If the input wasn't valid, we popped up an error dialog and now will exit. If the user clicks continue, wr will be called again with override=True
         if not valid_input:
             return
         else:
@@ -946,30 +977,36 @@ class Controller():
             dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return 
             
-        print('new config count'+str(new_spec_config_count))
-        print('old config count'+str(self.spec_config_count))
-        if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
-            print('time to configure!')
-            
-            self.configure_instrument()
-            time.sleep(5)
-            print('ok done waiting')
         config=self.check_save_config()
         if config:
             self.set_save_config(self.wr, [override])
             return
+            
+        if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
+            
+            #This is a bit weird because these aren't actually buttons. Probably could be written better. 
+            buttons={
+                'success':{
+                    self.wr:[override]
+                }
+            }
+            
+            self.configure_instrument(buttons)
+            time.sleep(5)
+            print('ok done waiting')
+            return
+
         self.model.white_reference()
         
+        #This is a bit weird because these aren't actually buttons. Probably could be written better. Basically, if wr succeeds then save a spectrum. Since we already did all the required input checks, set override to True.
         buttons={
             'success':{
+            
                 self.take_spectrum:[True]
             }
         }
         waitdialog=WaitForWRDialog(self, buttons=buttons)
-    
-        #We already did all the required input checks, so override them in take_spectrum
-        #self.take_spectrum(override=True)
-        
+            
     def opt(self):
         self.model.opt()
         self.opt_time=int(time.time())
@@ -982,13 +1019,13 @@ class Controller():
         info_string='UNVERIFIED:\n Instrument optimized at '+datestring+'\n'
         with open(self.log_filename,'a') as log:
             log.write(info_string)
-        self.textbox.insert(END, info_string)
+        self.console_log.insert(END, info_string)
     
     def test(self,arg=False):
         print(arg)
         
+    #Check whether the current save configuration is different from the last one saved. If it is, send commands to the spec compy telling it so.
     def check_save_config(self):
-
         new_spec_save_dir=self.spec_save_dir_entry.get()
         new_spec_basename=self.spec_basename_entry.get()
         new_spec_num=int(self.spec_startnum_entry.get())
@@ -1040,14 +1077,18 @@ class Controller():
             dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return    
             
+        config_timeout=0
+        if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
+            buttons={
+                'success':{
+                    self.take_spectrum:[override]
+                }
+            }
+            self.configure_instrument(buttons)
+            return
         if self.check_save_config():
             self.set_save_config(self.take_spectrum,[True])
             return
-        config_timeout=0
-        if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
-            self.configure_instrument()
-            config_timeout=15
-            
         startnum_str=str(self.spec_startnum_entry.get())
         while len(startnum_str)<NUMLEN:
             startnum_str='0'+startnum_str
@@ -1072,9 +1113,13 @@ class Controller():
 
         return wait_dialog
     
-    def configure_instrument(self):
+    def check_connection(self):
+        self.connection_checker.check_connection(False)
+    
+    def configure_instrument(self,buttons):
         self.spec_config_count=self.instrument_config_entry.get()
         self.model.configure_instrument(self.spec_config_count)
+        waitdialog=WaitForConfigDialog(self, buttons=buttons)
         
     def set_save_config(self, func, args):
         self.spec_save_path=self.spec_save_dir_entry.get()
@@ -1091,19 +1136,6 @@ class Controller():
             }
         }
         waitdialog=WaitForSaveConfigDialog(self, buttons=buttons, timeout=50)
-
-        print('I am ready to move on')
-
-        # self.listener.wait_for_unexpected='waiting'
-        # self.model.check_for_unexpected
-        # while self.listener.wait_for_unexpected=='waiting':
-        #     print('waiting to see if there are unexpected files')
-        # if self.listener.alert_unexpected=='True':
-        #     error=ErrorDialog('hooray!')
-        # self.listener.waiting_for_saveconfig='waiting'
-        # print('set save path, model!')
-        # error=
-        # return error
             
             
     def increment_num(self):
@@ -1136,12 +1168,7 @@ class Controller():
         error=self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
         if error!=None:
             dialog=ErrorDialog(self, label='Error sending process command:\n'+error.strerror)
-        # try:
-        #     self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
-        # except:
-        #     print("error:", sys.exc_info()[0])
-        #     dialog=ErrorDialog(self)
-        #     self.model.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
+
         
         if self.process_save_dir.get():
             file=open(self.config_loc+'/process_directories','w')
@@ -1222,7 +1249,7 @@ class Controller():
             if cmd !='':
                 user_cmds.insert(0,cmd)
                 user_cmd_index=-1
-                self.textbox.insert(END,'>>> '+cmd+'\n')
+                self.console_log.insert(END,'>>> '+cmd+'\n')
                 self.console_entry.delete(0,'end')
                 
                 params=cmd.split(' ')
@@ -1239,7 +1266,7 @@ class Controller():
                         self.output_file_entry.insert(0,params[3])
                         process_cmd()
                     except:
-                        self.textbox.insert(END,'Error: Failed to process file.')
+                        self.console_log.insert(END,'Error: Failed to process file.')
                 elif params[0].lower()=='wr':
                     self.wr()
                 elif params[0].lower()=='opt':
@@ -1268,13 +1295,13 @@ class Controller():
                 self.console_entry.insert(0,next)
                 
     def choose_spec_save_dir(self):
-        r=RemoteFileExplorer(self,write_command_loc,label='Select a directory to save raw spectral data.\nThis must be on the spectrometer control computer.', target=self.spec_save_dir_entry)
+        r=RemoteFileExplorer(self,write_command_loc,label='Select a directory to save raw spectral data.\nThis must be in the C drive of the spectrometer control computer.', target=self.spec_save_dir_entry)
         
     def choose_process_input_dir(self):
-        r=RemoteFileExplorer(self,write_command_loc,label='Select the directory containing the data you want to process.\nThis must be on the spectrometer control computer.',target=self.input_dir_entry)
+        r=RemoteFileExplorer(self,write_command_loc,label='Select the directory containing the data you want to process.\nThis must be in the C drive of the spectrometer control computer.',target=self.input_dir_entry)
         
     def choose_process_output_dir(self):
-        r=RemoteFileExplorer(self,write_command_loc,label='Select the directory where you want to save your processed data.\nThis must be on the spectrometer control computer.',target=self.output_dir_entry)
+        r=RemoteFileExplorer(self,write_command_loc,label='Select the directory where you want to save your processed data.\nThis must be in the C drive of the spectrometer control computer.',target=self.output_dir_entry)
     
     def validate_basename(self,*args):
         basename=limit_len(self.spec_basename_entry.get())
@@ -1303,28 +1330,16 @@ class Controller():
         self.output_dir_entry.insert(0,output_dir)
 
     def success(self):
-        numstr=str(int(self.spec_num)-1)
-        while len(numstr)<NUMLEN:
-            numstr='0'+numstr
-        datestring=''
-        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
-        for d in datestringlist:
-            datestring=datestring+d
-            
-        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.man_incidence_entry.get()+'\n\te='+self.man_emission_entry.get()+'\n\tfilename='+self.spec_save_path+'\\'+self.spec_basename+numstr+'.asd'+'\n\tNotes: '+self.label_entry.get()+'\n'
-        
-        self.textbox.insert(END,info_string)
-        with open(self.log_filename,'a') as log:
-            log.write(info_string)
-            
         self.man_incidence_entry.delete(0,'end')
         self.man_emission_entry.delete(0,'end')
         self.label_entry.delete(0,'end')
 
     
 class Dialog:
-    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=30):
+    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=30, info_string=None):
+        
         self.controller=controller
+        
         try:
             self.textcolor=self.controller.textcolor
             self.bg=self.controller.bg
@@ -1332,13 +1347,17 @@ class Dialog:
             self.highlightbackgroundcolor=self.controller.highlightbackgroundcolor
             self.entry_background=self.controller.entry_background
             self.buttontextcolor=self.controller.buttontextcolor
+            self.console_log=self.controller.console_log
+            self.listboxhighlightcolor=self.controller.listboxhighlightcolor
         except:
             self.textcolor='black'
             self.bg='white'
-            self.buttonbackgroundcolor='gray'
+            self.buttonbackgroundcolor='light gray'
             self.highlightbackgroundcolor='white'
             self.entry_background='white'
-            self.buttontextcolor=self.controller.buttontextcolor
+            self.buttontextcolor='black'
+            self.console_log=None
+            self.listboxhighlightcolor='light gray'
         
         #If we are starting a new master, we'll need to start a new mainloop after settin everything up. 
         #If this creates a new toplevel for an existing master, we will leave it as False.
@@ -1346,8 +1365,8 @@ class Dialog:
         if controller==None:
             self.top=Tk()
             start_mainloop=True
-            global tk_master
-            tk_master=self.top
+            #global tk_master
+            #tk_master=self.top
             self.top.configure(background=self.bg)
         else:
             if width==None or height==None:
@@ -1355,12 +1374,16 @@ class Dialog:
             else:
                 self.top=tk.Toplevel(controller.master, width=width, height=height, bg=self.bg)
                 self.top.pack_propagate(0)
-                
-        #self.top.grab_set()
+        
+            self.top.grab_set()
+            
+       # except:
+        #    print('failed to grab')
 
         self.label_frame=Frame(self.top, bg=self.bg)
         self.label_frame.pack(side=TOP)
         self.label = tk.Label(self.label_frame, fg=self.textcolor,text=label, bg=self.bg)
+        self.set_label_text(label, info_string=info_string)
         self.label.pack(pady=(10,10), padx=(10,10))
     
         self.button_width=button_width
@@ -1369,22 +1392,27 @@ class Dialog:
 
         self.top.wm_title(title)
         
+        if not allow_exit:
+            self.top.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
         if start_mainloop:
             self.top.mainloop()
             
-        if not allow_exit:
-            self.top.protocol("WM_DELETE_WINDOW", self.on_closing)
             
-    def set_label_text(self, newlabel):
+    def set_label_text(self, newlabel, info_string=None):
         self.label.config(fg=self.textcolor,text=newlabel)
-        
-    def close_and_exec(self,func):
-        print(func)
-        func()
-        self.top.destroy()
+        if info_string != None:
+            self.controller.console_log.insert(END, info_string)
+
+    def log(self, info_string):
+        if info_string[-2:-1]!='\n':
+            info_string+='\n'
+        self.controller.console_log.insert(END,info_string)
         
     def set_buttons(self, buttons):
         self.buttons=buttons
+        
+        #Sloppy way to check if button_frame already exists and reset it if it does.
         try:
             self.button_frame.destroy()
         except:
@@ -1436,19 +1464,10 @@ class Dialog:
     def on_closing(self):
         pass
     
-
-        
     def retry(self):
-        dict=self.buttons['retry']
-        
-        for func in dict:
-            if len(dict[func])>0:
-                arg=dict[func][0]
-                func(arg)
-            else:
-                print(func)
-                func()
         self.top.destroy()
+        dict=self.buttons['retry']
+        self.execute(dict,False)
         
     def exit(self):
         self.top.destroy()
@@ -1456,47 +1475,51 @@ class Dialog:
 
     def ok(self):
         dict=self.buttons['ok']
+        self.execute(dict)
         
+    def yes(self):
+        dict=self.buttons['yes']
+        self.execute(dict)
+        
+    def no(self):
+        dict=self.buttons['no']
+        self.execute(dict)
+            
+    def cancel(self):
+        dict=self.buttons['cancel']
+        self.execute(dict)
+        
+    def execute(self,dict,close=True):
         for func in dict:
+            print(func)
             if len(dict[func])==0:
                 func()
             elif len(dict[func])==1:
                 arg=dict[func][0]
                 func(arg)
-        self.top.destroy()
-        
-    def yes(self):
-        dict=self.buttons['yes']
-        
-        for func in dict:
-            arg=dict[func][0]
-            try:
+            elif len(dict[func])==2:
+                arg=dict[func][0]
                 arg1=dict[func][1]
-                func(arg, arg1)
-            except:
-                func(arg)
-        self.top.destroy()
-        
-    def no(self):
-        dict=self.buttons['no']
-        self.top.destroy()
-        for func in dict:
-            arg=dict[func][0]
-            func(arg)
-            
-    def cancel(self):
-        dict=self.buttons['cancel']
-        print('made it to cancellation')
-        self.top.destroy()
-        for func in dict:
-            arg=dict[func][0]
-            func(arg)
-
+                func(arg,arg1)
+            elif len(dict[func])==3:
+                arg=dict[func][0]
+                arg1=dict[func][1]
+                arg2=dict[func][2]
+                func(arg,arg1,arg2)
+            elif len(dict[func])==4:
+                arg=dict[func][0]
+                arg1=dict[func][1]
+                arg2=dict[func][2]
+                arg3=dict[func][3]
+                func(arg,arg1,arg2,arg3)
+        if close:
+            self.top.destroy()
 
 
 class WaitDialog(Dialog):
-    def __init__(self, controller, title='Working...', label='Working...', buttons={'cancel':{}}, timeout=30):
+    def __init__(self, controller, title='Working...', label='Working...', buttons={}, timeout=30):
         super().__init__(controller, title, label,buttons,width=400, height=150)
+        self.listener=self.controller.listener
         
         #We'll keep track of elapsed time so we can cancel the operation if it takes too long
         self.t0=time.clock()
@@ -1541,8 +1564,11 @@ class WaitDialog(Dialog):
                 self.timeout()
             time.sleep(1)
                
-    def timeout(self):
-        self.set_label_text('Error: Operation timed out')
+    def timeout(self, info_string=None):
+        if info_string==None:
+            self.set_label_text('Error: Operation timed out', info_string='Error: Operation timed out')
+        else:
+            self.set_label_text('Error: Operation timed out',info_string=info_string)
         self.pbar.stop()
         self.set_buttons({'ok':{}})
         
@@ -1562,52 +1588,35 @@ class WaitDialog(Dialog):
         global username
         username = self.myEntryBox.get()
         self.top.destroy()
-        
 
-        
-# class WaitForUnexpectedDialog(WaitDialog):
-#     def __init__(self, controller, title='Setting Save Configuration...', label='Working...', buttons={'cancel':{}}, timeout=30):
-#         super().__init__(controller, title, label,buttons,timeout)
-#         self.done=False
-#     def wait(self, timeout_s):
-#         print('wait for unexpected file check')
-#         while self.timeout_s>0:
-#             self.timeout_s -=1
-#             time.sleep(1)
-#             print(self.timeout_s)
-#         
-#         self.done=True
-#         self.interrupt('ummm does anything happen')
-#         
-#     def interrupt(self,label):
-#         self.interrupted=True
-#         #self.controller.take_spectrum()
-#         self.set_label_text(label)
-#         self.pbar.stop()
-#         self.set_buttons({'ok':{}})
-#         # while True:
-#         #     time.sleep(1)
-#         #     print('keep me around')
-
-class WaitForWRDialog(WaitDialog):
-    def __init__(self, controller, title='White referencing...', label='White referencing...', buttons={'cancel':{}}, timeout=200):
+class WaitForConfigDialog(WaitDialog):
+    def __init__(self, controller, title='Configuring instrument...', label='Configuring instrument...', buttons={}, timeout=200):
         super().__init__(controller, title, label,timeout=2*timeout)
         self.loc_buttons=buttons
-        print(self.loc_buttons)
+        self.listener=self.controller.listener
 
     def wait(self, timeout_s):
         while self.timeout_s>0:
             self.timeout_s-=1
             time.sleep(0.5)
-            if self.controller.listener.wr_status=='success':
-                self.controller.listener.wr_status='unknown'
+            if 'iconfigsuccess' in self.listener.queue:
+                self.listener.queue.remove('iconfigsuccess')
                 self.success()
                 return
-                
+            elif 'iconfigfailure' in self.listener.queue:
+                self.listener.queue.remove('iconfigfailure')
+                self.failure()
+                return
+    def failure(self):
+        print('spec config failed!')
+        
     def success(self):
-        print('WR succeeded!')
-        time.sleep(3)
-        self.top.destroy()
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+        self.log('SUCCESS:\n Instrument configured at '+datestring+ ' with '+str(self.controller.spec_config_count))
+
         dict=self.loc_buttons['success']
 
         for func in dict:
@@ -1618,6 +1627,42 @@ class WaitForWRDialog(WaitDialog):
                 arg1=dict[func][0]
                 arg2=dict[func][1]
                 func(arg1,arg2)
+        self.top.destroy()
+        
+        
+class WaitForWRDialog(WaitDialog):
+    def __init__(self, controller, title='White referencing...', label='White referencing...', buttons={'cancel':{}}, timeout=200):
+        super().__init__(controller, title, label,timeout=2*timeout)
+        self.loc_buttons=buttons
+        
+
+    def wait(self, timeout_s):
+        while self.timeout_s>0:
+            self.timeout_s-=1
+            time.sleep(0.5)
+            if 'wrsuccess' in self.controller.listener.queue:
+                self.listener.queue.remove('wrsuccess')
+                self.success()
+                return
+                
+    def success(self):
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+        self.log('SUCCESS:\n White reference saved at '+datestring+ '\n\ti='+self.controller.man_incidence_entry.get()+'\n\te='+self.controller.man_emission_entry.get())
+
+        dict=self.loc_buttons['success']
+
+        for func in dict:
+            if len(dict[func])==1:
+                arg=dict[func][0]
+                func(arg)
+            elif len(dict[func])==2:
+                arg1=dict[func][0]
+                arg2=dict[func][1]
+                func(arg1,arg2)
+        self.top.destroy()
             
             
 class WaitForProcessDialog(WaitDialog):
@@ -1628,21 +1673,23 @@ class WaitForProcessDialog(WaitDialog):
         while self.timeout_s>0:
             self.timeout_s-=1
             time.sleep(0.5)
-            if self.controller.listener.process_status=='success':
-                self.controller.listener.process_status='unknown'
+            if 'processsuccess' in self.listener.queue:
+                self.listener.queue.remove('processsuccess')
                 self.interrupt('Success!')
                 return
-            elif 'fileexists' in self.listener.process_status:
-                self.controller.listener.process_status='unknown'
-                self.interrupt('Error processing files: Output file already exists')
                 
+            elif 'processerrorfileexists' in self.listener.queue:
+                self.controller.listener.queue.remove('processerrorfileexists')
+                self.interrupt('Error processing files: Output file already exists')
                 return
-            elif 'wropt' in self.listener.process_status:
-                self.controller.listener.process_status='unknown'
+                
+            elif 'processerrorwropt' in self.listener.queue:
+                self.listener.queue.remove('processerrorwropt')
                 self.interrupt('Error processing files.\nDid you optimize and white reference before collecting data?')
                 return
-            elif self.controller.listener.process_status=='failure':
-                self.controller.listener.process_status='unknown'
+                
+            elif 'processerror' in self.listener.queue:
+                self.listener.queue.remove('processerror')
                 self.interrupt('Error processing files.\nAre you sure directories exist?\n')
                 return
         
@@ -1653,72 +1700,57 @@ class WaitForSaveConfigDialog(WaitDialog):
         self.loc_buttons=buttons
         self.unexpected_files=[]
         self.listener.new_dialogs=False
+        
     def wait(self, timeout_s, lookforunexpected=True):
         old_files=list(self.controller.listener.saved_files)
-        while self.controller.listener.donelookingforunexpected==False:
-            time.sleep(1)
-            print('waiting to be done looking')
-            print(self.controller.listener.unexpected_files)
+        while 'donelookingforunexpected' not in self.listener.queue:
+            time.sleep(0.25)
         if len(self.controller.listener.unexpected_files)>0:
             self.keep_around=True
-            print('found unexpected files')
-            #dialog=ErrorDialog(self.controller,title='Untracked Files in Data Directory', label='unexpected files!\n\n'+'\n'.join(self.controller.listener.unexpected_files))
-            #self.interrupt('unexpected files!\n\n'+'\n'.join(self.controller.listener.unexpected_files))
+
         self.unexpected_files=list(self.controller.listener.unexpected_files)
         self.controller.listener.unexpected_files=[]
         self.controller.listener.new_dialogs=True
         self.controller.listener.donelookingforunexpected=False
+        
         while self.timeout_s>0:
-
             self.timeout_s-=1
-            print('wait for saveconfig success')
-            if self.controller.listener.saveconfig_status!='unknown':
-                if 'success' in self.controller.listener.saveconfig_status:
-                    print('success!')
-                    self.controller.listener.saveconfig_status='unknown'
-                    self.success()
-                    return
-                    
-                elif 'failure' in self.controller.listener.saveconfig_status:
-                    print('failure!')
-                    #This seems silly. Shouldn't it do this earlier?
-                    if 'fileexists' in self.controller.listener.saveconfig_status:
-                        self.interrupt('Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.')
-                        #dialog=ErrorDialog(self.controller, label='Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.')
-                    else:
-                        self.interrupt('Error: There was a problem with\nsetting the save configuration.\nIs the spectrometer connected?')
-                        self.controller.spec_save_path=''
-                        self.controller.spec_basename=''
-                        self.controller.spec_num=None
-                        print('failed to save config for a different reason')
-                    self.controller.listener.saveconfig_status='unknown'
-                    return
+            if 'saveconfigsuccess' in self.listener.queue:
+                self.listener.queue.remove('saveconfigsuccess')
+                self.success()
+                return
                 
-            # if self.controller.listener.fileexists:
-            #     self.controller.listener.fileexists=False
-            #     self.interrupt('Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.')
-            #     return
+            elif 'saveconfigfailurefileexists' in self.listener.queue:
+                self.listener.queue.remove('saveconfigfailurefileexists')
+                self.interrupt('Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.', info_string='Error: failed to set save configuration because file already exists.\n')
+
+            elif 'saveconfigfailure' in self.listener.queue:
+                self.listener.queue.remove('saveconfigfailure')
+                self.interrupt('Error: There was a problem with\nsetting the save configuration.\nIs the spectrometer connected?', info_string='Error: There was a problem with setting the save configuration\n')
+                self.controller.spec_save_path=''
+                self.controller.spec_basename=''
+                self.controller.spec_num=None
+                return
                 
             time.sleep(0.5)
-        self.controller.listener.saveconfig_status=='unknown'
             
 
         
-        self.interrupt('Error: timeout')
+        self.timeout(info_string='Error: Operation timed out while waiting to set save configuration.\n')
         
     def success(self):
-        print('I succeeded!')
-        print('keep me around? '+str(self.keep_around))
-        print(self.loc_buttons)
         dict=self.loc_buttons['success']
+        self.log('Success: Save configuration set.\n')
         if not self.keep_around:
             self.top.destroy()
         else:
             self.pbar.stop()
             if len(self.unexpected_files)>1:
                 self.set_label_text('Save configuration was set successfully,\nbut there are untracked files in the\ndata directory. Do these belong here?\n\n'+'\n'.join(self.unexpected_files))
+                self.log('Untracked files in data directory:\n'+'\n\t'.join(self.unexpected_files))
             else:
                 self.set_label_text('Save configuration was set successfully, but there is an\n untracked file in the data directory. Does this belong here?\n\n'+'\n'.join(self.unexpected_files))
+                self.log('Untracked file in data directory:\n'+'\n\t'.join(self.unexpected_files))
             self.set_buttons({'ok':{}})
         for func in dict:
             if len(dict[func])==1:
@@ -1729,15 +1761,12 @@ class WaitForSaveConfigDialog(WaitDialog):
                 arg2=dict[func][1]
                 func(arg1,arg2)
         
-    def interrupt(self,label):
+    def interrupt(self,label, info_string=None):
         self.interrupted=True
-        #self.controller.take_spectrum()
         self.set_label_text(label)
         self.pbar.stop()
         self.set_buttons({'ok':{}})
-        # while True:
-        #     time.sleep(1)
-        #     print('keep me around')
+        self.log(info_string)
                 
             
     
@@ -1754,22 +1783,17 @@ class WaitForSpectrumDialog(WaitDialog):
                 return
                 
 
-            if self.controller.listener.failed:
-                self.controller.listener.failed=False
+            if 'failedtosavefile' in self.listener.queue:
                 self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?')
+                self.listener.queue.remove('failedtosavefile')
                 return
-            #print('waiting for saveconfig?')
-            #print(self.controller.listener.waiting_for_saveconfig)
-            # elif self.listener.unexpected_file !=None:
-            #     self.listener.unexpected_file=None
 
-
-                
-            elif self.controller.listener.noconfig=='noconfig':
-                self.controller.listener.noconfig=''
+            elif 'noconfig' in self.listener.queue:
+                self.listener.queue.remove('noconfig')
                 error=self.controller.set_save_config(self.controller.take_spectrum, [True])
                 self.finish()
                 return
+                
                 if error !=None:
                     self.interrupt(error.strerror)
 
@@ -1779,9 +1803,8 @@ class WaitForSpectrumDialog(WaitDialog):
                 self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.controller.spec_save_path, self.controller.spec_basename, numstr)
                 self.finish()
 
-            elif self.controller.listener.nonumspectra=='nonumspectra':
-                self.controller.listener.nonumspectra=''
-                print('got nonumspectra, saving to current')
+            elif 'nonumspectra' in self.controller.listener.queue:
+                self.listener.queue.remove('nonumspectra')
                 self.controller.configure_instrument()
                 numstr=str(self.controller.spec_num)
                 while len(numstr)<NUMLEN:
@@ -1804,26 +1827,38 @@ class WaitForSpectrumDialog(WaitDialog):
                             spec_num_string='0'+spec_num_string
                         self.controller.spec_startnum_entry.insert(0,spec_num_string)
                         self.controller.success()
-                        self.interrupt('Success!')
+                        self.success()
                         return
-        self.timeout()
-        # t0=time.clock()
-        # if timeout>0:
-        #     t=time.clock()
-        #     while t-t0<timeout:
-        #         time.sleep(1)
-        #         t=time.clock()
-        #     self.timeout()
+        self.timeout(info_string='Error: Operation timed out while waiting to save spectrum')
 
+        
+    def success(self):
+        numstr=str(self.controller.spec_num)
+        while len(numstr)<NUMLEN:
+            numstr='0'+numstr
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+        info_string='SUCCESS:\n Spectrum saved at '+datestring+ '\n\ti='+self.controller.man_incidence_entry.get()+'\n\te='+self.controller.man_emission_entry.get()+'\n\tfilename='+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tNotes: '+self.controller.label_entry.get()+'\n'
+        
+        self.console_log.insert(END,info_string)
+        with open(self.controller.log_filename,'a') as log:
+            log.write(info_string)
+        self.interrupt('Success!')
         
 class ErrorDialog(Dialog):
-    def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False):
+    def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False, info_string=None):
         self.listener=None
-        super().__init__(controller, title, label,buttons,allow_exit=False)
+        if info_string==None:
+            self.info_string=label+'\n'
+        else:
+            self.info_string=info_string
+        super().__init__(controller, title, label,buttons,allow_exit=False, info_string=self.info_string)
+        self.top.attributes("-topmost", True)
 
         
-def rm_reserved_chars(input):
-    return input.strip('&').strip('+').strip('=')
+
 
 def limit_len(input, max):
     return input[:max]
@@ -1841,13 +1876,13 @@ def validate_int_input(input, min, max):
 
 class RemoteFileExplorer(Dialog):
     def __init__(self,controller,write_command_loc, target=None,title='Select a directory',label='Select a directory',buttons={'ok':{},'cancel':{}}):
-        global cmdnum
-        self.cmdnum=cmdnum
+
         super().__init__(controller, title=title, buttons=buttons,label=label, button_width=20)
         self.controller=controller
         self.listener=self.controller.listener
         self.write_command_loc=write_command_loc
         self.target=target
+        self.current_parent=None
         
         self.nav_frame=Frame(self.top,bg=self.bg)
         self.nav_frame.pack()
@@ -1855,7 +1890,9 @@ class RemoteFileExplorer(Dialog):
         self.new_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.new_button.pack(side=RIGHT, pady=(5,5),padx=(0,10))
 
-        self.path_entry=Entry(self.nav_frame, width=40,bg=self.entry_background)
+        self.path_entry_var = StringVar()
+        self.path_entry_var.trace('w', self.validate_path_entry_input)
+        self.path_entry=Entry(self.nav_frame, width=40,bg=self.entry_background,textvariable=self.path_entry_var)
         self.path_entry.pack(padx=(5,5),pady=(5,5),side=RIGHT)
         self.back_button=Button(self.nav_frame, fg=self.textcolor,text='<-',command=self.back,width=1)
         self.back_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
@@ -1864,33 +1901,45 @@ class RemoteFileExplorer(Dialog):
         self.scroll_frame=Frame(self.top,bg=self.bg)
         self.scroll_frame.pack(fill=BOTH, expand=True)
         self.scrollbar = Scrollbar(self.scroll_frame, orient=VERTICAL)
-        self.listbox = Listbox(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=SINGLE,bg=self.entry_background)
+        self.listbox = Listbox(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=SINGLE,bg=self.entry_background, selectbackground=self.listboxhighlightcolor)
 
         self.scrollbar.config(command=self.listbox.yview)
         self.scrollbar.pack(side=RIGHT, fill=Y,padx=(0,10))
         self.listbox.pack(side=LEFT,expand=True, fill=BOTH,padx=(10,0))
         self.listbox.bind("<Double-Button-1>", self.expand)
         self.path_entry.bind('<Return>',self.go_to_path)
+        
         if target.get()=='':
             self.expand(newparent='C:\\Users')
             self.current_parent='C:\\Users'
         else:
-            success=self.expand(newparent=target.get())
-            print('success?'+str(success))
-            if success:
-                self.current_parent=target.get()
-            else:
-                self.expand(newparent='C:\\Users')
-                self.current_parent='C:\\Users'
+            self.expand(newparent=target.get())
+            
+    def validate_path_entry_input(self,*args):
+        text=self.path_entry.get()
+        
+        text=rm_reserved_chars(text)
+        # if len(text)<1 or text[0]!='C':
+        #     text='C'+text
+        # if len(text)<2 or text[1]!=':':
+        #     text='C:'+text[1:]
+        # if len(text)<3 or text[2]!='\\':
+        #     text='C:\\'+text[2:]
+        self.path_entry.delete(0,'end')
+        self.path_entry.insert(0,text)
+        
+
         
         
         
     def askfornewdir(self):
         input_dialog=InputDialog(self.controller, self)
 
-    def mkdir(self, dir):
-        filename=self.controller.model.cmd_to_filename('mkdir',self.cmdnum, parameters=[self.current_parent+'\\'+dir])
-        self.cmdnum[0]=self.cmdnum[0]+1
+    def mkdir(self, newdir):
+        global cmdnum
+        filename=encrypt('mkdir',cmdnum, parameters=[newdir])
+
+        cmdnum=cmdnum+1
         try:
             with open(self.write_command_loc+filename,'w+') as f:
                 pass
@@ -1899,42 +1948,48 @@ class RemoteFileExplorer(Dialog):
                 
         while True:
             if 'mkdirsuccess' in self.listener.queue:
-                print('success')
                 self.listener.queue.remove('mkdirsuccess')
-                self.path_entry.delete(0,'end')
+                self.expand(None,'\\'.join(newdir.split('\\')[0:-1]))
+                self.select(newdir.split('\\')[-1])
+                break
+            elif 'mkdirfailedfileexists' in self.listener.queue:
+                self.listener.queue.remove('mkdirfailedfileexists')
+                dialog=ErrorDialog(self.controller,title='Error',label='Could not create directory:\n\n'+newdir+'\n\nFile exists.')
                 self.expand(newparent=self.current_parent)
                 break
             elif 'mkdirfailed' in self.listener.queue:
-                print('failed')
                 self.listener.queue.remove('mkdirfailed')
-                dialog=ErrorDialog(self.controller,label='Error: Failed to create directory.\n Do you have write permission here?')
+                dialog=ErrorDialog(self.controller,title='Error',label='Could not create directory:\n\n'+newdir)
+                self.expand(newparent=self.current_parent)
                 break
-            time.sleep(0.1)
-        
+        time.sleep(0.5)
+
         
     def back(self):
-        if self.path_entry.get()=='C:' or self.path_entry.get()=='C:\\':
+        if self.path_entry.get()=='C:\\':
             return
         parent='\\'.join(self.path_entry.get().split('\\')[0:-1])
         self.path_entry.delete(0,'end')
-        print(parent)
         self.expand(newparent=parent)
         
     def go_to_path(self, source):
-        print(source)
         parent=self.path_entry.get()
         self.path_entry.delete(0,'end')
         self.expand(newparent=parent)
         
     
-    def expand(self, source=None, newparent=None):
-        print(newparent)
+    def expand(self, source=None, newparent=None, buttons=None,select=None):
+        global cmdnum
         if newparent==None:
             newparent=self.current_parent+'\\'+self.listbox.get(self.listbox.curselection()[0])
+        if newparent[1:3]!=':\\':
+            dialog=ErrorDialog(self.controller,title='Error: Invalid input',label='Error: Invalid input.\n\n'+newparent+'\n\nis not a valid filename.')
+            return
         #Send a command to the spec compy asking it for directory contents
         
-        cmdfilename=self.controller.model.cmd_to_filename('listdir',self.cmdnum[0], parameters=[newparent])
-        self.cmdnum[0]=self.cmdnum[0]+1
+        cmdfilename=encrypt('listdir',cmdnum, parameters=[newparent])
+        
+        cmdnum=cmdnum+1
         try:
             with open(self.write_command_loc+cmdfilename,'w+') as f:
                 pass
@@ -1956,48 +2011,102 @@ class RemoteFileExplorer(Dialog):
                 #Since we succeeded, set current parent to the new one path entry text to the new parent.
                 self.current_parent=newparent
                 self.path_entry.delete(0,'end')
-                if self.path_entry.get()!='':
-                    self.path_entry.insert('end','\\'+newparent)
-                else:
-                    self.path_entry.insert('end',newparent)
-                return True
+
+                #newparent could be set to always have C:\\ as the first 3 characters, and those characters will already be in self.path_entry.
+                #self.path_entry.insert('end',newparent[3:])
+
+                self.path_entry.insert('end',newparent)
+                if select!=None:
+                    self.select(select)
                 break
             elif 'listdirfailed' in self.listener.queue:
-                print('railed.')
                 self.listener.queue.remove('listdirfailed')
-                self.path_entry.delete(0,'end')
-                self.path_entry.insert(0,self.current_parent)
-                return False
+                
+                if self.current_parent==None:
+                    self.current_parent='C:\\Users'
+                if buttons==None:
+                    buttons={
+                        'yes':{
+                            self.mkdir:[newparent]
+                        },
+                        'no':{
+                            self.expand:[None,self.current_parent]
+                        }
+                    }
+                dialog=ErrorDialog(self.controller,title='Error',label=newparent+'\ndoes not exist. Do you want to create this directory?',buttons=buttons)
+                
+                return True
                 break
+            
+                
             time.sleep(0.1)
-    
+    def select(self,text):
+        if '\\' in text:
+            text=text.split('\\')[0]
+        index = self.listbox.get(0, 'end').index(text)
+        self.listbox.selection_set(index)
+        self.listbox.see(index)
+        
     def ok(self):
         self.target.delete(0,'end')
-        if len(self.listbox.curselection())>0:
-            i=self.listbox.curselection()
 
+        if len(self.listbox.curselection())>0 and self.path_entry.get()==self.current_parent:
+            i=self.listbox.curselection()
             self.target.insert(0,self.current_parent+'\\'+self.listbox.get(i))
             self.top.destroy()
-        else:
+        elif self.path_entry.get()==self.current_parent:
             self.target.insert(0,self.current_parent)
             self.top.destroy()
-            #dialog=ErrorDialog(self.controller,label='Error: No save directory selected.')
+        else:
+            buttons={
+                'yes':{
+                    self.mkdir:[self.path_entry.get()],
+                    self.expand:[None,'\\'.join(self.path_entry.get().split('\\')[0:-1])],
+                    self.select:[self.path_entry.get().split('\\')[-1]],
+                    self.ok:[]
+                },
+                'no':{
+                }
+            }
+            self.expand(newparent=self.path_entry.get(), buttons=buttons)
 
 
 class InputDialog(Dialog):
     def __init__(self, controller, fexplorer,label='Enter input', title='Enter input'):
-        super().__init__(controller,label=label,title=title, buttons={'ok':{self.get:[]}})
+        super().__init__(controller,label=label,title=title, buttons={'ok':{self.get:[]},'cancel':{}},button_width=15)
         self.dir_entry=Entry(self.top,width=40,bg=self.entry_background)
         self.dir_entry.pack(padx=(10,10))
-        self.dir_entry.insert(0,'foo')
-        print(self.dir_entry)
+        self.listener=self.controller.listener
+
 
         self.fexplorer=fexplorer
-        
+
+
     def get(self):
-        dir=self.dir_entry.get()
-        self.fexplorer.mkdir(dir)      
-        print('dont in input dialog')
+        subdir=self.dir_entry.get()
+        if subdir[0:3]!='C:\\':
+            self.fexplorer.mkdir(self.fexplorer.current_parent+'\\'+subdir) 
+        else:self.fexplorer.mkdir(subdir)
+        
+        # while True:
+        #     print(self.listener.queue)
+        #     if 'mkdirsuccess' in self.listener.queue:
+        #         self.listener.queue.remove('mkdirsuccess')
+        #         self.log('Directory created:\n\t'+self.fexplorer.current_parent+'\\'+subdir)
+        #         self.top.destroy()
+        #         self.fexplorer.expand(newparent=self.fexplorer.current_parent, select=subdir)
+        #         return True
+        #     elif 'mkdirfailed' in self.listener.queue:
+        #         print('fail!')
+        #         self.listener.queue.remove('mkdirfailed')
+        #         self.top.destroy()
+        #         dialog=ErrorDialog(self.controller,label='Error: failed to create directory.\n'+self.fexplorer.current_parent+'\\'+subdir)
+        #         return False
+        #     time.sleep(0.2)
+        # 
+        # thread = Thread(target =self.wait)
+        # thread.start()  
+
     
 
 
@@ -2007,104 +2116,92 @@ class Listener(threading.Thread):
         self.read_command_loc=read_command_loc
         self.saved_files=[]
         self.controller=None
+        self.connection_checker=ConnectionChecker(read_command_loc,'not main',controller=self.controller)
+        self.new_dialogs=True
         
-        self.failed=False
-        self.noconfig=''
-        self.nonumspectra=''
-        self.saveconfig_status='unknown'
         self.unexpected_files=[]
-        
-        self.process_status='unknown'
-        self.wr_status='unknown'
-        
         self.donelookingforunexpected=False
         self.wait_for_unexpected_count=0
-        self.fileexists=False
-        
-        self.new_dialogs=True
-        
+                
         self.queue=[]
-        
-    # @property
-    # def ex_files(self):
-    #     return self.__ex_files
-
-    #   @ex_files.setter
-    # def ex_files(self, newfiles):
-    #     print('changing data files to these ones:')
-    #     print(newfiles)
-    #     self.__ex_files=newfiles
-    
-    @property
-    def donelookingforunexpected(self):
-        print('someone is getting'+str(self.__donelookingforunexpected))
-        return self.__donelookingforunexpected
-        
-    @donelookingforunexpected.setter
-    def donelookingforunexpected(self, val):
-        print('setting done looking for unexpected to '+str(val))
-        self.__donelookingforunexpected=val
-    
-    @property
-    def nonumspectra(self):
-        return self.__noconfig2
-        
-    @nonumspectra.setter
-    def nonumspectra(self, val):
-        #print('changing noconfig2 to '+str(val))
-        self.__noconfig2=val
-        
-    def set_controller(self,controller):
-        self.controller=controller
-        
-    def clear_unexpected_files():
-        self.unexpected_files=[]
-        
-    def set_new_dialogs(self):
-        print('got here')
-        self.new_dialogs=True
     
     def run(self):
-        files0=os.listdir(self.read_command_loc)
-
+        cmdfiles0=os.listdir(self.read_command_loc)    
         while True:
-            try:
-                files=os.listdir(self.read_command_loc)
-            except:
-                if self.new_dialogs:
-                    try:
-                        self.new_dialogs=False
-                        dialog=ErrorDialog(self.controller, title='Lost Connection',label='Error: Lost connection with server.\nCheck you are on the correct WiFi network and server is mounted.',buttons={'retry':{self.set_new_dialogs:[]},'exit':{}},allow_exit=False)
-                    except:
-                        print('Ignoring an error in Listener when I make a new error dialog')
-                        time.sleep(10)
-                        exit()
-            if files==files0:
+            self.connection_checker.check_connection(False)
+                                    
+            cmdfiles=os.listdir(self.read_command_loc)
+            if cmdfiles==cmdfiles0:
                 pass
             else:
-                for file in files:
-                    if file not in files0:
-                        cmd, params=filename_to_cmd(file)
+                for cmdfile in cmdfiles:
+                    if cmdfile not in cmdfiles0:
+                        cmd, params=decrypt(cmdfile)
 
                         print('listener sees this command: '+cmd)
                         if 'savedfile' in cmd:
                             self.saved_files.append(params[0])
-
+                            
                         elif 'failedtosavefile' in cmd:
-                            self.failed=True
+                            self.listener.queue.append('failedtosavefile')
+                            
                         elif 'processsuccess' in cmd:
-                            self.process_status='success'
+                            self.queue.append('processsuccess')
+                            
                         elif 'processerrorfileexists' in cmd:
-                            self.process_status='failurefileexists'
+                            self.queue.append('processerrorfileexists')
+                        
                         elif 'processerrorwropt' in cmd:
-                            self.process_status='failurewropt'
+                            self.queue.append('processerrorwropt')
+                        
                         elif 'processerror' in cmd:
-                            self.process_status='failure'
+                            self.queue.append('processerror')
+                        
                         elif 'wrsuccess' in cmd:
-                            self.wr_status='success'
-                            
-                            #dialog=ErrorDialog(self.controller, label='Error: Processing failed.\nAre you sure directories exist?\nDoes the output file already exist?')
-                            
+                            self.queue.append('wrsuccess')
+                        
+                        elif 'donelookingforunexpected' in cmd:
+                            self.queue.append('donelookingforunexpected')
+                        
+                        elif 'saveconfigerror' in cmd:
+                            self.queue.append('saveconfigfailure')
+                        
+                        elif 'saveconfigsuccess' in cmd:
+                            self.queue.append('saveconfigsuccess')
+                        
+                        elif 'noconfig' in cmd:
+                            print("Spectrometer computer doesn't have a file configuration saved (python restart over there?). Setting to current configuration.")
+                            self.queue.append('noconfig')
+                        
+                        elif 'nonumspectra' in cmd:
+                            print("Spectrometer computer doesn't have an instrument configuration saved (python restart over there?). Setting to current configuration.")
+                            self.queue.append('noconfig')
+                        
+                        elif 'saveconfigfailedfileexists' in cmd:
+                            self.queue.append('saveconfigfailurefileexists')
+                        elif 'savespecfailedfileexists' in cmd:
+                            self.queue.append('savespecfailedfileexists')
+                        
+                        elif 'listdir' in cmd:
+                            if 'listdirfailed' in cmd:
+                                self.queue.append('listdirfailed')
+                            else:
+                                self.queue.append(cmdfile)                        
+                       
+                        elif 'mkdirsuccess' in cmd:
+                            self.queue.append('mkdirsuccess')
+                       
+                        elif 'mkdirfailedfileexists' in cmd:
+                            self.queue.append('mkdirfailedfileexists')
+                        elif 'mkdirfailed' in cmd:
+                            self.queue.append('mkdirfailed')
+                        
+                        elif 'iconfigsuccess' in cmd:
+                            self.queue.append('iconfigsuccess')
+                        
+                        elif 'iconfigfailure' in cmd:
+                            self.queue.append('iconfigfailure')
+                        
                         elif 'unexpectedfile' in cmd:
                             if self.new_dialogs:
                                 try:
@@ -2113,54 +2210,19 @@ class Listener(threading.Thread):
                                     print('Ignoring an error in Listener when I make a new error dialog')
                             else:
                                 self.unexpected_files.append(params[0])
-                        elif 'donelookingforunexpected' in cmd:
-                            self.donelookingforunexpected=True
-                                
-                        elif 'saveconfigerror' in cmd:
-                            self.saveconfig_status='failure:saveconfigerror'
-                            
-                        elif 'saveconfigsuccess' in cmd:
-                            self.saveconfig_status='success'
-                            
-                        elif 'noconfig' in cmd:
-                            print("Spectrometer computer doesn't have a file configuration saved (python restart over there?). Setting to current configuration.")
-                            self.noconfig='noconfig'
-                            
-                        elif 'nonumspectra' in cmd:
-                            print("Spectrometer computer doesn't have an instrument configuration saved (python restart over there?). Setting to current configuration.")
-                            self.nonumspectra='nonumspectra' 
-                    
-                        elif 'fileexists' in cmd:
-                            self.fileexists=True
-                            #This seems silly. Maybe not needed?
-                            self.saveconfig_status='failure:fileexists'
-                            print('The listener knows a file exists')
-                            
-                        elif 'listdir' in cmd:
-                            # cmd,filename=unencrypt(cmd)
-                            # print(filename)
-                            print('here is what I am putting in my queue')
-                            if 'listdirfailed' in cmd:
-                                self.queue.append('listdirfailed')
-                            else:
-                                print(file)
-                                self.queue.append(file)
-                            #os.remove(read_command_loc+file)
-                            
-
-                        elif 'mkdirsuccess' in cmd:
-                            self.queue.append('mkdirsuccess')
                         else:
-                            print('unexpected cmd: '+file)
+                            print('unexpected cmd: '+cmdfile)
                 #This line always prints twice if it's uncommented, I'm not sure why.
                 #print('forward!')
-                
-            files0=list(files)
+
+            cmdfiles0=list(cmdfiles)
                             
             time.sleep(0.5)
+    
+    def set_controller(self,controller):
+        self.controller=controller
             
     def find_file(path):
-        print(path)
         i=0
         found=False
         while i<10 and found==False:
@@ -2169,12 +2231,7 @@ class Listener(threading.Thread):
             i=i+1
         return found
         
-    
-        
-
-    
-        
-def unencrypt(encrypted):
+def decrypt(encrypted):
     cmd=encrypted.split('&')[0]
     params=encrypted.split('&')[1:]
     i=0
@@ -2183,13 +2240,19 @@ def unencrypt(encrypted):
         params[i]=params[i].replace('++','+')
         i=i+1
     return cmd,params
-
-def filename_to_cmd(filename):
-    cmd=filename.split('&')[0]
-    params=filename.split('&')[1:]
-    for i, param in enumerate(params):
-        params[i]=param.replace('+','\\').replace('=',':')
-    return cmd, params
+    
+def encrypt(cmd, num, parameters=[]):
+    print(num)
+    filename=cmd+str(num)
+    for param in parameters:
+        param=param.replace('/','+')
+        param=param.replace('\\','+')
+        param=param.replace(':','=')
+        filename=filename+'&'+param
+    return filename
+    
+def rm_reserved_chars(input):
+    return input.strip('&').strip('+').strip('=')
 
 
 if __name__=='__main__':
