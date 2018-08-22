@@ -903,8 +903,10 @@ class Controller():
                         label+=' No white reference has been taken for '+minutes+' minutes '+seconds+' seconds.\n\n'
                     else: label+=' No white reference has been taken for '+seconds+' seconds.\n\n'
             if self.wr_anglesfailsafe.get() and func!=self.wr:
+                print(self.angles_change_time)
+                print(self.wr_time)
                 if self.angles_change_time!=None and self.wr_time!=None:
-                    if self.angles_change_time<self.wr_time:
+                    if self.angles_change_time>self.wr_time:
                         label+=' No white reference has been taken at this viewing geometry.\n\n'
                     
             if self.anglesfailsafe.get():
@@ -926,14 +928,14 @@ class Controller():
                 elif self.e==None and emission!='':
                     label+='This is the first time the emission angle is being set,\n'
                     anglechangealert=True
-                    if incidence!=self.i:
-                        label+='The incidence angle has changed since last spectrum,\n'
+                    if incidence!=self.i and incidence!='':
+                        label+='and the incidence angle has changed since last spectrum,\n'
                     anglechangealert=True
                 elif self.i==None and incidence!='':
                     label+='This is the first time the incidence angle is being set,\n'
                     anglechangealert=True
-                    if emission!=self.e:
-                        label+='The emission angle has changed since last spectrum,\n' 
+                    if emission!=self.e and emission !='':
+                        label+='and he emission angle has changed since last spectrum,\n' 
                     anglechangealert=True
                 if anglechangealert==False and emission!=self.e and incidence !=self.i:
                     if self.angles_change_time!=None:
@@ -947,7 +949,7 @@ class Controller():
                     anglechangealert=True
                     
                 if anglechangealert:#and onlyanglechange:
-                   label+='so the goniometer arms may need to change to match.\n\n'
+                   label+='so the goniometer arm(s) may need to change to match.\n\n'
                    pass
                    
             if self.labelfailsafe.get():
@@ -1443,9 +1445,8 @@ class Dialog:
         self.set_buttons(buttons)
 
         self.top.wm_title(title)
-        
-        if not allow_exit:
-            self.top.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.allow_exit=allow_exit
+        self.top.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         if start_mainloop:
             self.top.mainloop()
@@ -1524,7 +1525,8 @@ class Dialog:
             #         tk_buttons[button].pack(side=LEFT, padx=(10,10),pady=(10,10))
             
     def on_closing(self):
-        pass
+        if self.allow_exit:
+            self.top.destroy()
     
     def retry(self):
         self.top.destroy()
@@ -1580,7 +1582,7 @@ class Dialog:
 
 class WaitDialog(Dialog):
     def __init__(self, controller, title='Working...', label='Working...', buttons={}, timeout=30):
-        super().__init__(controller, title, label,buttons,width=400, height=150)
+        super().__init__(controller, title, label,buttons,width=400, height=150, allow_exit=False)
         self.listener=self.controller.listener
         
         #We'll keep track of elapsed time so we can cancel the operation if it takes too long
@@ -1605,6 +1607,7 @@ class WaitDialog(Dialog):
         #A Listener object is always running a loop in a separate thread. It  listens for files dropped into a command folder and changes its attributes based on what it finds.
         self.listener=self.controller.listener
         self.timeout_s=timeout
+        
 
         #Start the wait function, which will watch the listener to see what attributes change and react accordingly.
         thread = Thread(target =self.wait, args = (self.timeout_s, ))
@@ -1641,6 +1644,7 @@ class WaitDialog(Dialog):
         self.canceled=True
         
     def interrupt(self,label, info_string=None):
+        self.allow_exit=True
         self.interrupted=True
         self.set_label_text(label)
         self.pbar.stop()
@@ -1793,13 +1797,14 @@ class WaitForSaveConfigDialog(WaitDialog):
         old_files=list(self.controller.listener.saved_files)
         while 'donelookingforunexpected' not in self.listener.queue:
             time.sleep(0.25)
+            
         if len(self.controller.listener.unexpected_files)>0:
             self.keep_around=True
-
-        self.unexpected_files=list(self.controller.listener.unexpected_files)
-        self.controller.listener.unexpected_files=[]
-        self.controller.listener.new_dialogs=True
-        self.controller.listener.donelookingforunexpected=False
+            self.unexpected_files=list(self.listener.unexpected_files)
+            self.listener.unexpected_files=[]
+            
+        self.listener.new_dialogs=True
+        self.listener.queue.remove('donelookingforunexpected')
         
         while self.timeout_s>0:
             self.timeout_s-=1
@@ -1828,6 +1833,7 @@ class WaitForSaveConfigDialog(WaitDialog):
         self.timeout(info_string='Error: Operation timed out while waiting to set save configuration.\n')
         
     def success(self):
+        self.allow_exit=True
         dict=self.loc_buttons['success']
         self.log('Success: Save configuration set.\n')
         if not self.keep_around:
@@ -1873,27 +1879,26 @@ class WaitForSpectrumDialog(WaitDialog):
                 return
 
             elif 'noconfig' in self.listener.queue:
+                print('noconfig')
                 self.listener.queue.remove('noconfig')
-                error=self.controller.set_save_config(self.controller.take_spectrum, [True])
+                self.controller.set_save_config(self.controller.take_spectrum, [True])
                 self.finish()
                 return
                 
-                if error !=None:
-                    self.interrupt(error.strerror)
-
-                numstr=str(self.controller.spec_num)
-                while len(numstr)<NUMLEN:
-                    numstr='0'+numstr
-                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.controller.spec_save_path, self.controller.spec_basename, numstr)
-                self.finish()
 
             elif 'nonumspectra' in self.controller.listener.queue:
                 self.listener.queue.remove('nonumspectra')
-                self.controller.configure_instrument()
-                numstr=str(self.controller.spec_num)
-                while len(numstr)<NUMLEN:
-                    numstr='0'+numstr
-                self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.controller.spec_save_path, self.controller.spec_basename, numstr)
+                buttons={
+                    'success':{
+                        self.controller.take_spectrum:[True]
+                    }
+                }
+                
+                self.controller.configure_instrument(buttons)
+                # numstr=str(self.controller.spec_num)
+                # while len(numstr)<NUMLEN:
+                #     numstr='0'+numstr
+                # self.controller.model.take_spectrum(self.controller.man_incidence_entry.get(), self.controller.man_emission_entry.get(),self.controller.spec_save_path, self.controller.spec_basename, numstr)
                 #self.finish()
                 
             time.sleep(0.5)
@@ -1917,6 +1922,7 @@ class WaitForSpectrumDialog(WaitDialog):
 
         
     def success(self):
+        self.allow_exit=True
         numstr=str(self.controller.spec_num)
         while len(numstr)<NUMLEN:
             numstr='0'+numstr
@@ -2205,7 +2211,6 @@ class Listener(threading.Thread):
         self.new_dialogs=True
         
         self.unexpected_files=[]
-        self.donelookingforunexpected=False
         self.wait_for_unexpected_count=0
                 
         self.queue=[]
@@ -2234,7 +2239,7 @@ class Listener(threading.Thread):
                         self.saved_files.append(params[0])
                         
                     elif 'failedtosavefile' in cmd:
-                        self.listener.queue.append('failedtosavefile')
+                        self.queue.append('failedtosavefile')
                         
                     elif 'processsuccess' in cmd:
                         self.queue.append('processsuccess')
@@ -2266,7 +2271,7 @@ class Listener(threading.Thread):
                     
                     elif 'nonumspectra' in cmd:
                         print("Spectrometer computer doesn't have an instrument configuration saved (python restart over there?). Setting to current configuration.")
-                        self.queue.append('noconfig')
+                        self.queue.append('nonumspectra')
                     
                     elif 'saveconfigfailedfileexists' in cmd:
                         self.queue.append('saveconfigfailurefileexists')
@@ -2306,6 +2311,7 @@ class Listener(threading.Thread):
                             except:
                                 print('Ignoring an error in Listener when I make a new error dialog')
                         else:
+                            print('unexpected file: '+params[0])
                             self.unexpected_files.append(params[0])
                     else:
                         print('unexpected cmd: '+cmdfile)
