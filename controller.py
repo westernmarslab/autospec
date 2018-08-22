@@ -142,25 +142,31 @@ import signal
  
 
 class ConnectionChecker():
-    def __init__(self,dir,thread, controller=None):
+    def __init__(self,dir,thread,controller=None, func=None):
         self.thread=thread
         self.dir=dir
         self.controller=controller
+        self.func=func
+        self.busy=False
     def alert_lost_connection(self, signum=None, frame=None):
-            buttons={
-                'retry':{
-                    self.check_connection:[False],
-                    },
-                'exit':{
-                    exit_func:[]
-                }
+        buttons={
+            'retry':{
+                self.release:[],
+                self.check_connection:[False]
+                },
+            'exit':{
+                exit_func:[]
             }
-            dialog=Dialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
+        }
+        print('New dialog!')
+        dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
 
     def alert_not_connected(self, signum=None, frame=None):
         buttons={
             'retry':{
-                self.check_connection:[True],
+                self.release:[],
+                self.check_connection:[True]
+                
                 },
             'exit':{
                 exit_func:[]
@@ -178,6 +184,11 @@ class ConnectionChecker():
             return False
     
     def check_connection(self,firstconnection, attempt=0):
+        if self.busy:
+            return
+
+            
+        self.busy=True
         connected=True
         if self.thread=='main':
             signal.signal(signal.SIGALRM, self.alert_not_connected)
@@ -194,18 +205,27 @@ class ConnectionChecker():
                 
         if connected==False:
             #For some reason reconnecting only seems to work on the second attempt. This seems like a pretty poor way to handle that, but I just call check_connection twice if it fails the first time.
-            if attempt>0:
+            if attempt>0 and firstconnection==True:
                 self.alert_not_connected(None, None)
+            elif attempt>0 and firstconnection==False:
+                self.alert_lost_connection(None, None)
             else:
                 time.sleep(0.5)
+                self.release()
                 self.check_connection(firstconnection, attempt=1)
         else:
+            if self.func !=None:
+                self.func()
+            self.release()
             return True
+    def release(self):
+        self.busy=False
 
 def main():
     #Check if you are connected to the server. 
-    connection_checker=ConnectionChecker(read_command_loc, thread='main')
+    connection_checker=ConnectionChecker(read_command_loc, thread='main', func=None)
     connection_checker.check_connection(True)
+    print('ok done checking connection')
 
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
     delme=os.listdir(write_command_loc)
@@ -240,8 +260,9 @@ class Controller():
         self.take_spectrum_with_bad_i_or_e=False
         self.wr_time=None
         self.opt_time=None
-        self.i=-1000
-        self.e=-1000
+        self.angles_change_time=None
+        self.i=None
+        self.e=None
         
         #Tkinter notebook GUI
         self.master=Tk()
@@ -601,6 +622,11 @@ class Controller():
         self.anglechangefailsafe_check.pack(pady=(6,5))#side=LEFT, pady=pady)
         self.anglechangefailsafe_check.select()
         
+        self.wr_anglesfailsafe=IntVar()
+        self.wr_anglesfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Require a new white reference at each viewing geometry', bg=self.bg, pady=pady, highlightthickness=0, variable=self.wr_anglesfailsafe)
+        self.wr_anglesfailsafe_check.pack(pady=(6,5))
+        self.wr_anglesfailsafe_check.select()
+        
         
         # check_frame=Frame(man_frame, bg=self.bg)
         # check_frame.pack()
@@ -843,76 +869,90 @@ class Controller():
             incidence=self.man_incidence_entry.get()
             emission=self.man_emission_entry.get()
             
+
+            
             if self.optfailsafe.get():
                 try:
                     opt_limit=int(float(self.opt_timeout_entry.get()))*60
                 except:
                     opt_limit=sys.maxsize
                 if self.opt_time==None:
-                    label+='The instrument has not been optimized.\n'
+                    label+='The instrument has not been optimized.\n\n'
                 elif now-self.opt_time>opt_limit: 
                     minutes=str(int((now-self.opt_time)/60))
                     seconds=str((now-self.opt_time)%60)
                     if int(minutes)>0:
-                        label+='The instrument has not been optimized for '+minutes+' minutes '+seconds+' seconds.\n'
-                    else: label+='The instrument has not been optimized for '+seconds+' seconds.\n'
-                    
-            if self.wrfailsafe.get():
+                        label+='The instrument has not been optimized for '+minutes+' minutes '+seconds+' seconds.\n\n'
+                    else: label+='The instrument has not been optimized for '+seconds+' seconds.\n\n'
+                
+            if self.wrfailsafe.get() and func!=self.wr:
                 try:
                     wr_limit=int(float(self.wr_timeout_entry.get()))*60
                 except:
                     wr_limit=sys.maxsize
                 if self.wr_time==None:
-                    label+='No white reference has been taken.\n'
+                    label+='No white reference has been taken.\n\n'
+                elif self.opt_time!=None:
+                    if self.opt_time-self.wr_time>0:
+                        label+='No white reference has been taken since the instrument was optimized.\n\n'
+                
                 elif now-self.wr_time>wr_limit: 
                     minutes=str(int((now-self.wr_time)/60))
                     seconds=str((now-self.wr_time)%60)
                     if int(minutes)>0:
-                        label+=' No white reference has been taken for '+minutes+' minutes '+seconds+' seconds.\n'
-                    else: label+=' No white reference has been taken for '+seconds+' seconds.\n'
+                        label+=' No white reference has been taken for '+minutes+' minutes '+seconds+' seconds.\n\n'
+                    else: label+=' No white reference has been taken for '+seconds+' seconds.\n\n'
+            if self.wr_anglesfailsafe.get() and func!=self.wr:
+                if self.angles_change_time!=None and self.wr_time!=None:
+                    if self.angles_change_time<self.wr_time:
+                        label+=' No white reference has been taken at this viewing geometry.\n\n'
                     
             if self.anglesfailsafe.get():
                 valid_i=validate_int_input(incidence,-90,90)
                 valid_e=validate_int_input(emission,-90,90)
-                if not valid_i or not valid_e:
-                    label+='The emission and/or incidence angle is invalid\n'
+                if not valid_i and not valid_e:
+                    label+='The emission and incidence angles are invalid\n\n'
+                elif not valid_i:
+                    label+='The incidence angle is invalid\n\n'
+                elif not valid_e:
+                    label+='The emission angle is invalid\n\n'
                     
-            if self.labelfailsafe.get():
-                if self.label_entry.get()=='':
-                    label +='This spectrum has no label.\n'
-            onlyanglechange=False
-            if label=='':
-                onlyanglechange=True
-            if self.anglechangefailsafe.get() and 'angle is invalid' not in label:
-                print('checking')
+
+            if self.anglechangefailsafe.get():# and 'angle is invalid' not in label:
                 anglechangealert=False
-                if self.e==-1000 and self.i==-1000:
-                    label+='This is the first time emission and incidence angles are being set.\n'
+                if self.angles_change_time==None and emission!='' and incidence !='':
+                    label+='This is the first time emission and incidence angles are being set,\n'
                     anglechangealert=True
-                elif self.e==-1000:
-                    label+='This is the first time the emission angle is being set.\n'
+                elif self.e==None and emission!='':
+                    label+='This is the first time the emission angle is being set,\n'
                     anglechangealert=True
                     if incidence!=self.i:
-                        label+='The emission angle has changed since last spectrum.\n'
+                        label+='The incidence angle has changed since last spectrum,\n'
                     anglechangealert=True
-                elif self.i==-1000:
-                    label+='This is the first time the incidence angle is being set.\n'
+                elif self.i==None and incidence!='':
+                    label+='This is the first time the incidence angle is being set,\n'
                     anglechangealert=True
                     if emission!=self.e:
-                        label+='The emission angle has changed since last spectrum.\n' 
+                        label+='The emission angle has changed since last spectrum,\n' 
                     anglechangealert=True
-                elif emission!=self.e and incidence !=self.i:
-                    label+='The emission and incidence angles have changed since last spectrum.\n'
+                if anglechangealert==False and emission!=self.e and incidence !=self.i:
+                    if self.angles_change_time!=None:
+                        label+='The emission and incidence angles have changed since last spectrum,\n'
+                        anglechangealert=True
+                elif anglechangealert==False and emission!=self.e:
+                    label+='The emission angle has changed since last spectrum,\n'
                     anglechangealert=True
-                elif emission!=self.e:
-                    label+='The emission angle has changed since last spectrum.\n'
-                elif incidence!=self.i:
-                    label+='The incidence angle has changed since last spectrum.\n' 
+                elif anglechangealert==False and incidence!=self.i:
+                    label+='The incidence angle has changed since last spectrum,\n' 
                     anglechangealert=True
                     
                 if anglechangealert:#and onlyanglechange:
-                   label+='The goniometer arms may need to change to match.\n'
+                   label+='so the goniometer arms may need to change to match.\n\n'
                    pass
+                   
+            if self.labelfailsafe.get():
+                if self.label_entry.get()=='':
+                    label +='This spectrum has no label.\n\n'
 
             if label !='': #if we came up with errors
                 title='Warning!'
@@ -954,7 +994,7 @@ class Controller():
         self.check_logfile()
 
         valid_input=True #We'll check this in a moment if override=False
-        self.wr_time=int(time.time())
+        
         if self.label_entry.get()!='' and 'White reference' not in self.label_entry.get():
             self.label_entry.insert(0, 'White reference: ')
         elif self.label_entry.get()=='':
@@ -992,8 +1032,6 @@ class Controller():
             }
             
             self.configure_instrument(buttons)
-            time.sleep(5)
-            print('ok done waiting')
             return
 
         self.model.white_reference()
@@ -1008,19 +1046,30 @@ class Controller():
         waitdialog=WaitForWRDialog(self, buttons=buttons)
             
     def opt(self):
+
+        try:
+            new_spec_config_count=int(self.instrument_config_entry.get())
+            if new_spec_config_count<1 or new_spec_config_count>32767:
+                raise(Exception)
+        except:
+            dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
+            return 
+        if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
+            #This is a bit weird because these aren't actually buttons. Probably could be written better. 
+            buttons={
+                'success':{
+                    self.opt:[]
+                }
+            }
+            
+            self.configure_instrument(buttons)
+            return
+            
         self.model.opt()
-        self.opt_time=int(time.time())
         self.check_logfile()
-        datestring=''
-        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
-        for d in datestringlist:
-            datestring=datestring+d
+        waitdialog=WaitForOptDialog(self)
+
         
-        info_string='UNVERIFIED:\n Instrument optimized at '+datestring+'\n'
-        with open(self.log_filename,'a') as log:
-            log.write(info_string)
-        self.console_log.insert(END, info_string)
-    
     def test(self,arg=False):
         print(arg)
         
@@ -1062,6 +1111,7 @@ class Controller():
     
         self.i=incidence
         self.e=emission
+        self.angles_change_time=time.time()
 
         try:
             new_spec_num=int(self.spec_startnum_entry.get())
@@ -1119,6 +1169,8 @@ class Controller():
     def configure_instrument(self,buttons):
         self.spec_config_count=self.instrument_config_entry.get()
         self.model.configure_instrument(self.spec_config_count)
+        
+        #This is a bit weird because the buttons here aren't actually buttons, they are functions to be executed.
         waitdialog=WaitForConfigDialog(self, buttons=buttons)
         
     def set_save_config(self, func, args):
@@ -1295,7 +1347,7 @@ class Controller():
                 self.console_entry.insert(0,next)
                 
     def choose_spec_save_dir(self):
-        r=RemoteFileExplorer(self,write_command_loc,label='Select a directory to save raw spectral data.\nThis must be in the C drive of the spectrometer control computer.', target=self.spec_save_dir_entry)
+        r=RemoteFileExplorer(self,write_command_loc,label='Select a directory to save raw spectral data.\nThis must be to a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data', target=self.spec_save_dir_entry)
         
     def choose_process_input_dir(self):
         r=RemoteFileExplorer(self,write_command_loc,label='Select the directory containing the data you want to process.\nThis must be in the C drive of the spectrometer control computer.',target=self.input_dir_entry)
@@ -1398,16 +1450,26 @@ class Dialog:
         if start_mainloop:
             self.top.mainloop()
             
+        if controller!=None and info_string!=None:
+            self.log(info_string)
+            
             
     def set_label_text(self, newlabel, info_string=None):
         self.label.config(fg=self.textcolor,text=newlabel)
-        if info_string != None:
-            self.controller.console_log.insert(END, info_string)
+        if info_string != None and self.controller!=None:
+            self.log(info_string)
+            #self.controller.console_log.insert(END, info_string)
 
     def log(self, info_string):
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+            
         if info_string[-2:-1]!='\n':
             info_string+='\n'
-        self.controller.console_log.insert(END,info_string)
+        info_string=datestring+': '+info_string
+        self.controller.console_log.insert(END,info_string+'\n')
         
     def set_buttons(self, buttons):
         self.buttons=buttons
@@ -1578,11 +1640,13 @@ class WaitDialog(Dialog):
     def cancel(self):
         self.canceled=True
         
-    def interrupt(self,label):
+    def interrupt(self,label, info_string=None):
         self.interrupted=True
         self.set_label_text(label)
         self.pbar.stop()
         self.set_buttons({'ok':{}})
+        if info_string!=None:
+            self.log(info_string)
                 
     def send(self):
         global username
@@ -1615,20 +1679,43 @@ class WaitForConfigDialog(WaitDialog):
         datestringlist=str(datetime.datetime.now()).split('.')[:-1]
         for d in datestringlist:
             datestring=datestring+d
-        self.log('SUCCESS:\n Instrument configured at '+datestring+ ' with '+str(self.controller.spec_config_count))
+        self.log('SUCCESS:\n Instrument configured at '+datestring+ ' with '+str(self.controller.spec_config_count)+' spectra being averaged.')
 
         dict=self.loc_buttons['success']
+        self.execute(dict)
 
-        for func in dict:
-            if len(dict[func])==1:
-                arg=dict[func][0]
-                func(arg)
-            elif len(dict[func])==2:
-                arg1=dict[func][0]
-                arg2=dict[func][1]
-                func(arg1,arg2)
-        self.top.destroy()
+class WaitForOptDialog(WaitDialog):
+    def __init__(self, controller, title='Optimizing...', label='Optimizing...', buttons={'cancel':{}}, timeout=200):
+        self.interval=0.5
+        super().__init__(controller, title, label,timeout=2*timeout)
         
+        if self.controller.spec_config_count!=None:
+            self.timeout_s=int(self.controller.spec_config_count*2)
+        else:
+            self.timeout=1000
+
+    def wait(self, timeout_s):
+        while self.timeout_s>0:
+            self.timeout_s-=self.interval
+            time.sleep(self.interval)
+            if 'optsuccess' in self.controller.listener.queue:
+                self.listener.queue.remove('optsuccess')
+                self.success()
+                return
+            elif 'optfailure' in self.controller.listener.queue:
+                self.listener.queue.remove('optfailure')
+                self.interrupt('Error: There was a problem with\noptimizing the instrument.',info_string='Error: There was a problem with optimizing the instrument')
+                
+                
+    def success(self):
+        self.controller.opt_time=int(time.time())
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+        self.log('SUCCESS:\n Instrument optimized at '+datestring+ '\n\ti='+self.controller.man_incidence_entry.get()+'\n\te='+self.controller.man_emission_entry.get())
+
+        self.interrupt('Success!')
         
 class WaitForWRDialog(WaitDialog):
     def __init__(self, controller, title='White referencing...', label='White referencing...', buttons={'cancel':{}}, timeout=200):
@@ -1646,12 +1733,13 @@ class WaitForWRDialog(WaitDialog):
                 return
                 
     def success(self):
+        self.controller.wr_time=int(time.time())
         datestring=''
         datestringlist=str(datetime.datetime.now()).split('.')[:-1]
         for d in datestringlist:
             datestring=datestring+d
         self.log('SUCCESS:\n White reference saved at '+datestring+ '\n\ti='+self.controller.man_incidence_entry.get()+'\n\te='+self.controller.man_emission_entry.get())
-
+        
         dict=self.loc_buttons['success']
 
         for func in dict:
@@ -1723,6 +1811,7 @@ class WaitForSaveConfigDialog(WaitDialog):
             elif 'saveconfigfailurefileexists' in self.listener.queue:
                 self.listener.queue.remove('saveconfigfailurefileexists')
                 self.interrupt('Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.', info_string='Error: failed to set save configuration because file already exists.\n')
+                return
 
             elif 'saveconfigfailure' in self.listener.queue:
                 self.listener.queue.remove('saveconfigfailure')
@@ -1761,12 +1850,7 @@ class WaitForSaveConfigDialog(WaitDialog):
                 arg2=dict[func][1]
                 func(arg1,arg2)
         
-    def interrupt(self,label, info_string=None):
-        self.interrupted=True
-        self.set_label_text(label)
-        self.pbar.stop()
-        self.set_buttons({'ok':{}})
-        self.log(info_string)
+
                 
             
     
@@ -1854,8 +1938,11 @@ class ErrorDialog(Dialog):
             self.info_string=label+'\n'
         else:
             self.info_string=info_string
-        super().__init__(controller, title, label,buttons,allow_exit=False, info_string=self.info_string)
-        self.top.attributes("-topmost", True)
+        super().__init__(controller, title, label,buttons,allow_exit=False, info_string=None)#self.info_string)
+        try:
+            self.top.attributes("-topmost", True)
+        except(Exception):
+            print(str(Exception))
 
         
 
@@ -1892,7 +1979,7 @@ class RemoteFileExplorer(Dialog):
 
         self.path_entry_var = StringVar()
         self.path_entry_var.trace('w', self.validate_path_entry_input)
-        self.path_entry=Entry(self.nav_frame, width=40,bg=self.entry_background,textvariable=self.path_entry_var)
+        self.path_entry=Entry(self.nav_frame, width=50,bg=self.entry_background,textvariable=self.path_entry_var)
         self.path_entry.pack(padx=(5,5),pady=(5,5),side=RIGHT)
         self.back_button=Button(self.nav_frame, fg=self.textcolor,text='<-',command=self.back,width=1)
         self.back_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
@@ -1901,7 +1988,7 @@ class RemoteFileExplorer(Dialog):
         self.scroll_frame=Frame(self.top,bg=self.bg)
         self.scroll_frame.pack(fill=BOTH, expand=True)
         self.scrollbar = Scrollbar(self.scroll_frame, orient=VERTICAL)
-        self.listbox = Listbox(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=SINGLE,bg=self.entry_background, selectbackground=self.listboxhighlightcolor)
+        self.listbox = Listbox(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=SINGLE,bg=self.entry_background, selectbackground=self.listboxhighlightcolor, height=15)
 
         self.scrollbar.config(command=self.listbox.yview)
         self.scrollbar.pack(side=RIGHT, fill=Y,padx=(0,10))
@@ -1917,20 +2004,10 @@ class RemoteFileExplorer(Dialog):
             
     def validate_path_entry_input(self,*args):
         text=self.path_entry.get()
-        
         text=rm_reserved_chars(text)
-        # if len(text)<1 or text[0]!='C':
-        #     text='C'+text
-        # if len(text)<2 or text[1]!=':':
-        #     text='C:'+text[1:]
-        # if len(text)<3 or text[2]!='\\':
-        #     text='C:\\'+text[2:]
-        self.path_entry.delete(0,'end')
-        self.path_entry.insert(0,text)
-        
 
-        
-        
+        self.path_entry.delete(0,'end')
+        self.path_entry.insert(0,text)      
         
     def askfornewdir(self):
         input_dialog=InputDialog(self.controller, self)
@@ -1966,10 +2043,9 @@ class RemoteFileExplorer(Dialog):
 
         
     def back(self):
-        if self.path_entry.get()=='C:\\':
+        if len(self.current_parent)<4:
             return
-        parent='\\'.join(self.path_entry.get().split('\\')[0:-1])
-        self.path_entry.delete(0,'end')
+        parent='\\'.join(self.current_parent.split('\\')[0:-1])
         self.expand(newparent=parent)
         
     def go_to_path(self, source):
@@ -1978,14 +2054,16 @@ class RemoteFileExplorer(Dialog):
         self.expand(newparent=parent)
         
     
-    def expand(self, source=None, newparent=None, buttons=None,select=None):
+    def expand(self, source=None, newparent=None, buttons=None,select=None, timeout=5):
         global cmdnum
         if newparent==None:
             newparent=self.current_parent+'\\'+self.listbox.get(self.listbox.curselection()[0])
-        if newparent[1:3]!=':\\':
+        if newparent[1:2]!=':' or len(newparent)>2 and newparent[1:3]!=':\\':
             dialog=ErrorDialog(self.controller,title='Error: Invalid input',label='Error: Invalid input.\n\n'+newparent+'\n\nis not a valid filename.')
             return
         #Send a command to the spec compy asking it for directory contents
+        if newparent[-1]=='\\':
+            newparent=newparent[:-1]
         
         cmdfilename=encrypt('listdir',cmdnum, parameters=[newparent])
         
@@ -1997,7 +2075,9 @@ class RemoteFileExplorer(Dialog):
                 pass
                 
         #Wait to hear what the listener finds
-        while True:
+        t=0
+        interval=0.1
+        while t<timeout:
             #If we get a file back with a list of the contents, replace the old listbox contents with new ones.
             if cmdfilename in self.listener.queue:
                 self.listbox.delete(0,'end')
@@ -2038,8 +2118,13 @@ class RemoteFileExplorer(Dialog):
                 return True
                 break
             
-                
-            time.sleep(0.1)
+            
+            time.sleep(interval)
+            t=t+interval
+        if t>timeout:
+            dialog=ErrorDialog(self.controller, label='Error: Operation timed out.\nCheck connections.\nCheck that the automation script is running on the spectrometer computer.')
+            self.top.destroy()
+            
     def select(self,text):
         if '\\' in text:
             text=text.split('\\')[0]
@@ -2116,7 +2201,7 @@ class Listener(threading.Thread):
         self.read_command_loc=read_command_loc
         self.saved_files=[]
         self.controller=None
-        self.connection_checker=ConnectionChecker(read_command_loc,'not main',controller=self.controller)
+        self.connection_checker=ConnectionChecker(read_command_loc,'not main',controller=self.controller, func=self.listen)
         self.new_dialogs=True
         
         self.unexpected_files=[]
@@ -2125,102 +2210,114 @@ class Listener(threading.Thread):
                 
         self.queue=[]
     
+        self.cmdfiles0=os.listdir(self.read_command_loc)
+
     def run(self):
-        cmdfiles0=os.listdir(self.read_command_loc)    
+          
         while True:
-            self.connection_checker.check_connection(False)
-                                    
-            cmdfiles=os.listdir(self.read_command_loc)
-            if cmdfiles==cmdfiles0:
-                pass
-            else:
-                for cmdfile in cmdfiles:
-                    if cmdfile not in cmdfiles0:
-                        cmd, params=decrypt(cmdfile)
-
-                        print('listener sees this command: '+cmd)
-                        if 'savedfile' in cmd:
-                            self.saved_files.append(params[0])
-                            
-                        elif 'failedtosavefile' in cmd:
-                            self.listener.queue.append('failedtosavefile')
-                            
-                        elif 'processsuccess' in cmd:
-                            self.queue.append('processsuccess')
-                            
-                        elif 'processerrorfileexists' in cmd:
-                            self.queue.append('processerrorfileexists')
-                        
-                        elif 'processerrorwropt' in cmd:
-                            self.queue.append('processerrorwropt')
-                        
-                        elif 'processerror' in cmd:
-                            self.queue.append('processerror')
-                        
-                        elif 'wrsuccess' in cmd:
-                            self.queue.append('wrsuccess')
-                        
-                        elif 'donelookingforunexpected' in cmd:
-                            self.queue.append('donelookingforunexpected')
-                        
-                        elif 'saveconfigerror' in cmd:
-                            self.queue.append('saveconfigfailure')
-                        
-                        elif 'saveconfigsuccess' in cmd:
-                            self.queue.append('saveconfigsuccess')
-                        
-                        elif 'noconfig' in cmd:
-                            print("Spectrometer computer doesn't have a file configuration saved (python restart over there?). Setting to current configuration.")
-                            self.queue.append('noconfig')
-                        
-                        elif 'nonumspectra' in cmd:
-                            print("Spectrometer computer doesn't have an instrument configuration saved (python restart over there?). Setting to current configuration.")
-                            self.queue.append('noconfig')
-                        
-                        elif 'saveconfigfailedfileexists' in cmd:
-                            self.queue.append('saveconfigfailurefileexists')
-                        elif 'savespecfailedfileexists' in cmd:
-                            self.queue.append('savespecfailedfileexists')
-                        
-                        elif 'listdir' in cmd:
-                            if 'listdirfailed' in cmd:
-                                self.queue.append('listdirfailed')
-                            else:
-                                self.queue.append(cmdfile)                        
-                       
-                        elif 'mkdirsuccess' in cmd:
-                            self.queue.append('mkdirsuccess')
-                       
-                        elif 'mkdirfailedfileexists' in cmd:
-                            self.queue.append('mkdirfailedfileexists')
-                        elif 'mkdirfailed' in cmd:
-                            self.queue.append('mkdirfailed')
-                        
-                        elif 'iconfigsuccess' in cmd:
-                            self.queue.append('iconfigsuccess')
-                        
-                        elif 'iconfigfailure' in cmd:
-                            self.queue.append('iconfigfailure')
-                        
-                        elif 'unexpectedfile' in cmd:
-                            if self.new_dialogs:
-                                try:
-                                    dialog=ErrorDialog(self.controller, title='Untracked Files',label='There is an untracked file in the data directory.\nDoes this belong here?\n\n'+params[0])
-                                except:
-                                    print('Ignoring an error in Listener when I make a new error dialog')
-                            else:
-                                self.unexpected_files.append(params[0])
-                        else:
-                            print('unexpected cmd: '+cmdfile)
-                #This line always prints twice if it's uncommented, I'm not sure why.
-                #print('forward!')
-
-            cmdfiles0=list(cmdfiles)
-                            
+            connection=self.connection_checker.check_connection(False)
             time.sleep(0.5)
+
+            
+            
+    def listen(self):
+        self.cmdfiles=os.listdir(self.read_command_loc)  
+        if self.cmdfiles==self.cmdfiles0:
+            pass
+        else:
+            for cmdfile in self.cmdfiles:
+                if cmdfile not in self.cmdfiles0:
+                    cmd, params=decrypt(cmdfile)
+
+                    print('listener sees this command: '+cmd)
+                    if 'savedfile' in cmd:
+                        self.saved_files.append(params[0])
+                        
+                    elif 'failedtosavefile' in cmd:
+                        self.listener.queue.append('failedtosavefile')
+                        
+                    elif 'processsuccess' in cmd:
+                        self.queue.append('processsuccess')
+                        
+                    elif 'processerrorfileexists' in cmd:
+                        self.queue.append('processerrorfileexists')
+                    
+                    elif 'processerrorwropt' in cmd:
+                        self.queue.append('processerrorwropt')
+                    
+                    elif 'processerror' in cmd:
+                        self.queue.append('processerror')
+                    
+                    elif 'wrsuccess' in cmd:
+                        self.queue.append('wrsuccess')
+                    
+                    elif 'donelookingforunexpected' in cmd:
+                        self.queue.append('donelookingforunexpected')
+                    
+                    elif 'saveconfigerror' in cmd:
+                        self.queue.append('saveconfigfailure')
+                    
+                    elif 'saveconfigsuccess' in cmd:
+                        self.queue.append('saveconfigsuccess')
+                    
+                    elif 'noconfig' in cmd:
+                        print("Spectrometer computer doesn't have a file configuration saved (python restart over there?). Setting to current configuration.")
+                        self.queue.append('noconfig')
+                    
+                    elif 'nonumspectra' in cmd:
+                        print("Spectrometer computer doesn't have an instrument configuration saved (python restart over there?). Setting to current configuration.")
+                        self.queue.append('noconfig')
+                    
+                    elif 'saveconfigfailedfileexists' in cmd:
+                        self.queue.append('saveconfigfailurefileexists')
+                    elif 'savespecfailedfileexists' in cmd:
+                        self.queue.append('savespecfailedfileexists')
+                    
+                    elif 'listdir' in cmd:
+                        if 'listdirfailed' in cmd:
+                            self.queue.append('listdirfailed')
+                        else:
+                            self.queue.append(cmdfile)                        
+                    
+                    elif 'mkdirsuccess' in cmd:
+                        self.queue.append('mkdirsuccess')
+                    
+                    elif 'mkdirfailedfileexists' in cmd:
+                        self.queue.append('mkdirfailedfileexists')
+                    elif 'mkdirfailed' in cmd:
+                        self.queue.append('mkdirfailed')
+                    
+                    elif 'iconfigsuccess' in cmd:
+                        self.queue.append('iconfigsuccess')
+                    
+                    elif 'iconfigfailure' in cmd:
+                        self.queue.append('iconfigfailure')
+                        
+                    elif 'optsuccess' in cmd:
+                        self.queue.append('optsuccess')
+                    
+                    elif 'optfailure' in cmd:
+                        self.queue.append('optfailure')
+                    
+                    elif 'unexpectedfile' in cmd:
+                        if self.new_dialogs:
+                            try:
+                                dialog=ErrorDialog(self.controller, title='Untracked Files',label='There is an untracked file in the data directory.\nDoes this belong here?\n\n'+params[0])
+                            except:
+                                print('Ignoring an error in Listener when I make a new error dialog')
+                        else:
+                            self.unexpected_files.append(params[0])
+                    else:
+                        print('unexpected cmd: '+cmdfile)
+            #This line always prints twice if it's uncommented, I'm not sure why.
+            #print('forward!')
+
+        self.cmdfiles0=list(self.cmdfiles)
+                        
     
     def set_controller(self,controller):
         self.controller=controller
+        self.connection_checker.controller=controller
             
     def find_file(path):
         i=0
