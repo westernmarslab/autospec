@@ -146,7 +146,6 @@ class Model:
         # self.m_i.position=i
     
     def take_spectrum(self, inc, em, path, basename, startnum):
-        print('take a spectrum')
         filename=self.encrypt('spectrum',self.spectrum_num,[path,basename,startnum])
 
         try:
@@ -197,10 +196,8 @@ class Model:
         self.opt_num=self.opt_num+1
     
     def white_reference(self):
-        print('the model is going to white reference')
         filename='wr_'+str(self.wr_num)
         try:
-            print(filename)
             file=open(self.command_loc+filename,'w+')
         except OSError as e:
             if e.errno==22:
@@ -220,9 +217,6 @@ class Model:
 
     def set_save_path(self, path, basename, startnum):
         filename=self.encrypt('saveconfig',self.saveconfig_num,[path,basename,startnum])
-        print('here I am saying to set save path')
-        print(self.command_loc)
-        print(filename)
         try:
             file=open(self.command_loc+filename,'w')
         except OSError as e:

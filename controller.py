@@ -166,7 +166,6 @@ class ConnectionChecker():
                 exit_func:[]
             }
         }
-        print('New dialog!')
         dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
 
     def alert_not_connected(self, signum=None, frame=None):
@@ -233,7 +232,6 @@ def main():
     #Check if you are connected to the server. 
     connection_checker=ConnectionChecker(read_command_loc, thread='main', func=None)
     connection_checker.check_connection(True)
-    print('ok done checking connection')
 
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
     delme=os.listdir(write_command_loc)
@@ -347,9 +345,13 @@ class Controller():
         self.spec_save_dir_browse_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.spec_save_dir_browse_button.pack(side=RIGHT, padx=padx)
         
-        self.spec_save_dir_entry=Entry(self.spec_save_dir_frame, width=50,bd=bd,bg=self.entry_background, selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.spec_save_dir_var = StringVar()
+        self.spec_save_dir_var.trace('w', self.validate_spec_save_dir)
+        self.spec_save_dir_entry=Entry(self.spec_save_dir_frame, width=50,bd=bd,bg=self.entry_background, selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.spec_save_dir_var)
         self.spec_save_dir_entry.insert(0, self.spec_save_path)
         self.spec_save_dir_entry.pack(padx=padx, pady=pady, side=RIGHT)
+        
+
         
         
     
@@ -358,15 +360,25 @@ class Controller():
         
         self.spec_basename_label=Label(self.spec_save_frame,pady=pady,bg=self.bg,fg=self.textcolor,text='Base name:')
         self.spec_basename_label.pack(side=LEFT,pady=(5,15),padx=(0,0))
-        self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        
+        self.spec_basename_var = StringVar()
+        self.spec_basename_var.trace('w', self.validate_basename)
+        self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.spec_basename_var)
         self.spec_basename_entry.pack(side=LEFT,padx=(5,5), pady=pady)
         self.spec_basename_entry.insert(0,self.spec_basename)
         
+
+        
         self.spec_startnum_label=Label(self.spec_save_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Number:')
         self.spec_startnum_label.pack(side=LEFT,pady=pady)
-        self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        
+        self.startnum_var = StringVar()
+        self.startnum_var.trace('w', self.validate_startnum)
+        self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.startnum_var)
         self.spec_startnum_entry.insert(0,spec_startnum)
         self.spec_startnum_entry.pack(side=RIGHT, pady=pady)      
+        
+
             
         self.log_frame=Frame(self.control_frame, bg=self.bg,highlightthickness=1)
         self.log_frame.pack(fill=BOTH,expand=True)
@@ -374,9 +386,15 @@ class Controller():
         self.logfile_label.pack(padx=padx,pady=(10,0))
         self.logfile_entry_frame=Frame(self.log_frame, bg=self.bg)
         self.logfile_entry_frame.pack()
-        self.logfile_entry=Entry(self.logfile_entry_frame, width=50,bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        
+        self.logfile_var = StringVar()
+        self.logfile_var.trace('w', self.validate_logfile)
+        self.logfile_entry=Entry(self.logfile_entry_frame, width=50,bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.logfile_var)
         self.logfile_entry.pack(padx=padx, pady=(5,15))
         self.logfile_entry.enabled=False
+        
+
+        
         self.select_logfile_button=Button(self.logfile_entry_frame, fg=self.textcolor,text='Select existing',command=self.chooselogfile, width=13, height=1,bg=self.buttonbackgroundcolor)
         self.select_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor)
         self.select_logfile_button.pack(side=LEFT,padx=(50,5), pady=(0,10))
@@ -835,8 +853,7 @@ class Controller():
         try:
             log = asksaveasfile(mode='w', defaultextension=".txt",title='Create a new log file')
         except:
-            print('this is the log')
-            print('log')
+            pass
         if log is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
         self.log_filename=log.name
@@ -892,21 +909,16 @@ class Controller():
                     else: label+='The instrument has not been optimized for '+seconds+' seconds.\n\n'
                 
             if self.wrfailsafe.get() and func!=self.wr:
-                print('config counts!')
-                print(self.spec_config_count)
-                print(self.instrument_config_entry.get())
+
                 try:
                     wr_limit=int(float(self.wr_timeout_entry.get()))*60
                 except:
                     wr_limit=sys.maxsize
                 if self.wr_time==None:
                     label+='No white reference has been taken.\n\n'
-                elif self.opt_time!=None:
-                    if self.opt_time>self.wr_time:
+                elif self.opt_time!=None and self.opt_time>self.wr_time:
                         label+='No white reference has been taken since the instrument was optimized.\n\n'
                 elif int(self.instrument_config_entry.get()) !=int(self.spec_config_count):
-                    print('hello!')
-                    print(type(self.spec_config_count))
                     label+='No white reference has been taken while averaging this number of spectra.\n\n'
                 elif self.spec_config_count==None:
                     label+='No white reference has been taken while averaging this number of spectra.\n\n'
@@ -917,9 +929,7 @@ class Controller():
                         label+=' No white reference has been taken for '+minutes+' minutes '+seconds+' seconds.\n\n'
                     else: label+=' No white reference has been taken for '+seconds+' seconds.\n\n'
             if self.wr_anglesfailsafe.get() and func!=self.wr:
-                print(self.angles_change_time)
-                print(self.wr_time)
-                print(time.time())
+
                 if self.angles_change_time!=None and self.wr_time!=None:
                     if self.angles_change_time>self.wr_time+1:
                         label+=' No white reference has been taken at this viewing geometry.\n\n'
@@ -992,7 +1002,18 @@ class Controller():
               
     #If the user didn't choose a log file, make one in working directory
     def check_logfile(self):
-        if self.log_filename==None and self.logfile_entry.get()=='':
+        def inner_mkdir(new):
+            try:
+                os.makedirs(new)
+            except:
+                dialog=ErrorDialog(self, title='Error',label='Error: failed to create log directory.\n Creating new log file in current working directory.',topmost=False)
+                self.logfile_entry.delete(0,'end')
+                dialog.top.lower()
+                dialog.top.tkraise(self.master)
+            self.check_logfile()
+
+        if self.logfile_entry.get()=='':
+            print('blank!')
             self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
             with open(self.log_filename,'w+') as log:
                 log.write(str(datetime.datetime.now())+'\n')
@@ -1000,19 +1021,69 @@ class Controller():
                 self.logfile_entry.insert(0,os.getcwd()+'/'+self.log_filename)
             elif opsys=='Windows':
                 self.logfile_entry.insert(0,os.getcwd()+'\\'+self.log_filename)
+            elif opsys=='Mac':
+                print("Ahh I'm on a Mac!!")
+                exit()
+
         elif self.logfile_entry.get()!=self.log_filename:
-            self.log_filename=self.logfile_entry.get()
+            dir=None
+            if opsys=='Linux':
+                if '/' in self.logfile_entry.get()[1:]:
+                    dir='/'.join(self.logfile_entry.get().split('/')[:-1])
+                else:
+                    self.logfile_entry.insert(0,os.getcwd()+'/')
+            elif opsys=='Windows':
+                if '\\' in self.logfile_entry.get()[1:]:
+                    dir='\\'.join(self.logfile_entry.get().split('\\')[:-1])
+                else:
+                    self.logfile_entry.insert(0,os.getcwd()+'\\')
+            elif opsys=='Mac':
+                print("Ahh I'm on a Mac!!")
+                exit()
+            if dir!=None:
+                print('here is the log directory')
+                print(dir)
+                if not os.path.isdir(dir):
+                    print('making log directory')
+                    inner_mkdir(dir)
+                    return
+                # buttons={
+                #     'yes':{
+                #         mkdir:[dir]
+                #     },
+                #     'no':{}
+                # }
+                # dialog=ErrorDialog(self,label=dir+'\ndoes not exist. Do you want to create this directory?',buttons=buttons)
+            
+
             if not os.path.isfile(self.logfile_entry.get()):
-                with open(self.log_filename,'w+') as log:
-                    log.write(str(datetime.datetime.now())+'\n')
+                try:
+                    if '.' not in self.logfile_entry.get():
+                        self.logfile_entry.insert('end','.txt')
+                    with open(self.logfile_entry.get(),'w+') as log:
+                        log.write(str(datetime.datetime.now())+'\n')
+                    self.log_filename=self.logfile_entry.get()
+                    print('set log_filename to '+self.log_filename)
+
+                except:
+                    dialog=ErrorDialog(self,label='Error: Could not open log file for writing.\nCreating new log file in current working directory', topmost=False)
+                    dialog.top.lower()
+                    dialog.top.tkraise(self.master)
+
+                    self.logfile_entry.delete(0,'end')
+                    self.check_logfile()
+            else:
+                self.log_filename=self.logfile_entry.get()
+                print('set log_filename to '+self.log_filename)
+
+            
             
         
             
     def wr(self, override=False):
         #If the user didn't choose a log file, make one in working directory
-        self.check_logfile()
 
-        valid_input=True #We'll check this in a moment if override=False
+
         
         if self.label_entry.get()!='' and 'White reference' not in self.label_entry.get():
             self.label_entry.insert(0, 'White reference: ')
@@ -1031,8 +1102,11 @@ class Controller():
         save_config_status=self.check_save_config()
         if save_config_status=='invalid':
             dialog=ErrorDialog(self,label='Error: Please enter a valid save configuration.')
+
             return
             
+        valid_input=True #We'll check this in a moment if override=False
+
         if not override:
             valid_input=self.input_check(self.wr,[True])
             
@@ -1041,6 +1115,8 @@ class Controller():
             return
         else:
             print('invalid input')
+            
+        self.check_logfile()
 
         
         if save_config_status=='not_set':
@@ -1071,7 +1147,6 @@ class Controller():
         waitdialog=WaitForWRDialog(self, buttons=buttons)
             
     def opt(self):
-
         try:
             new_spec_config_count=int(self.instrument_config_entry.get())
             if new_spec_config_count<1 or new_spec_config_count>32767:
@@ -1090,8 +1165,8 @@ class Controller():
             self.configure_instrument(buttons)
             return
             
-        self.model.opt()
         self.check_logfile()
+        self.model.opt()
         waitdialog=WaitForOptDialog(self)
 
         
@@ -1117,7 +1192,6 @@ class Controller():
             return 'set'
             
     def take_spectrum(self, override=False):
-        self.check_logfile()
         
         incidence=self.man_incidence_entry.get()
         emission=self.man_emission_entry.get()
@@ -1154,6 +1228,7 @@ class Controller():
         except:
             dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return    
+        self.check_logfile()
 
         if self.check_save_config()=='not_set':
             self.set_save_config(self.take_spectrum,[True])
@@ -1206,7 +1281,6 @@ class Controller():
         waitdialog=WaitForConfigDialog(self, buttons=buttons)
         
     def set_save_config(self, func, args):
-        print('set save config')
         def inner_mkdir(dir):
             status=self.remote_directory_worker.mkdir(dir)
             if status=='mkdirsuccess':
@@ -1217,7 +1291,6 @@ class Controller():
                 dialog=ErrorDialog(self,title='Error',label='Could not create directory:\n\n'+dir)
 
         status=self.remote_directory_worker.get_dirs(self.spec_save_dir_entry.get())
-        print(status)
         if status=='listdirfailed':
             buttons={
                 'yes':{
@@ -1236,7 +1309,6 @@ class Controller():
         try:
             global CMDNUM
             filename=encrypt('checkwriteable',CMDNUM,parameters=[self.spec_save_dir_entry.get()])
-            print(filename)
             CMDNUM=CMDNUM+1
             
             with open(self.write_command_loc+filename,'w+') as f:
@@ -1248,11 +1320,9 @@ class Controller():
         while t>0:
             if 'yeswriteable' in self.listener.queue:
                 self.listener.queue.remove('yeswriteable')
-                print('carry on')
                 break
             elif 'notwriteable' in self.listener.queue:
                 self.listener.queue.remove('notwriteable')
-                print('nope')
                 dialog=ErrorDialog(self, label='Error: Permission denied.\nCannot write to specified directory.')
                 return
             time.sleep(INTERVAL)
@@ -1262,10 +1332,7 @@ class Controller():
             return
         
         
-        self.spec_save_path=self.spec_save_dir_entry.get()
-        self.spec_basename = self.spec_basename_entry.get()
         spec_num=self.spec_startnum_entry.get()
-        self.spec_num=int(spec_num)
         while len(spec_num)<NUMLEN:
             spec_num='0'+spec_num
         
@@ -1275,7 +1342,6 @@ class Controller():
                 func:args
             }
         }
-        print('here I am opening a dialog')
         waitdialog=WaitForSaveConfigDialog(self, buttons=buttons)
             
             
@@ -1444,43 +1510,118 @@ class Controller():
     def choose_process_output_dir(self):
         r=RemoteFileExplorer(self,write_command_loc,label='Select the directory where you want to save your processed data.\nThis must be in the C drive of the spectrometer control computer.',target=self.output_dir_entry)
     
-    def validate_basename(self,*args):
-        basename=limit_len(self.spec_basename_entry.get())
-        basename=rm_reserved_chars(basename)
-        self.spec_basename_entry.set(basename)
-    
-    def validate_startnum(self,*args):
-        num=spec_startnum.get()
-        valid=validate_int_input(num,999,0)
-        if not valid:
-            spec_startnum.set('')
-        else:
-            while len(num)<NUMLEN:
-                num=0+num
-        self.spec_startnum_entry.delete(0,'end')
-        self.spec_startnum_entry.insert(0,num)
+    # def validate_basename(self,*args):
+    #     basename=limit_len(self.spec_basename_entry.get())
+    #     basename=rm_reserved_chars(basename)
+    #     self.spec_basename_entry.set(basename)
+    # 
+    # def validate_startnum(self,*args):
+    #     num=spec_startnum.get()
+    #     valid=validate_int_input(num,999,0)
+    #     if not valid:
+    #         spec_startnum.set('')
+    #     else:
+    #         while len(num)<NUMLEN:
+    #             num=0+num
+    #     self.spec_startnum_entry.delete(0,'end')
+    #     self.spec_startnum_entry.insert(0,num)
     
     def validate_input_dir(self,*args):
+        pos=self.input_dir_entry.index(INSERT)
         input_dir=rm_reserved_chars(self.input_dir_entry.get())
+        if len(input_dir)<len(self.input_dir_entry.get()):
+            pos=pos-1
         self.input_dir_entry.delete(0,'end')
         self.input_dir_entry.insert(0,input_dir)
+        self.input_dir_entry.icursor(pos)
         
     def validate_output_dir(self):
+        pos=self.output_dir_entry.index(INSERT)
         output_dir=rm_reserved_chars(self.output_dir_entry.get())
+        if len(output_dir)<len(self.output_dir_entry.get()):
+            pos=pos-1
         self.output_dir_entry.delete(0,'end')
         self.output_dir_entry.insert(0,output_dir)
+        self.output_dir_entry.icursor(pos)
+        
+    def validate_output_filename(self,*args):
+        pos=self.output_filename_entry.index(INSERT)
+        filename=rm_reserved_chars(self.spec_output_filename_entry.get())
+        filename=filename.strip('/').strip('\\')
+        self.output_filename_entry.delete(0,'end')
+        self.output_filename_entry.insert(0,filename)
+        self.output_filename_entry.icursor(pos)
+        
+    def validate_spec_save_dir(self,*args):
+        pos=self.spec_save_dir_entry.index(INSERT)
+        spec_save_dir=rm_reserved_chars(self.spec_save_dir_entry.get())
+        if len(spec_save_dir)<len(self.spec_save_dir_entry.get()):
+            pos=pos-1
+        self.spec_save_dir_entry.delete(0,'end')
+        self.spec_save_dir_entry.insert(0,spec_save_dir)
+        self.spec_save_dir_entry.icursor(pos)
+    
+    def validate_logfile(self,*args):
+        pos=self.logfile_entry.index(INSERT)
+        logfile=rm_reserved_chars(self.logfile_entry.get())
+        if len(logfile)<len(self.logfile_entry.get()):
+            pos=pos-1
+        self.logfile_entry.delete(0,'end')
+        self.logfile_entry.insert(0,logfile)
+        self.logfile_entry.icursor(pos)
 
+    def validate_basename(self,*args):
+        pos=self.spec_basename_entry.index(INSERT)
+        basename=rm_reserved_chars(self.spec_basename_entry.get())
+        basename=basename.strip('/').strip('\\')
+        self.spec_basename_entry.delete(0,'end')
+        self.spec_basename_entry.insert(0,basename)
+        self.spec_basename_entry.icursor(pos)
+        
+    def validate_startnum(self,*args):
+        pos=self.spec_startnum_entry.index(INSERT)
+        num=numbers_only(self.spec_startnum_entry.get())
+        if len(num)>NUMLEN:
+            num=num[0:NUMLEN]
+        if len(num)<len(self.spec_startnum_entry.get()):
+            pos=pos-1
+        self.spec_startnum_entry.delete(0,'end')
+        self.spec_startnum_entry.insert(0,num)
+        self.spec_startnum_entry.icursor(pos)
+        
     def clear(self):
         self.man_incidence_entry.delete(0,'end')
         self.man_emission_entry.delete(0,'end')
         self.label_entry.delete(0,'end')
         
+    def rm_current(self):
+        filename=encrypt('rmfile',CMDNUM, parameters=[self.spec_save_dir_entry.get(),self.spec_basename_entry.get(),self.spec_startnum_entry.get()])
+        try:
+            with open(self.write_command_loc+filename,'w+') as f:
+                pass
+        except:
+            pass
+
+        t=BUFFER
+        while t>0:
+            if 'rmsuccess' in self.listener.queue:
+                self.listener.queue.remove('rmsuccess')
+
+                return True
+            elif 'rmfailure' in self.listener.queue:
+                self.listener.queue.remove('rmfailure')
+                return False
+            t=t-INTERVAL
+            time.sleep(INTERVAL)
+        return False
+        
 
     
 class Dialog:
-    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=30, info_string=None):
+    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=30, info_string=None, grab=True):
         
         self.controller=controller
+        self.grab=grab
         
         try:
             self.textcolor=self.controller.textcolor
@@ -1504,6 +1645,8 @@ class Dialog:
             self.listboxhighlightcolor='light gray'
             self.selectbackground='light gray'
             self.selectforeground='black'
+            
+
         
         #If we are starting a new master, we'll need to start a new mainloop after settin everything up. 
         #If this creates a new toplevel for an existing master, we will leave it as False.
@@ -1520,11 +1663,18 @@ class Dialog:
             else:
                 self.top=tk.Toplevel(controller.master, width=width, height=height, bg=self.bg)
                 self.top.pack_propagate(0)
+                
+            #self.controller.master.iconify() 
+            if self.grab:
+                try:
+                    self.top.grab_set()
+                except:
+                    print('failed to grab')
         
-            self.top.grab_set()
-            
-       # except:
-        #    print('failed to grab')
+        self.top.attributes('-topmost', 1)
+        self.top.attributes('-topmost', 0)
+                
+
 
         self.label_frame=Frame(self.top, bg=self.bg)
         self.label_frame.pack(side=TOP)
@@ -1565,9 +1715,10 @@ class Dialog:
         info_string=datestring+': '+info_string
         self.controller.console_log.insert(END,info_string+'\n')
         
-    def set_buttons(self, buttons):
+    def set_buttons(self, buttons, button_width=None):
         self.buttons=buttons
-        
+        if button_width==None:
+            button_width=self.button_width
         #Sloppy way to check if button_frame already exists and reset it if it does.
         try:
             self.button_frame.destroy()
@@ -1579,27 +1730,27 @@ class Dialog:
 
         for button in buttons:
             if 'ok' in button.lower():
-                self.ok_button = Button(self.button_frame, fg=self.textcolor,text='OK', command=self.ok, width=self.button_width)
+                self.ok_button = Button(self.button_frame, fg=self.textcolor,text='OK', command=self.ok, width=button_width)
                 self.tk_buttons.append(self.ok_button)
                 self.ok_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
             elif 'yes' in button.lower():
-                self.yes_button=Button(self.button_frame, fg=self.textcolor,text='Yes', bg='light gray', command=self.yes, width=self.button_width)
+                self.yes_button=Button(self.button_frame, fg=self.textcolor,text='Yes', bg='light gray', command=self.yes, width=button_width)
                 self.tk_buttons.append(self.yes_button)
                 self.yes_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
             elif 'no' in button.lower():
-                self.no_button=Button(self.button_frame, fg=self.textcolor,text='No',command=self.no, width=self.button_width)
+                self.no_button=Button(self.button_frame, fg=self.textcolor,text='No',command=self.no, width=button_width)
                 self.no_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
                 self.tk_buttons.append(self.no_button)
             elif 'cancel' in button.lower():
-                self.cancel_button=Button(self.button_frame, fg=self.textcolor,text='Cancel',command=self.cancel, width=self.button_width)
+                self.cancel_button=Button(self.button_frame, fg=self.textcolor,text='Cancel',command=self.cancel, width=button_width)
                 self.cancel_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
                 self.tk_buttons.append(self.cancel_button)
             elif 'retry' in button.lower():
-                self.retry_button=Button(self.button_frame, fg=self.textcolor,text='Retry',command=self.retry, width=self.button_width)
+                self.retry_button=Button(self.button_frame, fg=self.textcolor,text='Retry',command=self.retry, width=button_width)
                 self.retry_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
                 self.tk_buttons.append(self.retry_button)
             elif 'exit' in button.lower():
-                self.exit_button=Button(self.button_frame, fg=self.textcolor,text='Exit',command=self.exit, width=self.button_width)
+                self.exit_button=Button(self.button_frame, fg=self.textcolor,text='Exit',command=self.exit, width=button_width)
                 self.exit_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
                 self.tk_buttons.append(self.exit_button)
                 
@@ -1648,27 +1799,29 @@ class Dialog:
         
     def execute(self,dict,close=True):
         for func in dict:
-            print(func)
-            if len(dict[func])==0:
-                func()
-            elif len(dict[func])==1:
-                arg=dict[func][0]
-                func(arg)
-            elif len(dict[func])==2:
-                arg=dict[func][0]
-                arg1=dict[func][1]
-                func(arg,arg1)
-            elif len(dict[func])==3:
-                arg=dict[func][0]
-                arg1=dict[func][1]
-                arg2=dict[func][2]
-                func(arg,arg1,arg2)
-            elif len(dict[func])==4:
-                arg=dict[func][0]
-                arg1=dict[func][1]
-                arg2=dict[func][2]
-                arg3=dict[func][3]
-                func(arg,arg1,arg2,arg3)
+            args=dict[func]
+            func(*args)
+        # for func in dict:
+        #     if len(dict[func])==0:
+        #         func()
+        #     elif len(dict[func])==1:
+        #         arg=dict[func][0]
+        #         func(arg)
+        #     elif len(dict[func])==2:
+        #         arg=dict[func][0]
+        #         arg1=dict[func][1]
+        #         func(arg,arg1)
+        #     elif len(dict[func])==3:
+        #         arg=dict[func][0]
+        #         arg1=dict[func][1]
+        #         arg2=dict[func][2]
+        #         func(arg,arg1,arg2)
+        #     elif len(dict[func])==4:
+        #         arg=dict[func][0]
+        #         arg1=dict[func][1]
+        #         arg2=dict[func][2]
+        #         arg3=dict[func][3]
+        #         func(arg,arg1,arg2,arg3)
         if close:
             self.top.destroy()
 
@@ -1749,6 +1902,15 @@ class WaitDialog(Dialog):
         global username
         username = self.myEntryBox.get()
         self.top.destroy()
+        
+    def remove_retry(self):
+        removed=self.controller.rm_current()
+        if removed: 
+            self.log('Warning: overwriting data.')
+            self.controller.take_spectrum(True)
+        else:
+            dialog=ErrorDialog(self.controller,label='Error: Failed to remove file. Choose a different base name,\nspectrum number, or save directory and try again.')
+            self.set_buttons({'ok':{}})
 
 class WaitForConfigDialog(WaitDialog):
     def __init__(self, controller, title='Configuring instrument...', label='Configuring instrument...', buttons={}, timeout=20):
@@ -1910,12 +2072,11 @@ class WaitForSaveConfigDialog(WaitDialog):
         self.timeout_s=20
         
     def wait(self):
-
         old_files=list(self.controller.listener.saved_files)
         t=30
         while 'donelookingforunexpected' not in self.listener.queue and t>0:
+            print('waiting to be done looking for unexpected')
             t=t-INTERVAL
-            print(t)
             time.sleep(INTERVAL)
         if t<=0:
             self.timeout()
@@ -1930,6 +2091,7 @@ class WaitForSaveConfigDialog(WaitDialog):
         self.listener.queue.remove('donelookingforunexpected')
         
         while self.timeout_s>0:
+            print('watching queue')
             self.timeout_s-=INTERVAL
             if 'saveconfigsuccess' in self.listener.queue:
                 self.listener.queue.remove('saveconfigsuccess')
@@ -1938,7 +2100,16 @@ class WaitForSaveConfigDialog(WaitDialog):
                 
             elif 'saveconfigfailurefileexists' in self.listener.queue:
                 self.listener.queue.remove('saveconfigfailurefileexists')
-                self.interrupt('Error: File exists. Choose a different base name,\nspectrum number, or save directory and try again.', info_string='Error: failed to set save configuration because file already exists.\n')
+                self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                buttons={
+                    'yes':{
+                        self.remove_retry:[]
+                    },
+                    'no':{
+                    }
+                }
+                    
+                self.set_buttons(buttons,button_width=20)
                 return
 
             elif 'saveconfigfailure' in self.listener.queue:
@@ -1951,9 +2122,15 @@ class WaitForSaveConfigDialog(WaitDialog):
                 
             time.sleep(INTERVAL)
             
-        self.timeout(info_string='Error: Operation timed out while waiting to set save configuration.\n')
+        self.timeout(log_string='Error: Operation timed out while waiting to set save configuration.\n')
         
+
     def success(self):
+        self.controller.spec_save_path=self.controller.spec_save_dir_entry.get()
+        self.controller.spec_basename = self.controller.spec_basename_entry.get()
+        spec_num=self.controller.spec_startnum_entry.get()
+        self.controller.spec_num=int(spec_num)
+        
         self.allow_exit=True
         dict=self.loc_buttons['success']
         self.log('\nSave configuration set.\n')
@@ -1977,17 +2154,9 @@ class WaitForSaveConfigDialog(WaitDialog):
             self.set_buttons({'ok':{}})
             self.set_title('Warning: Untracked Files')
             
-            
-            
-
         for func in dict:
-            if len(dict[func])==1:
-                arg=dict[func][0]
-                func(arg)
-            elif len(dict[func])==2:
-                arg1=dict[func][0]
-                arg2=dict[func][1]
-                func(arg1,arg2)
+            args=dict[func]
+            func(*args)
         
 
                 
@@ -2001,6 +2170,7 @@ class WaitForSpectrumDialog(WaitDialog):
     def wait(self):
         old_files=list(self.controller.listener.saved_files)
         while self.timeout_s>0:
+            #I took out the option to cancel because it was so dumb
             if self.canceled==True:
                 self.interrupt("Operation canceled by user. Warning! This really\ndoesn't do anything except stop tkinter from waiting\n, you probably still saved a spectrum")
                 return
@@ -2029,25 +2199,49 @@ class WaitForSpectrumDialog(WaitDialog):
                 self.controller.configure_instrument(buttons)
                 self.finish()
                 return
+            elif 'savedfile' in self.listener.queue:
+                self.listener.queue.remove('savedfile')
+                self.controller.spec_num+=1
+                self.controller.spec_startnum_entry.delete(0,'end')
+                spec_num_string=str(self.controller.spec_num)
+                while len(spec_num_string)<NUMLEN:
+                    spec_num_string='0'+spec_num_string
+                self.controller.spec_startnum_entry.insert(0,spec_num_string)
+                self.success()
+                return
+            elif 'savespecfailedfileexists' in self.listener.queue:
+                self.listener.queue.remove('savespecfailedfileexists')
+                self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                buttons={
+                    'yes':{
+                        self.remove_retry:[]
+                    },
+                    'no':{
+                    }
+                }
+                    
+                self.set_buttons(buttons,button_width=20)
+                return
                 
             time.sleep(INTERVAL)
             current_files=self.controller.listener.saved_files
-            
-            if current_files==old_files:
-                pass
-            else:
-                for file in current_files:
-                    if file not in old_files:
-                        self.controller.spec_num+=1
-                        self.controller.spec_startnum_entry.delete(0,'end')
-                        spec_num_string=str(self.controller.spec_num)
-                        while len(spec_num_string)<NUMLEN:
-                            spec_num_string='0'+spec_num_string
-                        self.controller.spec_startnum_entry.insert(0,spec_num_string)
-                        self.success()
-                        
 
-                        return
+                
+            # if current_files==old_files:
+            #     pass
+            # else:
+            #     for file in current_files:
+            #         if file not in old_files:
+            #             self.controller.spec_num+=1
+            #             self.controller.spec_startnum_entry.delete(0,'end')
+            #             spec_num_string=str(self.controller.spec_num)
+            #             while len(spec_num_string)<NUMLEN:
+            #                 spec_num_string='0'+spec_num_string
+            #             self.controller.spec_startnum_entry.insert(0,spec_num_string)
+            #             self.success()
+            #             
+
+            #               return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
         self.timeout(log_string='Error: Operation timed out while waiting to save spectrum')
@@ -2062,7 +2256,7 @@ class WaitForSpectrumDialog(WaitDialog):
         datestringlist=str(datetime.datetime.now()).split('.')[:-1]
         for d in datestringlist:
             datestring=datestring+d
-        info_string='\n Spectrum saved at '+datestring+ '\n\ti='+self.controller.man_incidence_entry.get()+'\n\te='+self.controller.man_emission_entry.get()+'\n\tfilename='+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.label_entry.get()+'\n'
+        info_string='\n Spectrum saved at '+datestring+ '\n\tNumber averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.man_incidence_entry.get()+'\n\te: '+self.controller.man_emission_entry.get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.label_entry.get()+'\n'
         
         self.console_log.insert(END,info_string)
         with open(self.controller.log_filename,'a') as log:
@@ -2072,17 +2266,18 @@ class WaitForSpectrumDialog(WaitDialog):
         self.interrupt('Success!')
         
 class ErrorDialog(Dialog):
-    def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False, info_string=None):
+    def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False, info_string=None, topmost=True):
         self.listener=None
         if info_string==None:
             self.info_string=label+'\n'
         else:
             self.info_string=info_string
         super().__init__(controller, title, label,buttons,allow_exit=False, info_string=None)#self.info_string)
-        try:
-            self.top.attributes("-topmost", True)
-        except(Exception):
-            print(str(Exception))
+        if topmost==True:
+            try:
+                self.top.attributes("-topmost", True)
+            except(Exception):
+                print(str(Exception))
 
         
 
@@ -2144,7 +2339,7 @@ class RemoteFileExplorer(Dialog):
             self.expand(newparent='C:\\Users')
             self.current_parent='C:\\Users'
         else:
-            self.expand(newparent=target.get())
+            self.expand(newparent=target.get().replace('/','\\'))
             
     def validate_path_entry_input(self,*args):
         text=self.path_entry.get()
@@ -2176,7 +2371,7 @@ class RemoteFileExplorer(Dialog):
         self.expand(newparent=parent)
         
     def go_to_path(self, source):
-        parent=self.path_entry.get()
+        parent=self.path_entry.get().replace('/','\\')
         self.path_entry.delete(0,'end')
         self.expand(newparent=parent)
         
@@ -2195,6 +2390,7 @@ class RemoteFileExplorer(Dialog):
         
         #if we succeeded, the status will be a list of the contents of the directory
         if type(status)==list:
+
             self.listbox.delete(0,'end')
             for dir in status:
                 self.listbox.insert(END,dir)
@@ -2228,7 +2424,16 @@ class RemoteFileExplorer(Dialog):
     def select(self,text):
         if '\\' in text:
             text=text.split('\\')[0]
-        index = self.listbox.get(0, 'end').index(text)
+            
+
+        try:
+            index = self.listbox.get(0, 'end').index(text)
+        except:
+            #time.sleep(0.5)
+            print('except')
+            #self.select(text)
+            index=0
+
         self.listbox.selection_set(index)
         self.listbox.see(index)
         
@@ -2271,10 +2476,10 @@ class RemoteDirectoryWorker():
             if cmdfilename in self.listener.queue:
                 contents=[]
                 with open(self.read_command_loc+cmdfilename,'r') as f:
-                    next=f.readline()
+                    next=f.readline().strip('\n')
                     while next!='':
-                        next=f.readline().strip('\n')
                         contents.append(next)
+                        next=f.readline().strip('\n')
                 self.listener.queue.remove(cmdfilename)
                 return contents
                 
@@ -2430,6 +2635,7 @@ class Listener(threading.Thread):
                     print('listener sees this command: '+cmd)
                     if 'savedfile' in cmd:
                         self.saved_files.append(params[0])
+                        self.queue.append('savedfile')
                         
                     elif 'failedtosavefile' in cmd:
                         self.queue.append('failedtosavefile')
@@ -2499,14 +2705,30 @@ class Listener(threading.Thread):
                         
                     elif 'notwriteable' in cmd:
                         self.queue.append('notwriteable')
-                        print('not writeable!')
                         
                     elif 'yeswriteable' in cmd:
-                        print('writeable!')
                         self.queue.append('yeswriteable')
                         
-                    
-                    
+                    elif 'lostconnection' in cmd:
+                        if self.new_dialogs:
+                            self.new_dialogs=False
+                            try:
+                                buttons={
+                                    'retry':{
+                                        self.set_new_dialogs:[True]
+                                        },
+                                    'exit':{
+                                        exit_func:[]
+                                    }
+                                }
+                                dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: RS3 lost connection with the spectrometer.\nCheck that the spectrometer is on.',buttons=buttons)
+                            except:
+                                print('Ignoring an error in Listener when I make a new error dialog')
+                            self.new_dialogs=False
+                    elif 'rmsuccess' in cmd:
+                        self.queue.append('rmsuccess')
+                    elif 'rmfailure' in cmd:
+                        self.queue.append('rmfailure')
                     elif 'unexpectedfile' in cmd:
                         if self.new_dialogs:
                             try:
@@ -2514,7 +2736,6 @@ class Listener(threading.Thread):
                             except:
                                 print('Ignoring an error in Listener when I make a new error dialog')
                         else:
-                            print('unexpected file: '+params[0])
                             self.unexpected_files.append(params[0])
                     else:
                         print('unexpected cmd: '+cmdfile)
@@ -2528,6 +2749,8 @@ class Listener(threading.Thread):
         self.controller=controller
         self.connection_checker.controller=controller
             
+    def set_new_dialogs(self,bool):
+        self.new_dialogs=bool
         
 def decrypt(encrypted):
     cmd=encrypted.split('&')[0]
@@ -2549,7 +2772,16 @@ def encrypt(cmd, num, parameters=[]):
     return filename
     
 def rm_reserved_chars(input):
-    return input.strip('&').strip('+').strip('=')
+    output= input.replace('&','').replace('+','').replace('=','').replace('$','').replace('^','').replace('*','').replace('(','').replace(',','').replace(')','').replace('@','').replace('!','').replace('#','').replace('{','').replace('}','').replace('[','').replace(']','').replace('|','').replace(',','').replace('?','').replace('~','').replace('"','').replace("'",'').replace(';','').replace('`','')
+    return output
+    
+def numbers_only(input):
+    output=''
+    for digit in input:
+        if digit=='1' or digit=='2' or digit=='3' or digit=='4'or digit=='5'or digit=='6' or digit=='7' or digit=='8' or digit=='9' or digit=='0':
+            output+=digit
+    return output
+    
     
 
 
