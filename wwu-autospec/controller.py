@@ -13,7 +13,6 @@ import platform
 from tkinter import *
 from tkinter import messagebox
 import importlib
-import threading
 import tkinter as tk
 from tkinter import ttk
 #import pygame
@@ -33,10 +32,8 @@ import time
 from threading import Thread
 from tkinter.filedialog import *
 
-try:
-    import httplib
-except:
-    import http.client as httplib
+
+import http.client as httplib
 
 #Which computer are you using? This should probably be new. I don't know why you would use the old one.
 computer='new'
@@ -78,23 +75,23 @@ elif opsys=='Linux':
     except:
         print('Developer mode!')
         dev=True
-        package_loc='/home/khoza/Python/autospectroscopy/'
+        package_loc='/home/khoza/Python/WWU-AutoSpec/wwu-autospec/'
 else:
     print("AHH I'm on a Mac!!")
     exit()
     
 sys.path.append(package_loc)
 
-import robot_model
-import robot_view
+import goniometer_model
+import goniometer_view
 import plotter
 
 #This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't changing the modules.
 if dev:
-    importlib.reload(robot_model)
-    from robot_model import Model
-    importlib.reload(robot_view)
-    from robot_view import View
+    importlib.reload(goniometer_model)
+    from goniometer_model import Model
+    importlib.reload(goniometer_view)
+    from goniometer_view import View
     importlib.reload(plotter)
     from plotter import Plotter
 #Server and share location. Can change if spectroscopy computer changes.
@@ -135,6 +132,11 @@ elif opsys=='Windows':
     log_loc=package_loc+'log\\'
 elif opsys=='Mac':
     mac=ErrorDialog(self, label="ahhhhh I don't know what to do on a Mac!!")
+    
+print(config_loc)
+if not os.path.isdir(config_loc):
+    print(config_loc)
+    os.mkdir(config_loc)
 
 def donothing():
     pass
@@ -307,28 +309,39 @@ class Controller():
         self.master.title('Control')
     
         #If the user has saved spectra with this program before, load in their previously used directories.
-        process_config=open(self.config_loc+'process_directories','r')
         input_dir=''
         output_dir=''
         try:
-            input_dir=process_config.readline().strip('\n')
-            output_dir=process_config.readline().strip('\n')
+            with open(self.config_loc+'process_directories.txt','r') as process_config:
+                input_dir=process_config.readline().strip('\n')
+                output_dir=process_config.readline().strip('\n')
         except:
-            pass
-        self.spec_save_config=open(self.config_loc+'spec_save','r')
-        self.spec_save_path=''
-        self.spec_basename=''
-        spec_startnum=''
-        
+            with open(self.config_loc+'process_directories.txt','w+') as f:
+                f.write('C:\\Users')
+                f.write('C:\\Users')
+
+            input_dir='C:\\Users'
+            output_dir='C:\\Users'
+    
         try:
-            self.spec_save_path=self.spec_save_config.readline().strip('\n')
-            self.spec_basename=self.spec_save_config.readline().strip('\n')
-            spec_startnum=str(int(self.spec_save_config.readline().strip('\n'))+1)
-            while len(spec_startnum)<NUMLEN:
-                spec_startnum='0'+spec_startnum
+            with open(self.config_loc+'spec_save.txt','r') as spec_save_config:
+                self.spec_save_path=spec_save_config.readline().strip('\n')
+                self.spec_basename=spec_save_config.readline().strip('\n')
+                spec_startnum=str(int(spec_save_config.readline().strip('\n'))+1)
+                while len(spec_startnum)<NUMLEN:
+                    spec_startnum='0'+spec_startnum
         except:
-            print('invalid config file')
-        
+            with open(self.config_loc+'spec_save.txt','w+') as f:
+                f.write('C:\\Users')
+                f.write('basename')
+                f.write('-1')
+
+                self.spec_save_pathr='C:\\Users'
+                self.spec_basename='basename'
+                self.spec_startnum='0'
+                while len(self.spec_startnum)<NUMLEN:
+                    self.spec_startnum='0'+self.spec_startnum
+
         self.control_frame=Frame(self.notebook, bg=self.bg)
         self.control_frame.pack()
         self.save_config_frame=Frame(self.control_frame,bg=self.bg,highlightthickness=1)
@@ -350,11 +363,6 @@ class Controller():
         self.spec_save_dir_entry=Entry(self.spec_save_dir_frame, width=50,bd=bd,bg=self.entry_background, selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.spec_save_dir_var)
         self.spec_save_dir_entry.insert(0, self.spec_save_path)
         self.spec_save_dir_entry.pack(padx=padx, pady=pady, side=RIGHT)
-        
-
-        
-        
-    
         self.spec_save_frame=Frame(self.save_config_frame, bg=self.bg)
         self.spec_save_frame.pack()
         
@@ -375,7 +383,7 @@ class Controller():
         self.startnum_var = StringVar()
         self.startnum_var.trace('w', self.validate_startnum)
         self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.startnum_var)
-        self.spec_startnum_entry.insert(0,spec_startnum)
+        self.spec_startnum_entry.insert(0,self.spec_startnum)
         self.spec_startnum_entry.pack(side=RIGHT, pady=pady)      
         
 
@@ -940,14 +948,13 @@ class Controller():
                 valid_i=validate_int_input(incidence,-90,90)
                 valid_e=validate_int_input(emission,-90,90)
                 if not valid_i and not valid_e:
-                    label+='The emission and incidence angles are invalid\n\n'
+                    label+='The emission and incidence angles are invalid.\n\n'
                 elif not valid_i:
-                    label+='The incidence angle is invalid\n\n'
+                    label+='The incidence angle is invalid.\n\n'
                 elif not valid_e:
-                    label+='The emission angle is invalid\n\n'
+                    label+='The emission angle is invalid.\n\n'
                     
-
-            if self.anglechangefailsafe.get():# and 'angle is invalid' not in label:
+            if self.anglechangefailsafe.get():
                 anglechangealert=False
                 if self.angles_change_time==None and emission!='' and incidence !='':
                     label+='This is the first time emission and incidence angles are being set,\n'
@@ -962,16 +969,16 @@ class Controller():
                     label+='This is the first time the incidence angle is being set,\n'
                     anglechangealert=True
                     if emission!=self.e and emission !='':
-                        label+='and he emission angle has changed since last spectrum,\n' 
+                        label+='and the emission angle has changed since last spectrum,\n' 
                     anglechangealert=True
-                if anglechangealert==False and emission!=self.e and incidence !=self.i:
+                if anglechangealert==False and emission!=self.e and emission !='' and incidence !=self.i and incidence!='':
                     if self.e!=None and self.i!=None:
                         label+='The emission and incidence angles have changed since last spectrum,\n'
                         anglechangealert=True
-                elif anglechangealert==False and emission!=self.e:
+                elif anglechangealert==False and emission!=self.e and emission !='':
                     label+='The emission angle has changed since last spectrum,\n'
                     anglechangealert=True
-                elif anglechangealert==False and incidence!=self.i:
+                elif anglechangealert==False and incidence!=self.i and incidence!='':
                     label+='The incidence angle has changed since last spectrum,\n' 
                     anglechangealert=True
                     
@@ -1013,7 +1020,6 @@ class Controller():
             self.check_logfile()
 
         if self.logfile_entry.get()=='':
-            print('blank!')
             self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
             with open(self.log_filename,'w+') as log:
                 log.write(str(datetime.datetime.now())+'\n')
@@ -1041,8 +1047,6 @@ class Controller():
                 print("Ahh I'm on a Mac!!")
                 exit()
             if dir!=None:
-                print('here is the log directory')
-                print(dir)
                 if not os.path.isdir(dir):
                     print('making log directory')
                     inner_mkdir(dir)
@@ -1063,7 +1067,6 @@ class Controller():
                     with open(self.logfile_entry.get(),'w+') as log:
                         log.write(str(datetime.datetime.now())+'\n')
                     self.log_filename=self.logfile_entry.get()
-                    print('set log_filename to '+self.log_filename)
 
                 except:
                     dialog=ErrorDialog(self,label='Error: Could not open log file for writing.\nCreating new log file in current working directory', topmost=False)
@@ -1074,17 +1077,14 @@ class Controller():
                     self.check_logfile()
             else:
                 self.log_filename=self.logfile_entry.get()
-                print('set log_filename to '+self.log_filename)
 
             
             
         
             
     def wr(self, override=False):
-        #If the user didn't choose a log file, make one in working directory
 
-
-        
+        #Label this as a white reference for the log file
         if self.label_entry.get()!='' and 'White reference' not in self.label_entry.get():
             self.label_entry.insert(0, 'White reference: ')
         elif self.label_entry.get()=='':
@@ -1114,8 +1114,9 @@ class Controller():
         if not valid_input:
             return
         else:
-            print('invalid input')
+            pass
             
+        #If the user specified a log file to use, use it. If not, make a new one in the current working directory
         self.check_logfile()
 
         
@@ -1137,7 +1138,8 @@ class Controller():
 
         self.model.white_reference()
         
-        #This is a bit weird because these aren't actually buttons. Probably could be written better. Basically, if wr succeeds then save a spectrum. Since we already did all the required input checks, set override to True.
+        #Not actually buttons, but functions to be executed if the white reference is successful.
+        #In this case, save a spectrum with override=True
         buttons={
             'success':{
             
@@ -1155,7 +1157,7 @@ class Controller():
             dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return 
         if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
-            #This is a bit weird because these aren't actually buttons. Probably could be written better. 
+            #Not actually buttons, but functions to be executed if the configuration is successful.
             buttons={
                 'success':{
                     self.opt:[]
@@ -1425,7 +1427,6 @@ class Controller():
             self.plotter.plot_spectra(title,filename,caption,labels)
         except:
             dialog=Dialog(self, 'Plotting Error', 'Error: Plotting failed. Does file exist?',{'ok':{}})
-        #self.plotter.plot_spectra(title,filename,caption)
     
     
     def auto_cycle_check(self):
@@ -1801,27 +1802,7 @@ class Dialog:
         for func in dict:
             args=dict[func]
             func(*args)
-        # for func in dict:
-        #     if len(dict[func])==0:
-        #         func()
-        #     elif len(dict[func])==1:
-        #         arg=dict[func][0]
-        #         func(arg)
-        #     elif len(dict[func])==2:
-        #         arg=dict[func][0]
-        #         arg1=dict[func][1]
-        #         func(arg,arg1)
-        #     elif len(dict[func])==3:
-        #         arg=dict[func][0]
-        #         arg1=dict[func][1]
-        #         arg2=dict[func][2]
-        #         func(arg,arg1,arg2)
-        #     elif len(dict[func])==4:
-        #         arg=dict[func][0]
-        #         arg1=dict[func][1]
-        #         arg2=dict[func][2]
-        #         arg3=dict[func][3]
-        #         func(arg,arg1,arg2,arg3)
+
         if close:
             self.top.destroy()
 
@@ -2075,7 +2056,6 @@ class WaitForSaveConfigDialog(WaitDialog):
         old_files=list(self.controller.listener.saved_files)
         t=30
         while 'donelookingforunexpected' not in self.listener.queue and t>0:
-            print('waiting to be done looking for unexpected')
             t=t-INTERVAL
             time.sleep(INTERVAL)
         if t<=0:
@@ -2091,7 +2071,6 @@ class WaitForSaveConfigDialog(WaitDialog):
         self.listener.queue.remove('donelookingforunexpected')
         
         while self.timeout_s>0:
-            print('watching queue')
             self.timeout_s-=INTERVAL
             if 'saveconfigsuccess' in self.listener.queue:
                 self.listener.queue.remove('saveconfigsuccess')
@@ -2599,9 +2578,9 @@ class InputDialog(Dialog):
     
 
 
-class Listener(threading.Thread):
+class Listener(Thread):
     def __init__(self, read_command_loc, test=False):
-        threading.Thread.__init__(self)
+        Thread.__init__(self)
         self.read_command_loc=read_command_loc
         self.saved_files=[]
         self.controller=None
@@ -2632,7 +2611,7 @@ class Listener(threading.Thread):
                 if cmdfile not in self.cmdfiles0:
                     cmd, params=decrypt(cmdfile)
 
-                    print('listener sees this command: '+cmd)
+                    print('Read command: '+cmd)
                     if 'savedfile' in cmd:
                         self.saved_files.append(params[0])
                         self.queue.append('savedfile')
