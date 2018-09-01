@@ -4,8 +4,7 @@ import sys
 from threading import Lock
 import time
 import subprocess
-import pexpect
-import imp
+#import pexpect
 import numpy as np
 
 sys.path.append('C:\\Users\\hozak\\Python\\')
@@ -55,19 +54,21 @@ class Model:
 
         
         if spec_compy_connected:
-            self.rs3_process=pexpect.spawnu('ssh MELISSA+RS3Admin@MELISSA.univ.dir.wwu.edu')
-            fout = open('mylog.txt','w')
-            fin=open('mylog2.txt','w')
-            self.rs3_process.logfile_send = fout
-            self.rs3_process.logfile_read = fin
-            self.rs3_process.expect('password:')
-            self.rs3_process.sendline('fieldspecadmin')
-            self.rs3_process.expect('$')
-            self.rs3_process.sendline('touch c:/Kathleen/test')
+            self.rs3_process=None
+            # self.rs3_process=pexpect.spawnu('ssh MELISSA+RS3Admin@MELISSA.univ.dir.wwu.edu')
+            # fout = open('mylog.txt','w')
+            # fin=open('mylog2.txt','w')
+            # self.rs3_process.logfile_send = fout
+            # self.rs3_process.logfile_read = fin
+            # self.rs3_process.expect('password:')
+            # self.rs3_process.sendline('fieldspecadmin')
+            # self.rs3_process.expect('$')
+            # self.rs3_process.sendline('touch c:/Kathleen/test')
         else:
             self.rs3_process=None
         if self.raspberry_pi_connected:
-            pass
+            self.pi_process=None
+            #pass
             # self.pi_process=pexpect.spawnu('python3')
             # self.pi_process.expect('>>>')
         else:

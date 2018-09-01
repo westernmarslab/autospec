@@ -1,7 +1,6 @@
 #Plotter takes a Tk root object and uses it as a base to spawn Tk Toplevel plot windows.
 
 import tkinter as tk
-import pexpect
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
@@ -71,8 +70,10 @@ class Plotter():
             print('Error loading data!')
             raise('Error loading data!')
             return
-        
+        print(loglabels)
         for i, label in enumerate(default_labels):
+            if i==0:
+                continue
             print(label)
             print(label[0:-3])
             if label in loglabels:
@@ -90,6 +91,8 @@ class Plotter():
         #self.num=0
         colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
         for i,spectrum in enumerate(reflectance):
+            if 'White reference' in default_labels[i+1]:
+                continue
             self.plots[title].plot(wavelengths, spectrum, label=default_labels[i+1], color=colors[i])
         self.plots[title].set_title(title, fontsize=24)
         self.plots[title].set_ylabel('Relative Reflectance',fontsize=18)
@@ -99,14 +102,16 @@ class Plotter():
         self.canvases[title].draw()
         
     def load_data(self, file):
-        data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
 
-        data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
+        try:
+            data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
+        except:
+            data = np.genfromtxt(file, names=True, dtype=None,delimiter='\t')
+        print('loaded!')
 
         labels=list(data.dtype.names)
         data=zip(*data)
         wavelengths=[]
-        #reflectance=[[],[]]
         reflectance=[]
         for i, d in enumerate(data):
             if i==0: wavelengths=d #the first column in my .tsv (now first row) was wavelength in nm
@@ -116,7 +121,6 @@ class Plotter():
                 #d2=d/np.max(d) #d2 is normalized reflectance
                 #reflectance[0].append(d)
                 #reflectance[1].append(d2)
-        print('that went fine')
         return wavelengths, reflectance, labels
             
         
