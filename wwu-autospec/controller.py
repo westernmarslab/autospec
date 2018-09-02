@@ -273,14 +273,14 @@ def main():
         os.remove(read_command_loc+file)
     
     #Create a listener, which listens for commands, and a controller, which manages the model (which writes commands) and the view.
-    listener=Listener(read_command_loc)
+    spec_listener=SpecListener(read_command_loc)
     
     icon_loc=package_loc+'exception'#test_icon.xbm'
-    control=Controller(listener, command_share_loc, read_command_loc,write_command_loc, config_loc,data_share_loc,opsys, icon_loc)
+    control=Controller(spec_listener, command_share_loc, read_command_loc,write_command_loc, config_loc,data_share_loc,opsys, icon_loc)
 
 class Controller():
-    def __init__(self, listener, command_share_loc, read_command_loc, write_command_loc, config_loc, data_share_loc,opsys,icon):
-        self.listener=listener
+    def __init__(self, spec_listener, command_share_loc, read_command_loc, write_command_loc, config_loc, data_share_loc,opsys,icon):
+        self.listener=spec_listener
         self.listener.set_controller(self)
         self.listener.start()
         
@@ -462,8 +462,12 @@ class Controller():
         self.spectrum_settings_frame.pack(fill=BOTH,expand=True)
         self.spec_settings_label=Label(self.spectrum_settings_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Settings for this spectrum:')
         self.spec_settings_label.pack(padx=padx,pady=(10,0))
-        self.instrument_config_frame=Frame(self.spectrum_settings_frame, bg=self.bg)
-        self.instrument_config_frame.pack(pady=(15,15))
+        
+        
+        self.instrument_config_frame=Frame(self.spectrum_settings_frame, bg=self.bg, highlightthickness=1)
+        self.spec_settings_label=Label(self.instrument_config_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Instrument Configuration:')
+        self.spec_settings_label.pack(padx=padx,pady=(10,0))
+        self.instrument_config_frame.pack(pady=(15,15), fill=BOTH, expand=True)
         self.instrument_config_label=Label(self.instrument_config_frame, fg=self.textcolor,text='Number of spectra to average:', bg=self.bg)
         self.instrument_config_label.pack(side=LEFT)
         self.instrument_config_entry=Entry(self.instrument_config_frame, width=10, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
@@ -2443,13 +2447,13 @@ class WaitForSpectrumDialog(WaitDialog):
         self.interrupt('Success!')
         
 class ErrorDialog(Dialog):
-    def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False, info_string=None, topmost=True):
+    def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False, info_string=None, topmost=True, button_width=30):
         self.listener=None
         if info_string==None:
             self.info_string=label+'\n'
         else:
             self.info_string=info_string
-        super().__init__(controller, title, label,buttons,allow_exit=False, info_string=None)#self.info_string)
+        super().__init__(controller, title, label,buttons,allow_exit=False, info_string=None, button_width=button_width)#self.info_string)
         if topmost==True:
             try:
                 self.top.attributes("-topmost", True)
@@ -2832,34 +2836,67 @@ class InputDialog(Dialog):
         # 
         # thread = Thread(target =self.wait)
         # thread.start()  
-
-    
-
-
+        
 class Listener(Thread):
     def __init__(self, read_command_loc, test=False):
         Thread.__init__(self)
         self.read_command_loc=read_command_loc
-        self.saved_files=[]
         self.controller=None
         self.connection_checker=ConnectionChecker(read_command_loc,'not main',controller=self.controller, func=self.listen)
-        self.alert_lostconnection=True
-        self.new_dialogs=True
-        
-        self.unexpected_files=[]
-        self.wait_for_unexpected_count=0
-                
         self.queue=[]
-    
         self.cmdfiles0=os.listdir(self.read_command_loc)
 
     def run(self):
-          
         while True:
+            #I think this calls listen if we are connected?
             connection=self.connection_checker.check_connection(False)
-            time.sleep(0.5)
+            time.sleep(INTERVAL)
+            
+    def listen(self):
+        pass
+
+    def set_controller(self,controller):
+        self.controller=controller
+        self.connection_checker.controller=controller
+            
+
+        
+
+    
+class PiListener(Listener):
+    def __init__(self, read_command_loc, test=False):
+        super().__init__(read_command_loc)
 
             
+            
+    def listen(self):
+        self.cmdfiles=os.listdir(self.read_command_loc)  
+        if self.cmdfiles==self.cmdfiles0:
+            pass
+        else:
+            for cmdfile in self.cmdfiles:
+                if cmdfile not in self.cmdfiles0:
+                    cmd, params=decrypt(cmdfile)
+
+                    print('Read command: '+cmd)
+                    if 'savedfile' in cmd:
+                        self.saved_files.append(params[0])
+                        self.queue.append('savedfile')
+                        
+                        
+class SpecListener(Listener):
+    def __init__(self, read_command_loc):
+        super().__init__(read_command_loc)
+        self.unexpected_files=[]
+        self.wait_for_unexpected_count=0
+
+        self.alert_lostconnection=True
+        self.new_dialogs=True
+        
+    def run(self):
+        while True:
+            connection=self.connection_checker.check_connection(False)
+            time.sleep(INTERVAL)
             
     def listen(self):
         self.cmdfiles=os.listdir(self.read_command_loc)  
@@ -2959,6 +2996,9 @@ class Listener(Thread):
                         self.queue.append('yeswriteable')
                         
                     elif 'lostconnection' in cmd:
+                        print('lostconnection')
+                        os.remove(read_command_loc+cmdfile)
+                        self.cmdfiles.remove(cmdfile)
                         if self.alert_lostconnection:
                             self.alert_lostconnection=False
 
@@ -2972,11 +3012,10 @@ class Listener(Thread):
                                     exit_func:[]
                                 }
                             }
-                            try:
-                                dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: RS3 lost connection with the spectrometer.\nCheck that the spectrometer is on.',buttons=buttons,button_width=25)
-                            except:
-                                print('Ignoring an error in Listener when I make a new error dialog')
-                            self.new_dialogs=False
+                            #try:
+                            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: RS3 lost connection with the spectrometer.\nCheck that the spectrometer is on.',buttons=buttons,button_width=15)
+                            #except:
+                             #   print('Ignoring an error in Listener when I make a new error dialog')
                     elif 'rmsuccess' in cmd:
                         self.queue.append('rmsuccess')
                     elif 'rmfailure' in cmd:
@@ -2995,15 +3034,12 @@ class Listener(Thread):
             #print('forward!')
 
         self.cmdfiles0=list(self.cmdfiles)
-                        
-    
-    def set_controller(self,controller):
-        self.controller=controller
-        self.connection_checker.controller=controller
-            
+
     def set_alert_lostconnection(self,bool):
         self.alert_lostconnection=bool
         
+
+
         
 def decrypt(encrypted):
     cmd=encrypted.split('&')[0]
