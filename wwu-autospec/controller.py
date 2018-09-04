@@ -104,6 +104,8 @@ if dev:
         from goniometer_model import Model
         importlib.reload(goniometer_view)
         from goniometer_view import View
+        from goniometer_view import TestView
+        from goniometer_view import TestViewOld
         importlib.reload(plotter)
         from plotter import Plotter
     except:
@@ -170,8 +172,6 @@ def exit_func():
 def retry_func():
      os.execl(sys.executable, os.path.abspath(__file__), *sys.argv) 
      
-import signal
-
  
 
 class ConnectionChecker():
@@ -308,6 +308,14 @@ class Controller():
         
         #Tkinter notebook GUI
         self.master=Tk()
+        
+        #view_frame=Frame(self.master)
+        test_view=TestView(self.master)
+        # frame=Frame(self.master)
+        # frame.pack(side=RIGHT)
+        # button=Button(frame, text=':D',command=test.draw_circle)
+        # button.pack()
+        
         self.tk_master=self.master
         self.notebook=ttk.Notebook(self.master)
         
@@ -315,7 +323,7 @@ class Controller():
         self.plotter=Plotter(self.master)
         
         #The view displays what the software thinks the goniometer is up to.
-        self.view=View()
+        self.view=View(self.master)
         self.view.start()
     
         #The model keeps track of the goniometer state and sends commands to the raspberry pi and spectrometer
@@ -458,25 +466,38 @@ class Controller():
         #self.spec_save_config_check.pack(pady=(0,5))
         self.spec_save_config_check.select()
         
-        self.spectrum_settings_frame=Frame(self.control_frame,bg=self.bg, highlightcolor="green", highlightthickness=1)
-        self.spectrum_settings_frame.pack(fill=BOTH,expand=True)
-        self.spec_settings_label=Label(self.spectrum_settings_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Settings for this spectrum:')
-        self.spec_settings_label.pack(padx=padx,pady=(10,0))
+
+
         
         
-        self.instrument_config_frame=Frame(self.spectrum_settings_frame, bg=self.bg, highlightthickness=1)
+        self.instrument_config_frame=Frame(self.control_frame, bg=self.bg, highlightthickness=0)
         self.spec_settings_label=Label(self.instrument_config_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Instrument Configuration:')
-        self.spec_settings_label.pack(padx=padx,pady=(10,0))
-        self.instrument_config_frame.pack(pady=(15,15), fill=BOTH, expand=True)
+        self.spec_settings_label.pack(padx=padx,pady=(0,10))
+        self.instrument_config_frame.pack(pady=(15,15))
         self.instrument_config_label=Label(self.instrument_config_frame, fg=self.textcolor,text='Number of spectra to average:', bg=self.bg)
         self.instrument_config_label.pack(side=LEFT)
         self.instrument_config_entry=Entry(self.instrument_config_frame, width=10, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.instrument_config_entry.insert(0, 5)
         self.instrument_config_entry.pack(side=LEFT)
-
         
-        self.spectrum_angles_frame=Frame(self.spectrum_settings_frame, bg=self.bg)
+        self.spectrum_label_frame=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
+        self.spectrum_label_frame.pack(fill=BOTH,expand=True)
+        self.label_label=Label(self.spectrum_label_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Label for this sample:')
+        self.label_label.pack(pady=(10,10))
+        self.label_entry=Entry(self.spectrum_label_frame, width=50, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.label_entry.pack(pady=(0,15))
+
+        self.viewing_geom_frame=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
+        self.viewing_geom_frame.pack(fill=BOTH,expand=True)     
+        self.viewing_geom_label=Label(self.viewing_geom_frame,text='Viewing geometry:')
+        # self.single_mult_frame=Frame(self.viewing_geom_frame,bg=self.bg)
+        # self.single_mult_frame.pack()
+        # range_of_viewing_geoms=IntVar()
+        # range_of_viewing_geoms_check=Checkbutton(self.single_mult_frame, text='Iterate through a range of viewing geometries')
+        self.spectrum_angles_frame=Frame(self.viewing_geom_frame, bg=self.bg)
         self.spectrum_angles_frame.pack()
+
+
         self.man_incidence_label=Label(self.spectrum_angles_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Incidence angle:')
         self.man_incidence_label.pack(side=LEFT, padx=padx,pady=(0,8))
         self.man_incidence_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
@@ -487,10 +508,7 @@ class Controller():
         self.man_emission_entry.pack(side=LEFT, padx=(0,20))
         
 
-        self.label_label=Label(self.spectrum_settings_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Label:')
-        self.label_label.pack()
-        self.label_entry=Entry(self.spectrum_settings_frame, width=50, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.label_entry.pack(pady=(0,15))
+
         
         self.top_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=self.bg)
         #self.top_frame.pack()
@@ -911,10 +929,17 @@ class Controller():
         #Number of spectra to collect:
         self.notebook.pack(fill=BOTH, expand=True)
         
-        #r=RemoteFileExplorer(self,write_command_loc)
-        self.master.mainloop()
 
-        self.view.join()
+        #test=TestView(self.master)
+        frame=Frame(self.control_frame)
+        frame.pack()
+        button=Button(frame, text=':D',command=test_view.draw_circle)
+        button.pack()
+        #test_view.run()
+        #test_view.draw_circle()
+        self.master.mainloop()
+        
+        #self.view.join()
     def local_plot_cmd(self):
         if self.local.get() and not self.remote.get():
             return
@@ -957,7 +982,6 @@ class Controller():
         self.plot_logfile_entry.delete(0,'end')
         self.plot_logfile_entry.insert(0, filename)  
         
-
               
     def chooselogfile(self):
         self.log_filename = askopenfilename(initialdir=log_loc,title='Select existing log file to append to')
@@ -3012,10 +3036,10 @@ class SpecListener(Listener):
                                     exit_func:[]
                                 }
                             }
-                            #try:
-                            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: RS3 lost connection with the spectrometer.\nCheck that the spectrometer is on.',buttons=buttons,button_width=15)
-                            #except:
-                             #   print('Ignoring an error in Listener when I make a new error dialog')
+                            try:
+                                dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: RS3 lost connection with the spectrometer.\nCheck that the spectrometer is on.',buttons=buttons,button_width=15)
+                            except:
+                                print('Ignoring an error in Listener when I make a new error dialog')
                     elif 'rmsuccess' in cmd:
                         self.queue.append('rmsuccess')
                     elif 'rmfailure' in cmd:
