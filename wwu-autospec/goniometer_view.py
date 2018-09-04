@@ -106,15 +106,18 @@ class View(threading.Thread):
     def clear_plots():
         pass
 class TestView():
-    def __init__(self,master):
-        self.width=1300
-        self.height=900
-        self.master=master
-        self.embed = Frame(self.master, width=self.width, height=self.height)
+    def __init__(self,controller):
+        self.width=1100
+        self.height=700
+        self.controller=controller
+        self.master=self.controller.master
+        self.embed = Frame(self.master, width=self.width, height=self.height,bg=self.controller.bg)
         self.embed.pack(side=RIGHT)#row=0,column=2)
+        self.double_embed=Frame(self.embed,width=self.width,height=self.height)
+        self.double_embed.pack()
 
         self.master.update()
-        os.environ['SDL_WINDOWID'] = str(self.embed.winfo_id())
+        os.environ['SDL_WINDOWID'] = str(self.double_embed.winfo_id())
         #os.environ['SDL_VIDEODRIVER'] = 'windib'
         #pygame.display.init()
         self.screen = pygame.display.set_mode((20,20))#self.width,self.height))
@@ -163,13 +166,16 @@ class TestView():
         self.screen = pygame.display.set_mode((self.width,self.height))#self.width,self.height))
         
         largeText = pygame.font.Font('freesansbold.ttf',int(self.width/20))
-        i_text=largeText.render(str(self.theta_l), True, (0, 128, 0))
-        e_text=largeText.render(str(self.theta_d), True, (0, 128, 0))
+        i_text=largeText.render(str(self.theta_l), True, pygame.Color(self.controller.textcolor))
+        e_text=largeText.render(str(self.theta_d), True, pygame.Color(self.controller.textcolor))
         
         pivot = (int(self.width/2),int(self.width/2))
         light_len = int(3*self.width/8)#300
-        scale=1.1
+        light_width=24  #needs to be an even number
+        scale=1.15
         back_radius=int(self.width/2-self.width/6)#250
+        border_thickness=1
+        
         x_l = pivot[0] + np.sin(np.radians(self.theta_l)) * light_len
         x_l_text=pivot[0] + np.sin(np.radians(self.theta_l)) * (light_len*scale)
         y_l = pivot[1] - np.cos(np.radians(self.theta_l)) * light_len
@@ -181,17 +187,31 @@ class TestView():
         y_d = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len
         y_d_text = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len*scale
         
-        self.screen.fill(pygame.Color("white"))
+        self.screen.fill(pygame.Color(self.controller.bg))
+        
+        pygame.draw.circle(self.screen, pygame.Color('darkgray'), pivot, back_radius+border_thickness)
         pygame.draw.circle(self.screen, (0,0,0), pivot, back_radius)
-        pygame.draw.rect(self.screen, (255,255,255),(pivot[0]-back_radius,pivot[1]+int(self.width/10),2*back_radius,2*back_radius))
+        pygame.draw.rect(self.screen, pygame.Color(self.controller.bg),(pivot[0]-back_radius,pivot[1]+int(self.width/10-5),2*back_radius,2*back_radius))
         pygame.draw.rect(self.screen, (0,0,0),(pivot[0]-back_radius,pivot[1],2*back_radius,int(self.width/10)))
         
-        pygame.draw.line(self.screen, (200, 200, 0), pivot, (x_l,y_l), 10)
-        self.screen.blit(i_text,(x_l_text,y_l_text))
-        pygame.draw.line(self.screen, (0, 100, 200), pivot, (x_d,y_d), 10)
+        pygame.draw.line(self.screen, pygame.Color('black'), pivot, (x_l,y_l), light_width)
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]-light_width/2,pivot[1]),(x_l-light_width/2,y_l),border_thickness)
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]+light_width/2,pivot[1]),(x_l+light_width/2,y_l),border_thickness)
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(x_l+light_width/2,y_l),(x_l-light_width/2,y_l),border_thickness)
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]+light_width/2,pivot[1]),(pivot[0]-light_width/2,pivot[1]),border_thickness)
         
+        pygame.draw.line(self.screen, pygame.Color('black'), pivot, (x_d,y_d), light_width)
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]-light_width/2,pivot[1]),(x_d-light_width/2,y_d),border_thickness)
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]+light_width/2,pivot[1]),(x_d+light_width/2,y_d),border_thickness)
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(x_d+light_width/2,y_d),(x_d-light_width/2,y_d),border_thickness)
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]+light_width/2,pivot[1]),(pivot[0]-light_width/2,pivot[1]),border_thickness)
+        
+        self.screen.blit(i_text,(x_l_text,y_l_text))
         self.screen.blit(e_text,(x_d_text,y_d_text))
         #pygame.draw.circle(self.screen, 'black', pivot, back_radius=200)
+        
+        pygame.draw.rect(self.screen,pygame.Color('darkgray'),(2,2,self.width-4,self.height-3),2)
+
         pygame.display.update()
         #self. master.update()
         
@@ -216,6 +236,10 @@ class TestView():
             self.theta_d=self.theta_d+np.sign(theta-self.theta_d)
             if not self.test:
                 time.sleep(0.07)
+                
+    def quit(self):
+        pygame.display.quit()
+        pygame.quit()
         
 
 class TestViewOld():

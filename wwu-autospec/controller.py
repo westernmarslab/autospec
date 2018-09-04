@@ -306,11 +306,31 @@ class Controller():
         self.i=None
         self.e=None
         
+        #Yay formatting. Might not work for Macs.
+        self.bg='#555555'
+        self.textcolor='light gray'
+        self.buttontextcolor='white'
+        bd=2
+        padx=3
+        pady=3
+        self.border_color='light gray'
+        button_width=15
+        self.buttonbackgroundcolor='#888888'
+        self.highlightbackgroundcolor='#222222'
+        self.entry_background='light gray'
+        self.listboxhighlightcolor='white'
+        self.selectbackground='#555555'
+        self.selectforeground='white'
+        self.check_bg='#444444'
+        
+        
         #Tkinter notebook GUI
         self.master=Tk()
         
         #view_frame=Frame(self.master)
-        test_view=TestView(self.master)
+        self.test_view=TestView(self)
+        
+
         # frame=Frame(self.master)
         # frame.pack(side=RIGHT)
         # button=Button(frame, text=':D',command=test.draw_circle)
@@ -329,22 +349,7 @@ class Controller():
         #The model keeps track of the goniometer state and sends commands to the raspberry pi and spectrometer
         self.model=Model(self.view, self.plotter, self.write_command_loc, False, False)
         
-        #Yay formatting. Might not work for Macs.
-        self.bg='#555555'
-        self.textcolor='light gray'
-        self.buttontextcolor='white'
-        bd=2
-        padx=3
-        pady=3
-        border_color='light gray'
-        button_width=15
-        self.buttonbackgroundcolor='#888888'
-        self.highlightbackgroundcolor='#222222'
-        self.entry_background='light gray'
-        self.listboxhighlightcolor='white'
-        self.selectbackground='#555555'
-        self.selectforeground='white'
-        self.check_bg='#444444'
+
         
         self.master.configure(background = self.bg)
         self.master.title('Control')
@@ -480,41 +485,68 @@ class Controller():
         self.instrument_config_entry.insert(0, 5)
         self.instrument_config_entry.pack(side=LEFT)
         
-        self.spectrum_label_frame=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
-        self.spectrum_label_frame.pack(fill=BOTH,expand=True)
-        self.label_label=Label(self.spectrum_label_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Label for this sample:')
-        self.label_label.pack(pady=(10,10))
-        self.label_entry=Entry(self.spectrum_label_frame, width=50, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.label_entry.pack(pady=(0,15))
 
+        self.viewing_geom_options_frame_top=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
+        self.viewing_geom_options_frame_top.pack(fill=BOTH,expand=True)     
+        self.viewing_geom_options_label=Label(self.viewing_geom_options_frame_top,text='Viewing geometry options:', fg=self.textcolor, bg=self.bg)
+        self.viewing_geom_options_label.pack(pady=(15,10))
+        self.viewing_geom_options_frame=Frame(self.viewing_geom_options_frame_top,bg=self.bg)
+        self.viewing_geom_options_frame.pack()
+        
+        self.viewing_geom_options_frame_left=Frame(self.viewing_geom_options_frame, bg=self.bg)
+        self.viewing_geom_options_frame_left.pack(side=LEFT,padx=(15,15))
+        
+        self.gon_control_label_frame=Frame(self.viewing_geom_options_frame_left, bg=self.bg)
+        self.gon_control_label_frame.pack()
+        self.gon_control_label=Label(self.gon_control_label_frame,text='Goniometer control:',bg=self.bg, fg=self.textcolor)
+        self.gon_control_label.pack(side=LEFT,padx=(5,5))
+        
+        self.manual_radio_frame=Frame(self.viewing_geom_options_frame_left, bg=self.bg)
+        self.manual_radio_frame.pack()
+        self.manual_radio=Radiobutton(self.manual_radio_frame,text='Manual     ',bg=self.bg,fg=self.textcolor,highlightthickness=0)
+        self.manual_radio.pack(side=LEFT,padx=(10,10))
+        
+        self.automation_radio_frame=Frame(self.viewing_geom_options_frame_left, bg=self.bg)
+        self.automation_radio_frame.pack()
+        self.automation_radio=Radiobutton(self.automation_radio_frame,text='Automatic  ',bg=self.bg,fg=self.textcolor,highlightthickness=0)
+        self.automation_radio.pack(side=LEFT,padx=(10,10))
+        
+        self.single_mult_frame=Frame(self.viewing_geom_options_frame,bg=self.bg)
+        self.single_mult_frame.pack(side=RIGHT, padx=(15,5))
+        self.angle_control_label=Label(self.single_mult_frame,text='Angle specification:      ',bg=self.bg, fg=self.textcolor)
+        self.angle_control_label.pack(padx=(5,5))
+        self.range_of_viewing_geoms=IntVar()
+        self.range_radio=Radiobutton(self.single_mult_frame, text='Range with interval',bg=self.bg, fg=self.textcolor,highlightthickness=0)
+        self.range_radio.pack()
+        self.individual_radio=Radiobutton(self.single_mult_frame, text='Individual         ',bg=self.bg,fg=self.textcolor,highlightthickness=0)
+        self.individual_radio.pack()
+        
+        
         self.viewing_geom_frame=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
         self.viewing_geom_frame.pack(fill=BOTH,expand=True)     
-        self.viewing_geom_label=Label(self.viewing_geom_frame,text='Viewing geometry:')
-        # self.single_mult_frame=Frame(self.viewing_geom_frame,bg=self.bg)
-        # self.single_mult_frame.pack()
-        # range_of_viewing_geoms=IntVar()
-        # range_of_viewing_geoms_check=Checkbutton(self.single_mult_frame, text='Iterate through a range of viewing geometries')
-        self.spectrum_angles_frame=Frame(self.viewing_geom_frame, bg=self.bg)
-        self.spectrum_angles_frame.pack()
 
-
-        self.man_incidence_label=Label(self.spectrum_angles_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Incidence angle:')
+        self.viewing_geom_options_label=Label(self.viewing_geom_frame,text='Viewing geometry:', fg=self.textcolor, bg=self.bg)
+        self.viewing_geom_options_label.pack(pady=(15,10))
+        
+        self.individual_angles_frame=Frame(self.viewing_geom_frame, bg=self.bg)
+        self.individual_angles_frame.pack()
+        self.man_incidence_label=Label(self.individual_angles_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Incidence angle:')
         self.man_incidence_label.pack(side=LEFT, padx=padx,pady=(0,8))
-        self.man_incidence_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.man_incidence_entry=Entry(self.individual_angles_frame, width=10, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.man_incidence_entry.pack(side=LEFT)
-        self.man_emission_label=Label(self.spectrum_angles_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Emission angle:')
+        self.man_emission_label=Label(self.individual_angles_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Emission angle:')
         self.man_emission_label.pack(side=LEFT, padx=(10,0))
-        self.man_emission_entry=Entry(self.spectrum_angles_frame, width=10, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.man_emission_entry=Entry(self.individual_angles_frame, width=10, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.man_emission_entry.pack(side=LEFT, padx=(0,20))
         
 
 
         
-        self.top_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=border_color,highlightcolor=border_color,highlightthickness=0,bg=self.bg)
-        #self.top_frame.pack()
-        self.light_frame=Frame(self.top_frame,bg=self.bg)
-        self.light_frame.pack(side=LEFT)
-        self.light_label=Label(self.light_frame,padx=padx, pady=pady,bg=self.bg,fg=self.textcolor,text='Light Source')
+        self.range_frame=Frame(self.control_frame,padx=padx,pady=pady,bd=2,highlightbackground=self.border_color,highlightcolor=self.border_color,highlightthickness=0,bg=self.bg)
+        self.range_frame.pack()
+        self.light_frame=Frame(self.range_frame,bg=self.bg)
+        self.light_frame.pack(side=LEFT,padx=(5,30))
+        self.light_label=Label(self.light_frame,padx=padx, pady=pady,bg=self.bg,fg=self.textcolor,text='Incidence angles:')
         self.light_label.pack()
         
         light_labels_frame = Frame(self.light_frame,bg=self.bg,padx=padx,pady=pady)
@@ -522,11 +554,11 @@ class Controller():
         
         light_start_label=Label(light_labels_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Start:')
         light_start_label.pack(pady=(0,8))
-        #light_end_label=Label(light_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='End:',fg='lightgray')
-        #light_end_label.pack(pady=(0,5))
+        light_end_label=Label(light_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='End:')
+        light_end_label.pack(pady=(0,5))
     
-        #light_increment_label=Label(light_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='Increment:',fg='lightgray')
-       # light_increment_label.pack(pady=(0,5))
+        light_increment_label=Label(light_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='Increment:')
+        light_increment_label.pack(pady=(0,5))
     
         
         light_entries_frame=Frame(self.light_frame,bg=self.bg,padx=padx,pady=pady)
@@ -541,22 +573,22 @@ class Controller():
         light_increment_entry=Entry(light_entries_frame,width=10,highlightbackground='white', bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         light_increment_entry.pack(padx=padx,pady=pady)
         
-        detector_frame=Frame(self.top_frame,bg=self.bg)
+        detector_frame=Frame(self.range_frame,bg=self.bg)
         detector_frame.pack(side=RIGHT)
         
-        detector_label=Label(detector_frame,padx=padx, pady=pady,bg=self.bg,fg=self.textcolor,text='Detector')
+        detector_label=Label(detector_frame,padx=padx, pady=pady,bg=self.bg,fg=self.textcolor,text='Emission angles:')
         detector_label.pack()
         
         detector_labels_frame = Frame(detector_frame,bg=self.bg,padx=padx,pady=pady)
-        detector_labels_frame.pack(side=LEFT)
+        detector_labels_frame.pack(side=LEFT,padx=(30,5))
         
         detector_start_label=Label(detector_labels_frame,padx=padx,pady=pady,bg=self.bg,fg=self.textcolor,text='Start:')
         detector_start_label.pack(pady=(0,8))
-        #detector_end_label=Label(detector_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='End:',fg='lightgray')
-        #detector_end_label.pack(pady=(0,5))
+        detector_end_label=Label(detector_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='End:')
+        detector_end_label.pack(pady=(0,5))
     
-        #detector_increment_label=Label(detector_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='Increment:',fg='lightgray')
-        #detector_increment_label.pack(pady=(0,5))
+        detector_increment_label=Label(detector_labels_frame,bg=self.bg,padx=padx,pady=pady,fg=self.textcolor,text='Increment:')
+        detector_increment_label.pack(pady=(0,5))
     
         
         detector_entries_frame=Frame(detector_frame,bg=self.bg,padx=padx,pady=pady)
@@ -571,17 +603,27 @@ class Controller():
         detector_increment_entry=Entry(detector_entries_frame,bd=bd,width=10, highlightbackground='white',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         detector_increment_entry.pack(padx=padx,pady=pady)
         
-        self.auto_check_frame=Frame(self.control_frame, bg=self.bg)
-        self.auto_process=IntVar()
-        self.auto_process_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Process data', bg=self.bg, highlightthickness=0,selectcolor=self.check_bg)
-        self.auto_process_check.pack(side=LEFT)
         
-        self.auto_plot=IntVar()
-        self.auto_plot_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, highlightthickness=0,selectcolor=self.check_bg)
-        self.auto_plot_check.pack(side=LEFT)
+        self.spectrum_label_frame=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
+        self.spectrum_label_frame.pack(fill=BOTH,expand=True)
+        self.label_label=Label(self.spectrum_label_frame, padx=padx,pady=pady,bg=self.bg, fg=self.textcolor,text='Label for this sample:')
+        self.label_label.pack(pady=(10,10))
+        self.label_entry=Entry(self.spectrum_label_frame, width=50, bd=bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.label_entry.pack(pady=(0,15))
+
         
+        # self.auto_check_frame=Frame(self.control_frame, bg=self.bg)
+        # self.auto_process=IntVar()
+        # self.auto_process_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Process data', bg=self.bg, highlightthickness=0,selectcolor=self.check_bg)
+        # self.auto_process_check.pack(side=LEFT)
+        
+        # self.auto_plot=IntVar()
+        # self.auto_plot_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, highlightthickness=0,selectcolor=self.check_bg)
+        # self.auto_plot_check.pack(side=LEFT)
+        # 
         self.gen_frame=Frame(self.control_frame, bg=self.bg,highlightthickness=1)
         self.gen_frame.pack(fill=BOTH,expand=True)
+        
         self.action_button_frame=Frame(self.gen_frame, bg=self.bg)
         self.action_button_frame.pack()
         
@@ -895,8 +937,10 @@ class Controller():
         self.plot_button.pack(pady=(20,20))
     
         #************************Console********************************
-        self.console_frame=Frame(self.notebook, bg=self.bg)
-        self.console_frame.pack(fill=BOTH, expand=True)
+        self.console_frame=Frame(self.test_view.embed, bg=self.border_color, height=200, highlightthickness=2,highlightcolor=self.bg)
+        self.console_frame.pack(fill=BOTH, expand=True, padx=(1,1))
+        self.console_title_label=Label(self.console_frame,padx=padx,pady=pady,bg=self.border_color,fg='black',text='Console',font=("Helvetica", 11))
+        self.console_title_label.pack(pady=(5,5))
         self.text_frame=Frame(self.console_frame)
         self.scrollbar = Scrollbar(self.text_frame)
         self.notebook_width=self.notebook.winfo_width()
@@ -919,7 +963,7 @@ class Controller():
         self.notebook.add(self.dumb_frame, text='Settings')
         self.notebook.add(self.process_frame, text='Data processing')
         self.notebook.add(self.plot_frame, text='Plot')
-        self.notebook.add(self.console_frame,text='Console')
+        #self.notebook.add(self.console_frame,text='Console')
         #self.notebook.add(val_frame, fg=self.textcolor,text='Validation tools')
         #checkbox: Iterate through a range of geometries
         #checkbox: Choose a single geometry
@@ -933,13 +977,19 @@ class Controller():
         #test=TestView(self.master)
         frame=Frame(self.control_frame)
         frame.pack()
-        button=Button(frame, text=':D',command=test_view.draw_circle)
+        button=Button(frame, text=':D',command=self.test_view.draw_circle)
         button.pack()
         #test_view.run()
-        #test_view.draw_circle()
+        self.test_view.draw_circle()
+
+
+        self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.master.mainloop()
         
         #self.view.join()
+    def on_closing(self):
+        self.test_view.quit()
+        self.master.destroy()
     def local_plot_cmd(self):
         if self.local.get() and not self.remote.get():
             return
