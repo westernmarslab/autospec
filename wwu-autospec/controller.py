@@ -130,32 +130,44 @@ elif computer=='new':
     BUFFER=10
     server='geol-chzc5q2' #new computer
 
-command_share='specshare'
-command_share_Mac='SpecShare'
+pi_server='hozapi'
+spec_share='specshare'
+spec_share_Mac='SpecShare'
 data_share='users' #Not used. Maybe later?
 data_share_Mac='Users'
+pi_share='pishare'
+pi_share_Mac='PiShare'
 
 if opsys=='Linux':
-    command_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+command_share+'/'
+    spec_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+spec_share+'/'
     data_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+data_share+'/'
+    pi_share_loc='/run/user/1000/gvfs/smb-share:server='+pi_server+',share='+pi_share+'/'
     delimiter='/'
-    write_command_loc=command_share_loc+'commands/from_control/'
-    read_command_loc=command_share_loc+'commands/from_spec/'
+    spec_write_loc=spec_share_loc+'commands/from_control/'
+    pi_write_loc=pi_share_loc+'commands/from_control/'
+    spec_read_loc=spec_share_loc+'commands/from_spec/'
+    pi_read_loc=pi_share_loc+'/commands/from_pi/'
     config_loc=package_loc+'config/'
     log_loc=package_loc+'log/'
 elif opsys=='Windows':
-    command_share_loc='\\\\'+server.upper()+'\\'+command_share+'\\'
+    spec_share_loc='\\\\'+server.upper()+'\\'+spec_share+'\\'
+    pi_share_loc='\\\\'+server.upper()+'\\'+pi_share+'\\'
     data_share_loc='\\\\'+server.upper()+'\\'+data_share+'\\'
-    write_command_loc=command_share_loc+'commands\\from_control\\'
-    read_command_loc=command_share_loc+'commands\\from_spec\\'
+    spec_write_loc=spec_share_loc+'commands\\from_control\\'
+    pi_write_loc=pi_share_loc+'commands\\from_control\\'
+    spec_read_loc=spec_share_loc+'commands\\from_spec\\'
+    pi_read_loc=pi_share_loc+'commands\\from_spec\\'
     config_loc=package_loc+'config\\'
     log_loc=package_loc+'log\\'
 elif opsys=='Mac':
-    command_share_loc='/Volumes/'+command_share_Mac+'/'
+    spec_share_loc='/Volumes/'+spec_share_Mac+'/'
+    pi_share_loc='/Volumes/'+pi_share_Mac+'/'
     data_share_loc='/Volumes/'+data_share_Mac+'/'
     delimiter='/'
-    write_command_loc=command_share_loc+'commands/from_control/'
-    read_command_loc=command_share_loc+'commands/from_spec/'
+    spec_write_loc=spec_share_loc+'commands/from_control/'
+    pi_write_loc=pi_share_loc+'commands/from_control/'
+    spec_read_loc=spec_share_loc+'commands/from_spec/'
+    pi_read_loc=pi_share_loc+'commands/from_spec/'
     config_loc=package_loc+'config/'
     log_loc=package_loc+'log/'
     
@@ -261,35 +273,49 @@ class ConnectionChecker():
 
 def main():
     #Check if you are connected to the server. 
-    connection_checker=ConnectionChecker(read_command_loc, thread='main', func=None)
+    connection_checker=ConnectionChecker(spec_read_loc, thread='main', func=None)
     connection_checker.check_connection(True)
 
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
-    delme=os.listdir(write_command_loc)
+    delme=os.listdir(spec_write_loc)
     for file in delme:
-        os.remove(write_command_loc+file)
-    delme=os.listdir(read_command_loc)
+        os.remove(spec_write_loc+file)
+    delme=os.listdir(spec_read_loc)
     for file in delme:
-        os.remove(read_command_loc+file)
+        os.remove(spec_read_loc+file)
+
+    delme=os.listdir(pi_write_loc)
+    for file in delme:
+        os.remove(pi_write_loc+file)
+    delme=os.listdir(pi_read_loc)
+    for file in delme:
+        os.remove(pi_read_loc+file)
     
     #Create a listener, which listens for commands, and a controller, which manages the model (which writes commands) and the view.
-    spec_listener=SpecListener(read_command_loc)
+    spec_listener=SpecListener(spec_read_loc)
+    pi_listener=PiListener(pi_read_loc)
     
     icon_loc=package_loc+'exception'#test_icon.xbm'
-    control=Controller(spec_listener, command_share_loc, read_command_loc,write_command_loc, config_loc,data_share_loc,opsys, icon_loc)
+    control=Controller(spec_listener, pi_listener,spec_share_loc, spec_read_loc,spec_write_loc, pi_write_loc, config_loc,data_share_loc,opsys, icon_loc)
 
 class Controller():
-    def __init__(self, spec_listener, command_share_loc, read_command_loc, write_command_loc, config_loc, data_share_loc,opsys,icon):
+    def __init__(self, spec_listener, pi_listener,spec_share_loc, spec_read_loc, spec_write_loc, pi_write_loc,config_loc, data_share_loc,opsys,icon):
         self.listener=spec_listener
         self.listener.set_controller(self)
         self.listener.start()
         
+        self.pi_listener=pi_listener
+        self.pi_listener.set_controller(self)
+        self.pi_listener.start()
+        
         self.data_share_loc=data_share_loc
-        self.read_command_loc=read_command_loc
-        self.command_share_loc=command_share_loc
-        self.write_command_loc=write_command_loc
-        self.spec_commander=SpecCommander(self.write_command_loc)
-        self.remote_directory_worker=RemoteDirectoryWorker(self.spec_commander, self.read_command_loc, self.listener)
+        self.spec_read_loc=spec_read_loc
+        self.spec_share_loc=spec_share_loc
+        self.spec_write_loc=spec_write_loc
+        self.pi_write_loc=pi_write_loc
+        self.spec_commander=SpecCommander(self.spec_write_loc)
+        self.pi_commander=PiCommander(self.pi_write_loc)
+        self.remote_directory_worker=RemoteDirectoryWorker(self.spec_commander, self.spec_read_loc, self.listener)
         
         self.config_loc=config_loc
         self.opsys=opsys
@@ -325,7 +351,7 @@ class Controller():
         
         
         #Yay formatting. Might not work for Macs.
-        self.bg='#555555'
+        self.bg='#333333'
         self.textcolor='light gray'
         self.buttontextcolor='white'
         self.bd=2
@@ -1058,6 +1084,7 @@ class Controller():
         self.logfile_entry.insert(0, self.log_filename)
     def move_sample():
         print('Moving the sample tray!')
+        self.pi_commander.move_sample()
         
     
     #     
@@ -1394,6 +1421,7 @@ class Controller():
             print('\t'+str(item))
         if action==None:
             action=self.acquire
+            self.queue.append({self.acquire:[]})
         if not override:
             ok=self.check_mandatory_input()
             if not ok:
@@ -1436,11 +1464,14 @@ class Controller():
             waitdialog=WaitForWRDialog(self)
             
         elif action==self.acquire:
+        
             self.build_queue()
-            dict=self.queue[0]
-            for func in dict:
-                args=dict[func]
-                func(*args)
+            self.pi_commander.move_arms(self.active_incidence_entries[0].get(),self.active_emission_entries[0].get())
+            wait_dialog=WaitForMotorsDialog(self,label='Moving goniometer arms...')
+            # dict=self.queue[0]
+            # for func in dict:
+            #     args=dict[func]
+            #     func(*args)
         
     def next_geom(self):
         self.active_emission_entries.pop(0)
@@ -1448,11 +1479,13 @@ class Controller():
         self.active_i_e_pair_frames.pop(0)
         #etc
         self.console_log.insert(END,'\nMoving arms!'+'\n')
+        self.pi_commander.move_arms(self.active_incidence_entries[0].get(),self.active_emission_entries[0].get())
         wait_dialog=WaitForMotorsDialog(self,label='Moving goniometer arms...')
         
             
     def move_tray(self):
         self.console_log.insert(END,'\n\nMoving a tray\n')
+        self.pi_commander.move_tray()
         wait_dialog=WaitForMotorsDialog(self,label='Moving sample tray...')
         
     def build_queue(self):
@@ -1611,7 +1644,7 @@ class Controller():
             
     def plot(self):
         filename=self.plot_input_dir_entry.get()
-        # filename=filename.replace('C:\\SpecShare',self.command_share_loc)
+        # filename=filename.replace('C:\\SpecShare',self.spec_share_loc)
         # filename=filename.replace('C:\\Users',self.data_share_loc)
         if self.opsys=='Windows' or self.remote.get(): filename=filename.replace('\\','/')
         
@@ -1622,7 +1655,7 @@ class Controller():
             while True:
                 if 'datacopied' in self.listener.queue:
                     self.listener.queue.remove('datacopied')
-                    filename=self.command_share_loc+'temp.tsv'
+                    filename=self.spec_share_loc+'temp.tsv'
                     break
                 elif 'datafailure' in self.listener.queue:
                     self.listener.queue.remove('datafailure')
@@ -2451,22 +2484,25 @@ class WaitForProcessDialog(WaitDialog):
 class WaitForMotorsDialog(WaitDialog):
     def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}):
         super().__init__(controller, title, label,timeout=60+BUFFER)
-        self.timeout_s=5
+        self.timeout_s=45
+        self.listener=controller.pi_listener
 
     def wait(self):
         while self.timeout_s>0:
             if 'donemoving' in self.listener.queue:
+                print('done moving!')
                 self.listener.queue.remove('donemoving')
+                self.controller.complete_queue_item()
                 super(WaitForMotorsDialog,self).success()
                 return
 
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
         
-        print(self.controller.queue)
-        self.controller.complete_queue_item()
-        super(WaitForMotorsDialog,self).success()
-        #self.timeout()
+        # print(self.controller.queue)
+        # self.controller.complete_queue_item()
+        # super(WaitForMotorsDialog,self).success()
+        self.timeout()
         
         
 class WaitForSaveConfigDialog(WaitDialog):
@@ -3084,9 +3120,9 @@ class PiListener(Listener):
                     cmd, params=decrypt(cmdfile)
 
                     print('Read command: '+cmd)
-                    if 'savedfile' in cmd:
-                        self.saved_files.append(params[0])
-                        self.queue.append('savedfile')
+                    if 'donemoving' in cmd:
+                        self.queue.append('donemoving')
+        self.cmdfiles0=list(self.cmdfiles)
                         
                         
 class SpecListener(Listener):
@@ -3223,8 +3259,12 @@ class SpecListener(Listener):
                                 print('Ignoring an error in Listener when I make a new error dialog')
                     elif 'rmsuccess' in cmd:
                         self.queue.append('rmsuccess')
+    
                     elif 'rmfailure' in cmd:
                         self.queue.append('rmfailure')
+                        
+
+                        
                     elif 'unexpectedfile' in cmd:
                         if self.new_dialogs:
                             try:
@@ -3274,11 +3314,50 @@ def numbers_only(input):
             output+=digit
     return output
     
-
-class SpecCommander():
-    def __init__(self,write_command_loc):
+class Commander():
+    def __init__(self, write_command_loc):
         self.write_command_loc=write_command_loc
         self.cmdnum=0
+        
+    def send(self,filename):
+        try:
+            file=open(self.write_command_loc+filename,'w')
+        except OSError as e:
+            if e.errno==22:
+                pass
+            else:
+                raise e
+        except Exception as e:
+            raise e
+        
+    def encrypt(self,cmd,parameters=[]):
+        filename=cmd+str(self.cmdnum)
+        self.cmdnum+=1
+        print(filename)
+        for param in parameters:
+            param=param.replace('/','+')
+            param=param.replace('\\','+')
+            param=param.replace(':','=')
+            filename=filename+'&'+param
+        return filename
+    
+class PiCommander(Commander):
+    def __init__(self,write_command_loc):
+        super().__init__(write_command_loc)
+    
+    def move_arms(self, incidence,emission):
+        filename=self.encrypt('movearms',[incidence,emission])
+        self.send(filename)
+        return filename
+        
+    def move_tray(self):
+        filename=self.encrypt('movetray',[])
+        self.send(filename)
+    
+
+class SpecCommander(Commander):
+    def __init__(self,write_command_loc):
+        super().__init__(write_command_loc)
     
     def take_spectrum(self, path, basename, num):
         filename=self.encrypt('spectrum',[path,basename,num])
@@ -3312,7 +3391,7 @@ class SpecCommander():
         self.send(filename)
         return filename
 
-    def listcontents(self,parent):
+    def list_contents(self,parent):
         filename=self.encrypt('listcontents',parameters=[parent])
         self.send(filename)
         return filename
@@ -3341,27 +3420,7 @@ class SpecCommander():
         filename=self.encrypt('process',[input_dir,output_dir,output_file])
         self.send(filename)
 
-    def send(self,filename):
-        try:
-            file=open(self.write_command_loc+filename,'w')
-        except OSError as e:
-            if e.errno==22:
-                pass
-            else:
-                raise e
-        except Exception as e:
-            raise e
-        
-    def encrypt(self,cmd,parameters=[]):
-        filename=cmd+str(self.cmdnum)
-        self.cmdnum+=1
-        print(filename)
-        for param in parameters:
-            param=param.replace('/','+')
-            param=param.replace('\\','+')
-            param=param.replace(':','=')
-            filename=filename+'&'+param
-        return filename
+
 
 
 if __name__=='__main__':
