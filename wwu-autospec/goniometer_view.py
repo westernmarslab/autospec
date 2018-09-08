@@ -107,8 +107,8 @@ class View(threading.Thread):
         pass
 class TestView():
     def __init__(self,controller):
-        self.width=1000
-        self.height=650
+        self.width=1800
+        self.height=1200
         self.controller=controller
         self.master=self.controller.master
         self.embed = Frame(self.master, width=self.width, height=self.height,bg=self.controller.bg)
@@ -167,8 +167,8 @@ class TestView():
         pygame.display.flip()
         
     def draw_circle(self,width,height):
-        # self.width=width
-        # self.height=height
+        self.width=width
+        self.height=height
         #self.double_embed.configure(width=width, height=height)
         #self.screen = pygame.display.set_mode((self.width,self.height), pygame.RESIZABLE)#self.width,self.height))
         #self.screen=pygame.display.set_mode((self.width,self.height))
@@ -220,13 +220,16 @@ class TestView():
         self.screen.blit(e_text,(x_d_text,y_d_text))
         #pygame.draw.circle(self.screen, 'black', pivot, back_radius=200)
         
-        pygame.draw.rect(self.screen,pygame.Color('darkgray'),(2,2,self.width-4,self.height-3),2)
+        #border around screen
+        pygame.draw.rect(self.screen,pygame.Color('green'),(2,2,self.width-4,self.height-3),2)
 
-        pygame.display.update()
+
+        #pygame.display.update()
         #self. master.update()
         
         
-        pygame.display.flip()
+        #pygame.display.flip()
+        
         # self.screen.fill((255,255,255))
 
         #   for i in range(100):

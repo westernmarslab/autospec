@@ -939,9 +939,7 @@ class Controller():
 
         self.test_view.draw_circle(1000,700)
 
-        self.log('Spec compy connected.')
-        self.log('Raspberry pi connected.')
-        
+
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
         thread = Thread(target =self.bind)
         thread.start()
@@ -950,9 +948,15 @@ class Controller():
         #self.view.join()
         
     def bind(self):
-        self.test_view.flip()
-        time.sleep(1)
+        #self.test_view.flip()
+        time.sleep(0.25)
         self.master.bind("<Configure>", self.resize)
+        window=PretendEvent(self.master,self.master.winfo_height(),self.master.winfo_width())
+        self.resize(window)
+        self.log('Spec compy connected.')
+        self.log('Raspberry pi connected.')
+        
+        #self.master.configure(width=1300, height=800)
 
     def on_closing(self):
         self.test_view.quit()
@@ -1905,25 +1909,42 @@ class Controller():
     def refresh(self):
         time.sleep(0.25)
         self.test_view.flip()
+        self.master.update()
             
     def resize(self,window):
-        try:
-            c_height=self.console_frame.winfo_height()
-            width=self.console_frame.winfo_width()
-            g_height=self.test_view.double_embed.winfo_height()
-            if c_height<int(window.height/3)-10:
-                print('resize!')
-                self.test_view.double_embed.configure(height=int(2*window.height/3))
-                self.console_frame.configure(height=int(window.height/3)+10)
-            
-            thread = Thread(target =self.refresh)
-            thread.start()
-            self.test_view.draw_circle(width-10,int(2*window.height/3)-10)
-            self.test_view.flip()
-            ready=True
-        except AttributeError:
-            pass
-            
+        if window.widget==self.master:
+            try:
+                print(window.width)
+                c_height=self.console_frame.winfo_height()
+                width=self.console_frame.winfo_width()
+                print(width)
+                g_height=self.test_view.double_embed.winfo_height()
+                if c_height<int(window.height/3)-10:
+                    print('resize!')
+                    self.test_view.double_embed.configure(height=int(2*window.height/3))
+                    self.console_frame.configure(height=int(window.height/3)+10)
+                elif c_height>int(window.height/3)+10:
+                    print('resize!')
+                    self.test_view.double_embed.configure(height=int(2*window.height/3))
+                    self.console_frame.configure(height=int(window.height/3)-10)
+                    
+                if width<window.width-300:
+                    print('not wide enough!')
+                    self.test_view.double_embed.configure(width=window.width-290)
+                    self.console_frame.configure(width=window.width-290)
+                elif width>window.width-290:
+                    print('too wide!')
+                    self.test_view.double_embed.configure(width=window.width-300)
+                    self.console_frame.configure(width=window.width-300)
+                thread = Thread(target =self.refresh)
+                thread.start()
+                self.test_view.draw_circle(width-10,int(2*window.height/3)-10)
+                self.test_view.flip()
+            except AttributeError:
+                pass
+            except ValueError:
+                pass
+
     def finish_move(self):
         self.test_view.draw_circle()
         
@@ -3513,6 +3534,12 @@ class ConnectionChecker():
         
     def no_dialog(self):
         pass
+        
+class PretendEvent():
+    def __init__(self, widget, width, height):
+        self.widget=widget
+        self.width=width
+        self.height=height
 
 class SpecConnectionChecker(ConnectionChecker):
     def __init__(self,dir,thread,controller=None, func=None):
