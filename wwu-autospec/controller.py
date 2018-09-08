@@ -127,7 +127,7 @@ elif computer=='new':
     #Number of digits in spectrum number for spec save config
     NUMLEN=5
     #Time added to timeouts to account for time to read/write files
-    BUFFER=10
+    BUFFER=15
     server='geol-chzc5q2' #new computer
 
 pi_server='hozapi'
@@ -186,95 +186,15 @@ def retry_func():
      
  
 
-class ConnectionChecker():
-    def __init__(self,dir,thread,controller=None, func=None):
-        self.thread=thread
-        self.dir=dir
-        self.controller=controller
-        self.func=func
-        self.busy=False
-    def alert_lost_connection(self, signum=None, frame=None):
-        buttons={
-            'retry':{
-                self.release:[],
-                self.check_connection:[False]
-                },
-            'exit':{
-                exit_func:[]
-            }
-        }
-        dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
 
-    def alert_not_connected(self, signum=None, frame=None):
-        buttons={
-            'retry':{
-                self.release:[],
-                self.check_connection:[True]
-                
-                },
-            'exit':{
-                exit_func:[]
-            }
-        }
-        dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: No connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nserver is mounted on your computer',buttons=buttons)
-    def have_internet(self):
-        conn = httplib.HTTPConnection("www.google.com", timeout=5)
-        try:
-            conn.request("HEAD", "/")
-            conn.close()
-            return True
-        except:
-            conn.close()
-            return False
-    
-    def check_connection(self,firstconnection, attempt=0):
-        if self.busy:
-            return
-
-            
-        self.busy=True
-        connected=True
-        if self.have_internet()==False:
-            connected=False
-        else: 
-            connected=os.path.isdir(self.dir)
-        
-        # This code doesn't work on windows.
-        # if self.thread=='main':
-        #     signal.signal(signal.SIGALRM, self.alert_not_connected)
-        #     signal.alarm(2)
-        #     # This may take a while to complete
-        #     connected = os.path.isdir(self.dir)
-        #     signal.alarm(0)          # Disable the alarm
-
-        #   else:
-        #     if self.have_internet()==False:
-        #         connected=False
-        #     else: 
-        #         connected=os.path.isdir(self.dir)
-                
-        if connected==False:
-            #For some reason reconnecting only seems to work on the second attempt. This seems like a pretty poor way to handle that, but I just call check_connection twice if it fails the first time.
-            if attempt>0 and firstconnection==True:
-                self.alert_not_connected(None, None)
-            elif attempt>0 and firstconnection==False:
-                self.alert_lost_connection(None, None)
-            else:
-                time.sleep(0.5)
-                self.release()
-                self.check_connection(firstconnection, attempt=1)
-        else:
-            if self.func !=None:
-                self.func()
-            self.release()
-            return True
-    def release(self):
-        self.busy=False
 
 def main():
     #Check if you are connected to the server. 
-    connection_checker=ConnectionChecker(spec_read_loc, thread='main', func=None)
-    connection_checker.check_connection(True)
+    spec_connection_checker=SpecConnectionChecker(spec_read_loc, thread='main', func=None)
+    spec_connection_checker.check_connection(True)
+    
+    pi_connection_checker=PiConnectionChecker(pi_read_loc, thread='main',func=None)
+    pi_connection_checker.check_connection(True)
 
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
     delme=os.listdir(spec_write_loc)
@@ -300,9 +220,9 @@ def main():
 
 class Controller():
     def __init__(self, spec_listener, pi_listener,spec_share_loc, spec_read_loc, spec_write_loc, pi_write_loc,config_loc, data_share_loc,opsys,icon):
-        self.listener=spec_listener
-        self.listener.set_controller(self)
-        self.listener.start()
+        self.spec_listener=spec_listener
+        self.spec_listener.set_controller(self)
+        self.spec_listener.start()
         
         self.pi_listener=pi_listener
         self.pi_listener.set_controller(self)
@@ -315,7 +235,7 @@ class Controller():
         self.pi_write_loc=pi_write_loc
         self.spec_commander=SpecCommander(self.spec_write_loc)
         self.pi_commander=PiCommander(self.pi_write_loc)
-        self.remote_directory_worker=RemoteDirectoryWorker(self.spec_commander, self.spec_read_loc, self.listener)
+        self.remote_directory_worker=RemoteDirectoryWorker(self.spec_commander, self.spec_read_loc, self.spec_listener)
         
         self.config_loc=config_loc
         self.opsys=opsys
@@ -324,8 +244,11 @@ class Controller():
         
         #The queue is a list of dictionaries commands:parameters
         #The commands are supposed to be executed in order, assuming each one succeeds.
-        #Wait dialogs tell the controller when it's time to do the next one
+        #CommandHandlers tell the controller when it's time to do the next one
         self.queue=[]
+        
+        #One wait dialog open at a time. CommandHandlers check whether to use an existing one or make a new one.
+        self.wait_dialog=None
         
         #These will get set via user input.
         self.spec_save_path=''
@@ -371,9 +294,13 @@ class Controller():
         #Tkinter notebook GUI
         self.master=Tk()
         self.master.configure(background = self.bg)
+
         self.master.title('Control')
+        self.master.minsize(1050,750)
         self.tk_master=self.master #this gets used when deciding whether to open a new master when giving a no connection dialog or something. I can't remember. 
-        self.notebook=ttk.Notebook(self.master)
+        self.notebook_frame=Frame(self.master)
+        self.notebook_frame.pack(side=LEFT,fill=BOTH, expand=True)
+        self.notebook=ttk.Notebook(self.notebook_frame)
         
         #view_frame=Frame(self.master)
         self.test_view=TestView(self)
@@ -381,12 +308,6 @@ class Controller():
         #The plotter, surprisingly, plots things.
         self.plotter=Plotter(self.master)
         
-        #The view displays what the software thinks the goniometer is up to.
-        #self.view=View(self.master)
-        #self.view.start()
-    
-        #The model keeps track of the goniometer state and sends commands to the raspberry pi and spectrometer (no it doesn't)
-        #self.model=Model(self.view, self.plotter, self.write_command_loc, False, False)
         
         #The commander is in charge of sending all the commands for the spec compy to read
 
@@ -424,8 +345,9 @@ class Controller():
                 self.spec_startnum='0'
                 while len(self.spec_startnum)<NUMLEN:
                     self.spec_startnum='0'+self.spec_startnum
-
+        self.notebook_frames=[]
         self.control_frame=Frame(self.notebook, bg=self.bg)
+        self.notebook_frames.append(self.control_frame)
         self.control_frame.pack()
         self.save_config_frame=Frame(self.control_frame,bg=self.bg,highlightthickness=1)
         self.save_config_frame.pack(fill=BOTH,expand=True)
@@ -657,7 +579,7 @@ class Controller():
         self.action_button_frame.pack()
         
         button_width=20
-        self.opt_button=Button(self.action_button_frame, fg=self.textcolor,text='Optimize', padx=self.padx, pady=self.pady,width=self.button_width, bg='light gray', command=self.opt, height=2)
+        self.opt_button=Button(self.action_button_frame, fg=self.textcolor,text='Optimize', padx=self.padx, pady=self.pady,width=self.button_width, bg='light gray', command=self.opt_button_cmd, height=2)
         self.opt_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.opt_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
         self.wr_button=Button(self.action_button_frame, fg=self.textcolor,text='White Reference', padx=self.padx, pady=self.pady, width=self.button_width, bg='light gray', command=self.wr_button_cmd, height=2)
@@ -971,6 +893,7 @@ class Controller():
         #************************Console********************************
         self.console_frame=Frame(self.test_view.embed, bg=self.border_color, height=200, highlightthickness=2,highlightcolor=self.bg)
         self.console_frame.pack(fill=BOTH, expand=True, padx=(1,1))
+        #self.console_frame.configure(height=400)
         self.console_title_label=Label(self.console_frame,padx=self.padx,pady=self.pady,bg=self.border_color,fg='black',text='Console',font=("Helvetica", 11))
         self.console_title_label.pack(pady=(5,5))
         self.text_frame=Frame(self.console_frame)
@@ -1007,18 +930,30 @@ class Controller():
         
 
         #test=TestView(self.master)
-        frame=Frame(self.control_frame)
-        frame.pack()
-        button=Button(frame, text=':D',command=self.test_view.draw_circle)
-        button.pack()
+        # frame=Frame(self.control_frame)
+        # frame.pack()
+        # button=Button(frame, text=':D',command=self.test_view.draw_circle)
+        # button.pack()
         #test_view.run()
-        self.test_view.draw_circle()
 
 
+        self.test_view.draw_circle(1000,700)
+
+        self.log('Spec compy connected.')
+        self.log('Raspberry pi connected.')
+        
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
+        thread = Thread(target =self.bind)
+        thread.start()
         self.master.mainloop()
         
         #self.view.join()
+        
+    def bind(self):
+        self.test_view.flip()
+        time.sleep(1)
+        self.master.bind("<Configure>", self.resize)
+
     def on_closing(self):
         self.test_view.quit()
         self.master.destroy()
@@ -1329,7 +1264,7 @@ class Controller():
             return
             
         self.spec_commander.optimize()
-        waitdialog=WaitForOptDialog(self)
+        handler=OptHandler(self)
 
     def test(self,arg=False):
         print(arg)
@@ -1381,18 +1316,21 @@ class Controller():
     #Check that all input is valid, the save configuration is set, and the instrument is configured.
     #This gets called once when the user clicks something, but not for subsequent actions.
     def setup(self, nextaction):
+
         self.check_logfile()
         
         #Set all entries to active
         self.active_incidence_entries=list(self.incidence_entries)
         self.active_emission_entries=list(self.emission_entries)
         self.active_i_e_pair_frames=list(self.i_e_pair_frames)
+
         
         #Requested save config is guaranteed to be valid because of input checks above.
         save_config_status=self.check_save_config()
         if self.check_save_config()=='not_set':
             self.complete_queue_item()
             self.queue.insert(0,nextaction)
+            self.queue.insert(0,{self.set_save_config:[]})
             self.set_save_config()#self.take_spectrum,[True])
             return False
 
@@ -1401,6 +1339,7 @@ class Controller():
         if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
             self.complete_queue_item()
             self.queue.insert(0,nextaction)
+            self.queue.insert(0,{self.configure_instrument:[]})
             self.configure_instrument()
             return False
             
@@ -1417,8 +1356,6 @@ class Controller():
     #Action will be either wr or take a spectrum
     def acquire(self, override=False, setup_complete=False, action=None):
         print('Acquiring!')
-        for item in self.queue:
-            print('\t'+str(item))
         if action==None:
             action=self.acquire
             self.queue.append({self.acquire:[]})
@@ -1457,17 +1394,17 @@ class Controller():
                 startnum_str='0'+startnum_str
             
             self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str)
-            waitdialog=WaitForSpectrumDialog(self)
+            handler=SpectrumHandler(self)
             
         elif action==self.wr:
             self.spec_commander.white_reference()
-            waitdialog=WaitForWRDialog(self)
+            handler=WhiteReferenceHandler(self)
             
         elif action==self.acquire:
         
             self.build_queue()
             self.pi_commander.move_arms(self.active_incidence_entries[0].get(),self.active_emission_entries[0].get())
-            wait_dialog=WaitForMotorsDialog(self,label='Moving goniometer arms...')
+            handler=MotionHandler(self,label='Moving goniometer arms...')
             # dict=self.queue[0]
             # for func in dict:
             #     args=dict[func]
@@ -1477,16 +1414,14 @@ class Controller():
         self.active_emission_entries.pop(0)
         self.active_incidence_entries.pop(0)
         self.active_i_e_pair_frames.pop(0)
-        #etc
-        self.console_log.insert(END,'\nMoving arms!'+'\n')
+
         self.pi_commander.move_arms(self.active_incidence_entries[0].get(),self.active_emission_entries[0].get())
-        wait_dialog=WaitForMotorsDialog(self,label='Moving goniometer arms...')
+        handler=MotionHandler(self,label='Moving goniometer arms...')
         
             
     def move_tray(self):
-        self.console_log.insert(END,'\n\nMoving a tray\n')
         self.pi_commander.move_tray()
-        wait_dialog=WaitForMotorsDialog(self,label='Moving sample tray...')
+        handler=MotionHandler(self,label='Moving sample tray...')
         
     def build_queue(self):
         self.queue=[]
@@ -1494,16 +1429,15 @@ class Controller():
         if self.individual_range.get()==0:
             #For each (i, e), opt, white reference, save the white reference, move the tray, take a  spectrum, then move the tray back, then update geom to next.
             for entry in self.incidence_entries:
-                self.queue.append({self.move_tray:[]})
+                self.queue.append({self.next_geom:{}})
                 self.queue.append({self.opt:[]})
                 self.queue.append({self.wr:[True,True]})
                 self.queue.append({self.take_spectrum:[True,True]})
                 self.queue.append({self.move_tray:[]})
                 self.queue.append({self.take_spectrum:[True,True]})
-                self.queue.append({self.next_geom:{}})
-                
-            #remove the last call to update geometry
-            self.queue.pop(-1)
+                self.queue.append({self.delete_placeholder_spectrum:[]})
+                self.queue.append({self.take_spectrum:[True,True]})
+                self.queue.append({self.move_tray:[]})
             
     def spec_button_cmd(self):
         self.queue=[]
@@ -1518,6 +1452,11 @@ class Controller():
         self.queue.append({self.wr:[False,False]})
         self.queue.append({self.take_spectrum:[True,True]})
         self.wr()
+        
+    def opt_button_cmd(self):
+        self.queue=[]
+        self.queue.append({self.opt:[]})
+        self.opt()
         
     def wr(self, override=False, setup_complete=False):
         
@@ -1534,18 +1473,15 @@ class Controller():
     def check_connection(self):
         self.connection_checker.check_connection(False)
     
-    def configure_instrument(self):#,buttons):
+    def configure_instrument(self):
         self.spec_commander.configure_instrument(self.instrument_config_entry.get())
-        #self.model.configure_instrument(self.instrument_config_entry.get())
+        handler=InstrumentConfigHandler(self)
         
-        #This is a bit weird because the buttons here aren't actually buttons, they are functions to be executed.
-        waitdialog=WaitForConfigDialog(self)#, buttons=buttons)
-        
-    def set_save_config(self):#, func, args):
+    def set_save_config(self):
         def inner_mkdir(dir):
             status=self.remote_directory_worker.mkdir(dir)
             if status=='mkdirsuccess':
-                self.set_save_config(func, args)
+                self.set_save_config(args)
             elif status=='mkdirfailedfileexists':
                 dialog=ErrorDialog(self,title='Error',label='Could not create directory:\n\n'+dir+'\n\nFile exists.')
             elif status=='mkdirfailed':
@@ -1574,11 +1510,11 @@ class Controller():
             
         t=2*BUFFER
         while t>0:
-            if 'yeswriteable' in self.listener.queue:
-                self.listener.queue.remove('yeswriteable')
+            if 'yeswriteable' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('yeswriteable')
                 break
-            elif 'notwriteable' in self.listener.queue:
-                self.listener.queue.remove('notwriteable')
+            elif 'notwriteable' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('notwriteable')
                 dialog=ErrorDialog(self, label='Error: Permission denied.\nCannot write to specified directory.')
                 return
             time.sleep(INTERVAL)
@@ -1592,13 +1528,8 @@ class Controller():
         while len(spec_num)<NUMLEN:
             spec_num='0'+spec_num
         self.spec_commander.set_save_path(self.spec_save_dir_entry.get(), self.spec_basename_entry.get(), self.spec_startnum_entry.get())
-        #self.model.set_save_path(self.spec_save_dir_entry.get(), self.spec_basename_entry.get(), self.spec_startnum_entry.get())
-        # buttons={
-        #     'success':{
-        #         func:args
-        #     }
-        # }
-        waitdialog=WaitForSaveConfigDialog(self)#, buttons=buttons)
+
+        handler=SaveConfigHandler(self)
             
             
     def increment_num(self):
@@ -1639,8 +1570,9 @@ class Controller():
             self.plot_input_dir_entry.delete(0,'end')
             plot_file=self.output_dir_entry.get()+'\\'+output_file
             self.plot_input_dir_entry.insert(0,plot_file)
-            
-        process_dialog=WaitForProcessDialog(self)
+           
+        self.queue.insert(0,{self.process_cmd:[]})
+        process_handler=ProcessHandler(self)
             
     def plot(self):
         filename=self.plot_input_dir_entry.get()
@@ -1653,12 +1585,12 @@ class Controller():
 
             t=3*BUFFER
             while True:
-                if 'datacopied' in self.listener.queue:
-                    self.listener.queue.remove('datacopied')
+                if 'datacopied' in self.spec_listener.queue:
+                    self.spec_listener.queue.remove('datacopied')
                     filename=self.spec_share_loc+'temp.tsv'
                     break
-                elif 'datafailure' in self.listener.queue:
-                    self.listener.queue.remove('datafailure')
+                elif 'datafailure' in self.spec_listener.queue:
+                    self.spec_listener.queue.remove('datafailure')
                     dialog=ErrorDialog(self,label='Error: Failed to acquire data.\nDoes the file exist? Do you have permission to use it?')
                     return
                 time.sleep(INTERVAL)
@@ -1970,20 +1902,73 @@ class Controller():
             args=dict[func]
             func(*args)
             
+    def refresh(self):
+        time.sleep(0.25)
+        self.test_view.flip()
+            
+    def resize(self,window):
+        try:
+            c_height=self.console_frame.winfo_height()
+            width=self.console_frame.winfo_width()
+            g_height=self.test_view.double_embed.winfo_height()
+            if c_height<int(window.height/3)-10:
+                print('resize!')
+                self.test_view.double_embed.configure(height=int(2*window.height/3))
+                self.console_frame.configure(height=int(window.height/3)+10)
+            
+            thread = Thread(target =self.refresh)
+            thread.start()
+            self.test_view.draw_circle(width-10,int(2*window.height/3)-10)
+            self.test_view.flip()
+            ready=True
+        except AttributeError:
+            pass
+            
+    def finish_move(self):
+        self.test_view.draw_circle()
+        
+
+            
+            
     def complete_queue_item(self):
         self.queue.pop(0)
+
+    def delete_placeholder_spectrum(self):
+        
+        lastnumstr=str(int(self.spec_startnum_entry.get())-1)
+        while len(lastnumstr)<NUMLEN:
+            lastnumstr='0'+lastnumstr
+            
+        self.spec_commander.delete_spec(self.spec_save_dir_entry.get(),self.spec_basename_entry.get(),lastnumstr)
+        
+        t=BUFFER
+        while t>0:
+            if 'rmsuccess' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('rmsuccess')
+                self.log('\nRemoved placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd.')
+                break
+            elif 'rmfailure' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('rmfailure')
+                self.log('\nError: Failed to remove placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd. This data is likely garbage.')
+                break
+            t=t-INTERVAL
+            time.sleep(INTERVAL)
+        if t<=0:
+            self.log('\nError: Operation timed out removing placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd. This data is likely garbage.')
+        self.complete_queue_item()
+        self.next_in_queue()
         
     def rm_current(self):
         self.spec_commander.delete_spec(self.spec_save_dir_entry.get(),self.spec_basename_entry.get(),self.spec_startnum_entry.get())
 
         t=BUFFER
         while t>0:
-            if 'rmsuccess' in self.listener.queue:
-                self.listener.queue.remove('rmsuccess')
+            if 'rmsuccess' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('rmsuccess')
 
                 return True
-            elif 'rmfailure' in self.listener.queue:
-                self.listener.queue.remove('rmfailure')
+            elif 'rmfailure' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('rmfailure')
                 return False
             t=t-INTERVAL
             time.sleep(INTERVAL)
@@ -2000,6 +1985,43 @@ class Controller():
                 file=askopenfilename(initialdir=os.getcwd(),title='Select a file to plot')
             self.plot_input_dir_entry.delete(0,'end')
             self.plot_input_dir_entry.insert(0, file)
+            
+    def log(self, info_string, write_to_file=False):
+        self.master.update()
+        space=self.console_log.winfo_width()
+        space=str(int(space/8.5))
+        if int(space)<20:
+            space=str(20)
+        datestring=''
+        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
+        for d in datestringlist:
+            datestring=datestring+d
+            
+        while info_string[0]=='\n':
+            info_string=info_string[1:]
+            
+        if '\n' in info_string:
+            lines=info_string.split('\n')
+
+            lines[0]=('{1:'+space+'}{0}').format(datestring,lines[0])
+            for i in range(len(lines)):
+                if i==0:
+                    continue
+                else:
+                    lines[i]=('{1:'+space+'}{0}').format('',lines[i])
+            info_string='\n'.join(lines)
+        else:
+            info_string=('{1:'+space+'}{0}').format(datestring,info_string)
+            
+        if info_string[-2:-1]!='\n':
+            info_string+='\n'
+
+        self.console_log.insert(END,info_string+'\n')
+        self.console_log.see(END)
+        if write_to_file:
+            with open(self.log_filename,'a') as log:
+                log.write(info_string)
+                
         
 
     
@@ -2048,7 +2070,6 @@ class Dialog:
                 self.top = tk.Toplevel(controller.master, bg=self.bg)
             else:
                 self.top=tk.Toplevel(controller.master, width=width, height=height, bg=self.bg)
-                self.top.pack_propagate(0)
                 
             #self.controller.master.iconify() 
             if self.grab:
@@ -2089,17 +2110,6 @@ class Dialog:
         if log_string != None and self.controller!=None:
             self.log(log_string)
             #self.controller.console_log.insert(END, info_string)
-
-    def log(self, info_string):
-        datestring=''
-        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
-        for d in datestringlist:
-            datestring=datestring+d
-            
-        if info_string[-2:-1]!='\n':
-            info_string+='\n'
-        info_string=datestring+': '+info_string
-        self.controller.console_log.insert(END,info_string+'\n')
         
     def set_buttons(self, buttons, button_width=None):
         self.buttons=buttons
@@ -2198,12 +2208,54 @@ class Dialog:
     def work_offline(self):
         dict=self.buttons['work offline']
         self.execute(dict)
-
-
+        
 class WaitDialog(Dialog):
-    def __init__(self, controller, title='Working...', label='Working...', buttons={}, timeout=30):
+    def __init__(self, controller, title='Working...', label='Working...', buttons={}):
         super().__init__(controller, title, label,buttons,width=400, height=150, allow_exit=False)
-        self.listener=self.controller.listener
+        
+        self.frame=Frame(self.top, bg=self.bg, width=200, height=30)
+        self.frame.pack()
+  
+        style=ttk.Style()
+        style.configure('Horizontal.TProgressbar', background='white')
+        self.pbar = ttk.Progressbar(self.frame, mode='indeterminate', name='pb2', style='Horizontal.TProgressbar' )
+        self.pbar.start([10])
+        self.pbar.pack(padx=(10,10),pady=(10,10))
+        
+    #replace with interrupt('Error: Operation timed out')
+    # def timeout()
+    #     self.pbar.stop()
+    #     self.dialog.set_buttons({'ok':{}})
+    
+    def close(self):
+        self.top.destroy()
+        
+    def interrupt(self,label):
+        self.set_label_text(label)
+        self.pbar.stop()
+        self.set_buttons({'ok':{}})
+        
+    def reset(self, title='Working...', label='Working...', buttons={}):
+        self.set_label_text(label)
+        self.set_buttons(buttons)
+        self.set_title(title)
+        self.pbar.start([10])
+
+class CommandHandler():
+    def __init__(self, controller, title='Working...', label='Working...', buttons={}, timeout=30):
+        self.controller=controller
+        self.label=label
+        self.title=title
+        #Either update the existing wait dialog, or make a new one.
+        if label=='test':
+            print('testy test!')
+        try:
+            self.controller.wait_dialog.reset(title=title, label=label, buttons=buttons)
+            print('reset from handler!')
+        except:
+            print('new wait dialog!')
+            self.controller.wait_dialog=WaitDialog(controller,title,label)
+        self.wait_dialog=self.controller.wait_dialog
         
         #We'll keep track of elapsed time so we can cancel the operation if it takes too long
         self.t0=time.clock()
@@ -2216,21 +2268,13 @@ class WaitDialog(Dialog):
         self.fileexists=False
 
         
-        self.frame=Frame(self.top, bg=self.bg, width=200, height=30)
-        self.frame.pack()
-  
-        style=ttk.Style()
-        style.configure('Horizontal.TProgressbar', background='white')
-        self.pbar = ttk.Progressbar(self.frame, mode='indeterminate', name='pb2', style='Horizontal.TProgressbar' )
-        self.pbar.start([10])
-        self.pbar.pack(padx=(10,10),pady=(10,10))
+
         
         #A Listener object is always running a loop in a separate thread. It  listens for files dropped into a command folder and changes its attributes based on what it finds.
-        self.listener=self.controller.listener
         self.timeout_s=timeout
         
 
-        #Start the wait function, which will watch the listener to see what attributes change and react accordingly.
+        #Start the wait function, which will watch the listener to see what attributes change and react accordingly. If this isn't in its own thread, the dialog box doesn't pop up until after it completes.
         thread = Thread(target =self.wait)
         thread.start()
         
@@ -2250,60 +2294,75 @@ class WaitDialog(Dialog):
                 self.timeout()
             time.sleep(1)
                
-    def timeout(self, log_string=None):
+    def timeout(self, log_string=None, retry=True):
         if log_string==None:
-            self.set_label_text('Error: Operation timed out', log_string='Error: Operation timed out')
+            self.controller.log('Error: Operation timed out')
         else:
-            self.set_label_text('Error: Operation timed out',log_string=log_string)
-        self.pbar.stop()
-        self.set_buttons({'ok':{}})
-        
+            self.controller.log(log_string)
+            
+        self.wait_dialog.interrupt('Error: Operation timed out')
+        if retry:
+            buttons={
+                'retry':{
+                    self.controller.next_in_queue:[]
+                },
+                'cancel':{}
+            }
+            self.wait_dalog.set_buttons(buttons)
+
+    #delme
     def finish(self):
-        self.top.destroy()
+        self.wait_dialog.close()
         
+
+    #delme
     def cancel(self):
         self.canceled=True
         
-    def interrupt(self,label, info_string=None):
+    def interrupt(self,label, info_string=None, retry=False):
         self.allow_exit=True
-        self.interrupted=True
-        self.set_label_text(label)
-        self.pbar.stop()
-        self.set_buttons({'ok':{}})
+        self.interrupted=True #delme
+        self.wait_dialog.interrupt(label)
         if info_string!=None:
             self.log(info_string)
-                
-    def send(self):
-        global username
-        username = self.myEntryBox.get()
-        self.top.destroy()
+        if retry:
+            buttons={
+                'retry':{
+                    self.controller.next_in_queue:[]
+                },
+                'cancel':{}
+            }
+            self.wait_dalog.set_buttons(buttons)
+
         
     def remove_retry(self):
-
         removed=self.controller.rm_current()
         if removed: 
-            self.log('Warning: overwriting data.')
+            self.controller.log('Warning: overwriting data.')
+            
+            #If we are retrying taking a spectrum or white references, don't do input checks again.
+            if self.controller.take_spectrum in self.controller.queue[0]:
+                self.controller.queue[0]={self.controller.take_spectrum:[True,True]}
+            elif self.controller.wr in self.controller.queue[0]:
+                self.controller.queue[0]={self.controller.wr:[True,True]}
             self.controller.next_in_queue()
         else:
             dialog=ErrorDialog(self.controller,label='Error: Failed to remove file. Choose a different base name,\nspectrum number, or save directory and try again.')
             self.set_buttons({'ok':{}})
             
     def success(self,close=True):
+        
+        self.controller.complete_queue_item()
+        
         if len(self.controller.queue)>0:
             self.controller.next_in_queue()
-            if close==True:
-                self.top.destroy()
         else:
-            try:
-                self.interrupt('Success!')
-            except:
-                print('I guess the dialog was closed?')
+            self.interrupt('Success!')
 
-class WaitForConfigDialog(WaitDialog):
-    def __init__(self, controller, title='Configuring instrument...', label='Configuring instrument...', buttons={}, timeout=20):
+class InstrumentConfigHandler(CommandHandler):
+    def __init__(self, controller, title='Configuring instrument...', label='Configuring instrument...', timeout=20):
+        self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=timeout)
-        self.loc_buttons=buttons
-        self.listener=self.controller.listener
 
     def wait(self):
         while self.timeout_s>0:
@@ -2313,58 +2372,48 @@ class WaitForConfigDialog(WaitDialog):
                 return
             elif 'iconfigfailure' in self.listener.queue:
                 self.listener.queue.remove('iconfigfailure')
-                self.failure()
+                self.interrupt('Error: Failed to configure instrument.',retry=True)
+                self.controller.log('Error: Failed to configure instrument.')
                 return
                 
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
         self.timeout()
-    def failure(self):
-        self.interrupt('Error: Failed to configure instrument.')
-        
+
     def success(self):
         self.controller.spec_config_count=self.controller.instrument_config_entry.get()
-        datestring=''
-        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
-        for d in datestringlist:
-            datestring=datestring+d
-        self.log('\n Instrument configured at '+datestring+ ' with '+str(self.controller.spec_config_count)+' spectra being averaged.')
 
-        # dict=self.loc_buttons['success']
-        # self.execute(dict)
-        super(WaitForConfigDialog, self).success()
+        self.controller.log('Instrument configured to average '+str(self.controller.spec_config_count)+' spectra.')
+
+        super(InstrumentConfigHandler, self).success()
         
-class WaitForOptDialog(WaitDialog):
-    def __init__(self, controller, title='Optimizing...', label='Optimizing...', buttons={'cancel':{}}):
-        timeout=int(controller.spec_config_count)/9+10+BUFFER
-        super().__init__(controller, title, label,timeout=2*timeout)
-        
-        if self.controller.spec_config_count!=None:
-            self.timeout_s=int(self.controller.spec_config_count*2)
+class OptHandler(CommandHandler):
+    def __init__(self, controller, title='Optimizing...', label='Optimizing...'):
+
+        if controller.spec_config_count!=None:
+            timeout_s=int(controller.spec_config_count)/9+10+BUFFER
         else:
-            self.timeout=1000
+            timeout_s=1000
+        self.listener=controller.spec_listener
+        super().__init__(controller, title, label,timeout=timeout_s)
 
     def wait(self):
         while self.timeout_s>0:
-            if 'nonumspectra' in self.controller.listener.queue:
+            if 'nonumspectra' in self.listener.queue:
                 self.listener.queue.remove('nonumspectra')
-                buttons={
-                    'success':{
-                        self.controller.opt:[]
-                    }
-                }
-                
-                self.controller.configure_instrument(buttons)
-                self.finish()
+                self.controller.queue.append(self.controller.configure_instrument)
+                self.controller.configure_instrument()
+                #self.finish()
                 return
                 
-            if 'optsuccess' in self.controller.listener.queue:
+            if 'optsuccess' in self.listener.queue:
                 self.listener.queue.remove('optsuccess')
                 self.success()
                 return
-            elif 'optfailure' in self.controller.listener.queue:
+            elif 'optfailure' in self.listener.queue:
                 self.listener.queue.remove('optfailure')
-                self.interrupt('Error: There was a problem with\noptimizing the instrument.',info_string='Error: There was a problem with optimizing the instrument')
+                self.interrupt('Error: There was a problem with\noptimizing the instrument.',retry=True)
+                self.controller.log('Error: There was a problem with optimizing the instrument.')
                 return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
@@ -2372,46 +2421,33 @@ class WaitForOptDialog(WaitDialog):
                 
     def success(self):
         self.controller.opt_time=int(time.time())
-        datestring=''
-        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
-        for d in datestringlist:
-            datestring=datestring+d
-        self.log('\n Instrument optimized at '+datestring+ '\n\ti='+self.controller.active_incidence_entries[0].get()+'\n\te='+self.controller.active_emission_entries[0].get())
-
-
-        self.controller.complete_queue_item()
-        super(WaitForOptDialog, self).success()
+        self.controller.log('Instrument optimized.')# \n\ti='+self.controller.active_incidence_entries[0].get()+'\n\te='+self.controller.active_emission_entries[0].get())
+        super(OptHandler, self).success()
 
         
-class WaitForWRDialog(WaitDialog):
+class WhiteReferenceHandler(CommandHandler):
     def __init__(self, controller, title='White referencing...',
-    label='White referencing...', buttons={'cancel':{}}):
+    label='White referencing...'):
         timeout_s=int(controller.spec_config_count)/9+6+BUFFER
+        self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=timeout_s)
-        self.loc_buttons=buttons
         
 
     def wait(self):
         while self.timeout_s>0:
-            if 'wrsuccess' in self.controller.listener.queue:
+            if 'wrsuccess' in self.listener.queue:
                 self.listener.queue.remove('wrsuccess')
                 self.success()
                 return
-            elif 'nonumspectra' in self.controller.listener.queue:
+            elif 'nonumspectra' in self.listener.queue:
                 self.listener.queue.remove('nonumspectra')
-                buttons={
-                    'success':{
-                        self.controller.wr:[True]
-                    }
-                }
-                
-                self.controller.configure_instrument(buttons)
-                self.finish()
+                self.controller.queue.append({self.controller.configure_instrument:[]})
+                self.controller.configure_instrument()
                 return
-            elif 'noconfig' in self.controller.listener.queue:
+            elif 'noconfig' in self.listener.queue:
                 self.listener.queue.remove('noconfig')
-                self.controller.set_save_config(self.controller.wr, [True])
-                self.finish()
+                self.controller.queue.append({self.controller.set_save_config:[]})
+                self.controller.set_save_config()
                 return
                 
             elif 'wrfailedfileexists' in self.listener.queue:
@@ -2425,7 +2461,7 @@ class WaitForWRDialog(WaitDialog):
                     }
                 }
                     
-                self.set_buttons(buttons,button_width=20)
+                self.wait_dialog.set_buttons(buttons,button_width=20)
                 return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
@@ -2433,45 +2469,37 @@ class WaitForWRDialog(WaitDialog):
                 
     def success(self):
         self.controller.wr_time=int(time.time())
-        datestring=''
-        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
-        for d in datestringlist:
-            datestring=datestring+d
-        # self.log('\n White reference saved at '+datestring+ '\n\ti='+self.controller.active_incidence_entries[0].get()+'\n\te='+self.controller.active_emission_entries[0].get())
-        
-        self.top.destroy()
-        
-
-        
-        self.controller.complete_queue_item()
-        super(WaitForWRDialog, self).success()
-
+        super(WhiteReferenceHandler, self).success()
             
-            
-class WaitForProcessDialog(WaitDialog):
-    def __init__(self, controller, title='Processing...', label='Processing...', buttons={'cancel':{}}):
+class ProcessHandler(CommandHandler):
+    def __init__(self, controller, title='Processing...', label='Processing...'):
+        self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=60+BUFFER)
 
     def wait(self):
         while self.timeout_s>0:
             if 'processsuccess' in self.listener.queue:
                 self.listener.queue.remove('processsuccess')
+                self.log('Files processed.\n\t'+self.controller.output_dir_entry.get()+'/'+self.controller.output_file_entry.get())
                 self.interrupt('Success!')
                 return
                 
             elif 'processerrorfileexists' in self.listener.queue:
                 self.controller.listener.queue.remove('processerrorfileexists')
                 self.interrupt('Error processing files: Output file already exists')
+                self.log('Error processing files: output file exists.')
                 return
                 
             elif 'processerrorwropt' in self.listener.queue:
                 self.listener.queue.remove('processerrorwropt')
                 self.interrupt('Error processing files.\nDid you optimize and white reference before collecting data?')
+                self.log('Error processing files')
                 return
                 
             elif 'processerror' in self.listener.queue:
                 self.listener.queue.remove('processerror')
                 self.interrupt('Error processing files.\nAre you sure directories exist?\n')
+                self.log('Error processing files')
                 return
                 
             time.sleep(INTERVAL)
@@ -2481,41 +2509,43 @@ class WaitForProcessDialog(WaitDialog):
         
         
         
-class WaitForMotorsDialog(WaitDialog):
+class MotionHandler(CommandHandler):
     def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}):
-        super().__init__(controller, title, label,timeout=60+BUFFER)
-        self.timeout_s=45
         self.listener=controller.pi_listener
+        super().__init__(controller, title, label,timeout=45+BUFFER)
+
 
     def wait(self):
         while self.timeout_s>0:
             if 'donemoving' in self.listener.queue:
-                print('done moving!')
                 self.listener.queue.remove('donemoving')
-                self.controller.complete_queue_item()
-                super(WaitForMotorsDialog,self).success()
+                self.success()
                 return
 
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
         
-        # print(self.controller.queue)
-        # self.controller.complete_queue_item()
-        # super(WaitForMotorsDialog,self).success()
         self.timeout()
         
+    def success(self):
+        if 'arms' in self.label:
+            self.controller.log('Goniometer arms moved.\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get())
+        elif 'tray' in self.label:
+            self.controller.log('Sample tray moved.')
+        else:
+            self.controller.log('Something moved! Who knows what?')
+        super(MotionHandler,self).success()
         
-class WaitForSaveConfigDialog(WaitDialog):
-    def __init__(self, controller, title='Setting Save Configuration...', label='Setting save configuration...', buttons={'cancel':{}}, timeout=30):
-        super().__init__(controller, title, label,timeout=timeout)
+        
+class SaveConfigHandler(CommandHandler):
+    def __init__(self, controller, title='Setting Save Configuration...', label='Setting save configuration...', timeout=30):
+        self.listener=controller.spec_listener
         self.keep_around=False
-        self.loc_buttons=buttons
         self.unexpected_files=[]
         self.listener.new_dialogs=False
-        self.timeout_s=20
+        super().__init__(controller, title, label=label,timeout=timeout)
         
     def wait(self):
-        #old_files=list(self.controller.listener.saved_files)
         t=30
         while 'donelookingforunexpected' not in self.listener.queue and t>0:
             t=t-INTERVAL
@@ -2524,13 +2554,14 @@ class WaitForSaveConfigDialog(WaitDialog):
             self.timeout()
             return
             
-        if len(self.controller.listener.unexpected_files)>0:
+        if len(self.listener.unexpected_files)>0:
             self.keep_around=True
             self.unexpected_files=list(self.listener.unexpected_files)
             self.listener.unexpected_files=[]
             
         self.listener.new_dialogs=True
         self.listener.queue.remove('donelookingforunexpected')
+
         
         while self.timeout_s>0:
             self.timeout_s-=INTERVAL
@@ -2539,24 +2570,25 @@ class WaitForSaveConfigDialog(WaitDialog):
                 self.success()
                 return
                 
-            elif 'saveconfigfailurefileexists' in self.listener.queue:
-                self.listener.queue.remove('saveconfigfailurefileexists')
+            elif 'saveconfigfailedfileexists' in self.listener.queue:
+                self.listener.queue.remove('saveconfigfailedfileexists')
                 self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
-                    
                 buttons={
                     'yes':{
                         self.remove_retry:[]
                     },
                     'no':{
+                        self.finish:[]
                     }
                 }
                     
-                self.set_buttons(buttons,button_width=20)
+                self.wait_dialog.set_buttons(buttons,button_width=20)
                 return
 
-            elif 'saveconfigfailure' in self.listener.queue:
-                self.listener.queue.remove('saveconfigfailure')
-                self.interrupt('Error: There was a problem with\nsetting the save configuration.\nIs the spectrometer connected?', info_string='Error: There was a problem with setting the save configuration\n')
+            elif 'saveconfigfailed' in self.listener.queue:
+                self.listener.queue.remove('saveconfigfailed')
+                self.interrupt('Error: There was a problem with\nsetting the save configuration.\nIs the spectrometer connected?',retry=True)
+                self.log('Error: There was a problem setting the save configuration.')
                 self.controller.spec_save_path=''
                 self.controller.spec_basename=''
                 self.controller.spec_num=None
@@ -2564,7 +2596,7 @@ class WaitForSaveConfigDialog(WaitDialog):
                 
             time.sleep(INTERVAL)
             
-        self.timeout(log_string='Error: Operation timed out while waiting to set save configuration.\n')
+        self.timeout(log_string='Error: Operation timed out while waiting to set save configuration.')
         
 
     def success(self):
@@ -2574,40 +2606,32 @@ class WaitForSaveConfigDialog(WaitDialog):
         self.controller.spec_num=int(spec_num)
         
         self.allow_exit=True
-        #dict=self.loc_buttons['success']
-        self.log('\nSave configuration set.\n')
-        if not self.keep_around:
-            self.top.destroy()
-        else:
-
-            self.pbar.stop()
+        self.controller.log('Save configuration set.\n\tDirectory: '+self.controller.spec_save_dir_entry.get()+'\n\tBasename: '+self.controller.spec_basename_entry.get())
+        
+        if self.keep_around:
+            dialog=WaitDialog(self.controller, title='Warning: Untracked Files',buttons={'ok':[]})
+            dialog.top.geometry('400x300')
+            dialog.set_label_text('Save configuration was set successfully,\nbut there are untracked files in the\ndata directory. Do these belong here?')
             
-            self.top.geometry('400x300')
-            self.set_label_text('Save configuration was set successfully,\nbut there are untracked files in the\ndata directory. Do these belong here?')
-            self.log('Untracked files in data directory:\n'+'\n\t'.join(self.unexpected_files))
-            listbox=ScrollableListbox(self.top,self.bg,self.entry_background, self.listboxhighlightcolor,)
+            self.controller.log('Untracked files in data directory:\n'+'\n\t'.join(self.unexpected_files))
+            
+            listbox=ScrollableListbox(dialog.top,self.wait_dialog.bg,self.wait_dialog.entry_background, self.wait_dialog.listboxhighlightcolor,)
             for file in self.unexpected_files:
                 listbox.insert(END,file)
                 
             listbox.config(height=1)
 
-                
-            
-            self.set_buttons({'ok':{}})
-            self.set_title('Warning: Untracked Files')
-        close=True
-        if self.keep_around:
-            close=False
-        super(WaitForSaveConfigDialog, self).success(close=close)
+        super(SaveConfigHandler, self).success()
         
 
                 
             
     
-class WaitForSpectrumDialog(WaitDialog):
-    def __init__(self, controller, title='Saving Spectrum...', label='Saving spectrum...', buttons={'cancel':{}}):
+class SpectrumHandler(CommandHandler):
+    def __init__(self, controller, title='Saving Spectrum...', label='Saving spectrum...'):
         timeout=int(controller.spec_config_count)/9+BUFFER
-        super().__init__(controller, title, label, buttons={},timeout=timeout)
+        self.listener=controller.spec_listener
+        super().__init__(controller, title, label, timeout=timeout)
         
     def wait(self):
         #old_files=list(self.controller.listener.saved_files)
@@ -2619,35 +2643,25 @@ class WaitForSpectrumDialog(WaitDialog):
                 
 
             if 'failedtosavefile' in self.listener.queue:
-                self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?')
+                self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?',retry=True)
                 self.listener.queue.remove('failedtosavefile')
                 return
 
             elif 'noconfig' in self.listener.queue:
                 self.listener.queue.remove('noconfig')
-                self.controller.set_save_config(self.controller.take_spectrum, [True])
-                self.finish()
+                self.controller.queue.append({self.controller.set_save_config:[]})
+                self.controller.set_save_config()#self.controller.take_spectrum, [True])
                 return
                 
-            elif 'nonumspectra' in self.controller.listener.queue:
+            elif 'nonumspectra' in self.listener.queue:
                 self.listener.queue.remove('nonumspectra')
-                buttons={
-                    'success':{
-                        self.controller.take_spectrum:[True]
-                    }
-                }
-                
-                self.controller.configure_instrument(buttons)
-                self.finish()
+                self.controller.queue.append({self.controller.configure_instrument:[]})
+                self.controller.configure_instrument()
                 return
+                
             elif 'savedfile' in self.listener.queue:
                 self.listener.queue.remove('savedfile')
-                self.controller.spec_num+=1
-                self.controller.spec_startnum_entry.delete(0,'end')
-                spec_num_string=str(self.controller.spec_num)
-                while len(spec_num_string)<NUMLEN:
-                    spec_num_string='0'+spec_num_string
-                self.controller.spec_startnum_entry.insert(0,spec_num_string)
+
                 self.success()
                 return
             elif 'savespecfailedfileexists' in self.listener.queue:
@@ -2662,57 +2676,44 @@ class WaitForSpectrumDialog(WaitDialog):
                     }
                 }
                     
-                self.set_buttons(buttons,button_width=20)
+                self.wait_dialog.set_buttons(buttons,button_width=20)
                 return
                 
             time.sleep(INTERVAL)
-            #current_files=self.controller.listener.saved_files
-
-                
-            # if current_files==old_files:
-            #     pass
-            # else:
-            #     for file in current_files:
-            #         if file not in old_files:
-            #             self.controller.spec_num+=1
-            #             self.controller.spec_startnum_entry.delete(0,'end')
-            #             spec_num_string=str(self.controller.spec_num)
-            #             while len(spec_num_string)<NUMLEN:
-            #                 spec_num_string='0'+spec_num_string
-            #             self.controller.spec_startnum_entry.insert(0,spec_num_string)
-            #             self.success()
-            #             
-
-            #               return
-            time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
-        self.timeout(log_string='Error: Operation timed out while waiting to save spectrum')
+            
+        self.timeout(log_string='Error: Operation timed out while waiting to save spectrum',retry=True)
 
         
     def success(self):
+        self.controller.spec_num+=1
+        self.controller.spec_startnum_entry.delete(0,'end')
+        spec_num_string=str(self.controller.spec_num)
+        while len(spec_num_string)<NUMLEN:
+            spec_num_string='0'+spec_num_string
+        self.controller.spec_startnum_entry.insert(0,spec_num_string)
+        
         self.allow_exit=True
         numstr=str(self.controller.spec_num-1)
         while len(numstr)<NUMLEN:
             numstr='0'+numstr
-        datestring=''
-        datestringlist=str(datetime.datetime.now()).split('.')[:-1]
-        for d in datestringlist:
-            datestring=datestring+d
-        info_string='\n Spectrum saved at '+datestring+ '\n\tNumber averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.label_entry.get()+'\n'
-        
-        self.console_log.insert(END,info_string)
-        with open(self.controller.log_filename,'a') as log:
-            log.write(info_string)
             
+        if 'White reference' in self.controller.label_entry.get():
+            info_string='White reference saved.'
+        else:
+            info_string='Spectrum saved.'
+
+        info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.label_entry.get()+'\n'
+        
+        self.controller.log(info_string,True)
+
         #Clear out 'White reference' if that was put in earlier to use for this spectrum.
         self.controller.label_entry.delete(0,'end')
         self.controller.label_entry.insert(0,self.controller.current_label)
-       
-        
+    
         self.controller.clear()
         
-        self.controller.complete_queue_item()
-        super(WaitForSpectrumDialog, self).success()
+        super(SpectrumHandler, self).success()
         
 class ErrorDialog(Dialog):
     def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False, info_string=None, topmost=True, button_width=30, width=None,height=None):
@@ -2731,9 +2732,6 @@ class ErrorDialog(Dialog):
                 self.top.attributes("-topmost", True)
             except(Exception):
                 print(str(Exception))
-
-        
-
 
 def limit_len(input, max):
     return input[:max]
@@ -2757,7 +2755,7 @@ class RemoteFileExplorer(Dialog):
         self.timeout_s=BUFFER
         self.controller=controller
         self.remote_directory_worker=self.controller.remote_directory_worker
-        self.listener=self.controller.listener
+        self.listener=self.controller.spec_listener
         self.target=target
         self.current_parent=None
         self.directories_only=directories_only
@@ -3088,7 +3086,6 @@ class Listener(Thread):
         Thread.__init__(self)
         self.read_command_loc=read_command_loc
         self.controller=None
-        self.connection_checker=ConnectionChecker(read_command_loc,'not main',controller=self.controller, func=self.listen)
         self.queue=[]
         self.cmdfiles0=os.listdir(self.read_command_loc)
 
@@ -3108,7 +3105,9 @@ class Listener(Thread):
     
 class PiListener(Listener):
     def __init__(self, read_command_loc, test=False):
+
         super().__init__(read_command_loc)
+        self.connection_checker=PiConnectionChecker(read_command_loc,'not main',controller=self.controller, func=self.listen)
             
     def listen(self):
         self.cmdfiles=os.listdir(self.read_command_loc)  
@@ -3128,6 +3127,7 @@ class PiListener(Listener):
 class SpecListener(Listener):
     def __init__(self, read_command_loc):
         super().__init__(read_command_loc)
+        self.connection_checker=SpecConnectionChecker(read_command_loc,'not main',controller=self.controller, func=self.listen)
         self.unexpected_files=[]
         self.wait_for_unexpected_count=0
 
@@ -3152,6 +3152,8 @@ class SpecListener(Listener):
                     if 'savedfile' in cmd:
                         #self.saved_files.append(params[0])
                         self.queue.append('savedfile')
+                    elif 'wrfailedfileexists' in cmd:
+                        self.queue.append('wrfailedfileexists')
                         
                     elif 'failedtosavefile' in cmd:
                         self.queue.append('failedtosavefile')
@@ -3175,7 +3177,7 @@ class SpecListener(Listener):
                         self.queue.append('donelookingforunexpected')
                     
                     elif 'saveconfigerror' in cmd:
-                        self.queue.append('saveconfigfailure')
+                        self.queue.append('saveconfigerror')
                     
                     elif 'saveconfigsuccess' in cmd:
                         self.queue.append('saveconfigsuccess')
@@ -3189,7 +3191,7 @@ class SpecListener(Listener):
                         self.queue.append('nonumspectra')
                     
                     elif 'saveconfigfailedfileexists' in cmd:
-                        self.queue.append('saveconfigfailurefileexists')
+                        self.queue.append('saveconfigfailedfileexists')
                     elif 'savespecfailedfileexists' in cmd:
                         self.queue.append('savespecfailedfileexists')
                     
@@ -3238,7 +3240,7 @@ class SpecListener(Listener):
                         
                     elif 'lostconnection' in cmd:
                         print('lostconnection')
-                        os.remove(read_command_loc+cmdfile)
+                        os.remove(self.read_command_loc+cmdfile)
                         self.cmdfiles.remove(cmdfile)
                         if self.alert_lostconnection:
                             self.alert_lostconnection=False
@@ -3402,7 +3404,7 @@ class SpecCommander(Commander):
         return filename
     
     def mkdir(self,newdir):
-        filename=self.encrypt('mkdir' [newdir])
+        filename=self.encrypt('mkdir',[newdir])
         self.send(filename)
         return filename
         
@@ -3419,7 +3421,119 @@ class SpecCommander(Commander):
     def process(self,input_dir, output_dir, output_file):
         filename=self.encrypt('process',[input_dir,output_dir,output_file])
         self.send(filename)
+        
+class ConnectionChecker():
+    def __init__(self,dir,thread,controller=None, func=None):
+        self.thread=thread
+        self.dir=dir
+        self.controller=controller
+        self.func=func
+        self.busy=False
+    def alert_lost_connection(self, signum=None, frame=None):
+        buttons={
+            'retry':{
+                self.release:[],
+                self.check_connection:[False]
+                },
+            'exit':{
+                exit_func:[]
+            }
+        }
+        self.lost_dialog(buttons)
 
+
+    def alert_not_connected(self, signum=None, frame=None):
+        buttons={
+            'retry':{
+                self.release:[],
+                self.check_connection:[True]
+                
+                },
+            'exit':{
+                exit_func:[]
+            }
+        }
+        self.no_dialog(buttons)
+    def have_internet(self):
+        conn = httplib.HTTPConnection("www.google.com", timeout=5)
+        try:
+            conn.request("HEAD", "/")
+            conn.close()
+            return True
+        except:
+            conn.close()
+            return False
+    
+    def check_connection(self,firstconnection, attempt=0):
+        if self.busy:
+            return
+
+            
+        self.busy=True
+        connected=True
+        if self.have_internet()==False:
+            connected=False
+        else: 
+            connected=os.path.isdir(self.dir)
+        
+        # This code doesn't work on windows.
+        # if self.thread=='main':
+        #     signal.signal(signal.SIGALRM, self.alert_not_connected)
+        #     signal.alarm(2)
+        #     # This may take a while to complete
+        #     connected = os.path.isdir(self.dir)
+        #     signal.alarm(0)          # Disable the alarm
+
+        #   else:
+        #     if self.have_internet()==False:
+        #         connected=False
+        #     else: 
+        #         connected=os.path.isdir(self.dir)
+                
+        if connected==False:
+            #For some reason reconnecting only seems to work on the second attempt. This seems like a pretty poor way to handle that, but I just call check_connection twice if it fails the first time.
+            if attempt>0 and firstconnection==True:
+                self.alert_not_connected(None, None)
+            elif attempt>0 and firstconnection==False:
+                self.alert_lost_connection(None, None)
+            else:
+                time.sleep(0.5)
+                self.release()
+                self.check_connection(firstconnection, attempt=1)
+        else:
+            if self.func !=None:
+                self.func()
+            self.release()
+            return True
+    def release(self):
+        self.busy=False
+
+    def lost_dialog(self):
+        pass
+        
+    def no_dialog(self):
+        pass
+
+class SpecConnectionChecker(ConnectionChecker):
+    def __init__(self,dir,thread,controller=None, func=None):
+        super().__init__(dir,thread,controller=controller, func=func)
+            
+    def lost_dialog(self,buttons):
+        dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons)
+        
+    def no_dialog(self,buttons):
+        dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: No connection with Spec Compy.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons)
+        
+class PiConnectionChecker(ConnectionChecker):
+    def __init__(self,dir,thread,controller=None, func=None):
+        super().__init__(dir,thread,controller=controller, func=func)
+            
+    def lost_dialog(self,buttons):
+        dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with Raspberry Pi.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons)
+        
+    def no_dialog(self,buttons):
+        dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: Raspberry Pi not connected.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons)
+        
 
 
 

@@ -107,20 +107,22 @@ class View(threading.Thread):
         pass
 class TestView():
     def __init__(self,controller):
-        self.width=1100
-        self.height=700
+        self.width=1000
+        self.height=650
         self.controller=controller
         self.master=self.controller.master
         self.embed = Frame(self.master, width=self.width, height=self.height,bg=self.controller.bg)
-        self.embed.pack(side=RIGHT)#row=0,column=2)
+        self.embed.pack(side=RIGHT,fill=BOTH,expand=True)
+
         self.double_embed=Frame(self.embed,width=self.width,height=self.height)
-        self.double_embed.pack()
+        self.double_embed.pack(fill=BOTH,expand=True)
 
         self.master.update()
         os.environ['SDL_WINDOWID'] = str(self.double_embed.winfo_id())
-        #os.environ['SDL_VIDEODRIVER'] = 'windib'
+        if self.controller.opsys=='Windows':
+            os.environ['SDL_VIDEODRIVER'] = 'windib'
         #pygame.display.init()
-        self.screen = pygame.display.set_mode((20,20))#self.width,self.height))
+        self.screen = pygame.display.set_mode((self.width,self.height))#self.width,self.height))
         
         self.light=pygame.Rect(30,30,60,60)
         self.theta_l=10
@@ -160,20 +162,28 @@ class TestView():
         # #pygame.draw.circle(self.screen, 'black', pivot, back_radius=200)
         # pygame.display.update()
         # #self. master.update()
-
-
-    def draw_circle(self):
-        self.screen = pygame.display.set_mode((self.width,self.height))#self.width,self.height))
+    def flip(self):
+        pygame.display.update()
+        pygame.display.flip()
         
-        largeText = pygame.font.Font('freesansbold.ttf',int(self.width/20))
-        i_text=largeText.render(str(self.theta_l), True, pygame.Color(self.controller.textcolor))
-        e_text=largeText.render(str(self.theta_d), True, pygame.Color(self.controller.textcolor))
+    def draw_circle(self,width,height):
+        # self.width=width
+        # self.height=height
+        #self.double_embed.configure(width=width, height=height)
+        #self.screen = pygame.display.set_mode((self.width,self.height), pygame.RESIZABLE)#self.width,self.height))
+        #self.screen=pygame.display.set_mode((self.width,self.height))
+        try:
+            largeText = pygame.font.Font('freesansbold.ttf',int(self.width/20))
+            i_text=largeText.render(str(self.theta_l), True, pygame.Color(self.controller.textcolor))
+            e_text=largeText.render(str(self.theta_d), True, pygame.Color(self.controller.textcolor))
+        except:
+            print('no pygame font')
         
-        pivot = (int(self.width/2),int(self.width/2))
-        light_len = int(3*self.width/8)#300
+        pivot = (int(self.width/2),int(3*self.height/4))
+        light_len = int(5*self.width/16)#300
         light_width=24  #needs to be an even number
         scale=1.15
-        back_radius=int(self.width/2-self.width/6)#250
+        back_radius=int(self.width/4)#250
         border_thickness=1
         
         x_l = pivot[0] + np.sin(np.radians(self.theta_l)) * light_len
@@ -181,7 +191,7 @@ class TestView():
         y_l = pivot[1] - np.cos(np.radians(self.theta_l)) * light_len
         y_l_text = pivot[1] - np.cos(np.radians(self.theta_l)) * light_len*scale
         
-        detector_len=int(3*self.width/8)
+        detector_len=int(5*self.width/16)
         x_d = pivot[0] + np.sin(np.radians(self.theta_d)) * detector_len
         x_d_text = pivot[0] + np.sin(np.radians(self.theta_d)) * detector_len*scale
         y_d = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len
@@ -240,6 +250,7 @@ class TestView():
     def quit(self):
         pygame.display.quit()
         pygame.quit()
+        
         
 
 class TestViewOld():
