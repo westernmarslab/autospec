@@ -10,6 +10,9 @@ import os
 import sys
 import platform
 
+global OFFLINE
+OFFLINE=False
+
 from tkinter import *
 from tkinter import messagebox
 importlib=True
@@ -183,38 +186,41 @@ def exit_func():
     
 def retry_func():
      os.execl(sys.executable, os.path.abspath(__file__), *sys.argv) 
-     
- 
-
-
 
 def main():
     #Check if you are connected to the server. 
-    spec_connection_checker=SpecConnectionChecker(spec_read_loc, thread='main', func=None)
-    spec_connection_checker.check_connection(True)
-    
-    pi_connection_checker=PiConnectionChecker(pi_read_loc, thread='main',func=None)
-    pi_connection_checker.check_connection(True)
+    print('part 1')
+    spec_connection_checker=SpecConnectionChecker(spec_read_loc, func=main_part_2)
+    connected = spec_connection_checker.check_connection(True)
 
+def main_part_2():
+    print('part 2!')
+    pi_connection_checker=PiConnectionChecker(pi_read_loc, func=main_part_3)
+    connected=pi_connection_checker.check_connection(True)
+
+def main_part_3():
+    print('part 3!')
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
-    delme=os.listdir(spec_write_loc)
-    for file in delme:
-        os.remove(spec_write_loc+file)
-    delme=os.listdir(spec_read_loc)
-    for file in delme:
-        os.remove(spec_read_loc+file)
-
-    delme=os.listdir(pi_write_loc)
-    for file in delme:
-        os.remove(pi_write_loc+file)
-    delme=os.listdir(pi_read_loc)
-    for file in delme:
-        os.remove(pi_read_loc+file)
+    if not OFFLINE:
+        delme=os.listdir(spec_write_loc)
+        for file in delme:
+            os.remove(spec_write_loc+file)
+        delme=os.listdir(spec_read_loc)
+        for file in delme:
+            os.remove(spec_read_loc+file)
+    
+        delme=os.listdir(pi_write_loc)
+        for file in delme:
+            os.remove(pi_write_loc+file)
+        delme=os.listdir(pi_read_loc)
+        for file in delme:
+            os.remove(pi_read_loc+file)
     
     #Create a listener, which listens for commands, and a controller, which manages the model (which writes commands) and the view.
-    spec_listener=SpecListener(spec_read_loc)
+    #spec_listener=SpecListener(spec_read_loc)
+    spec_listener=PiListener(spec_read_loc)
     pi_listener=PiListener(pi_read_loc)
-    
+
     icon_loc=package_loc+'exception'#test_icon.xbm'
     control=Controller(spec_listener, pi_listener,spec_share_loc, spec_read_loc,spec_write_loc, pi_write_loc, config_loc,data_share_loc,opsys, icon_loc)
 
@@ -796,17 +802,7 @@ class Controller():
         self.process_button=Button(self.process_frame, fg=self.textcolor,text='Process', padx=self.padx, pady=self.pady, width=int(button_width*1.6),bg='light gray', command=self.process_cmd)
         self.process_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.process_button.pack()
-        
-        # 
-        # #********************** Goniometer control frame ******************************
-        # 
-        # self.gon_control_frame=Frame(self.notebook, bg=self.bg, pady=2*self.pady)
-        # self.gon_control_frame.pack()
-        # 
-        # self.plot_title_label=Label(self.plot_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Plot title:')
-        # self.plot_title_label.pack(padx=self.padx,pady=(15,5))
-        # self.plot_title_entry=Entry(self.plot_frame, width=50,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.plot_title_entry.pack(pady=(5,20))
+
         
         #********************** Plot frame ******************************
         
@@ -1913,49 +1909,37 @@ class Controller():
             
     def resize(self,window):
         if window.widget==self.master:
+            reserve_width=500
             try:
-                print(window.width)
                 c_height=self.console_frame.winfo_height()
                 width=self.console_frame.winfo_width()
-                print(width)
                 g_height=self.test_view.double_embed.winfo_height()
                 if c_height<int(window.height/3)-10:
-                    print('resize!')
                     self.test_view.double_embed.configure(height=int(2*window.height/3))
                     self.console_frame.configure(height=int(window.height/3)+10)
                 elif c_height>int(window.height/3)+10:
                     print('resize!')
                     self.test_view.double_embed.configure(height=int(2*window.height/3))
                     self.console_frame.configure(height=int(window.height/3)-10)
-                    
-                if width<window.width-300:
-                    print('not wide enough!')
-                    self.test_view.double_embed.configure(width=window.width-290)
-                    self.console_frame.configure(width=window.width-290)
-                elif width>window.width-290:
-                    print('too wide!')
-                    self.test_view.double_embed.configure(width=window.width-300)
-                    self.console_frame.configure(width=window.width-300)
+
+                    self.console_frame.configure(width=window.width-reserve_width)
                 thread = Thread(target =self.refresh)
                 thread.start()
-                self.test_view.draw_circle(width-10,int(2*window.height/3)-10)
+                self.test_view.draw_circle(window.width-self.control_frame.winfo_width()-2,int(2*window.height/3)-10)
                 self.test_view.flip()
             except AttributeError:
+                #Happens when the program is just starting up and there is no view yet
                 pass
             except ValueError:
                 pass
 
     def finish_move(self):
         self.test_view.draw_circle()
-        
-
-            
-            
+          
     def complete_queue_item(self):
         self.queue.pop(0)
 
     def delete_placeholder_spectrum(self):
-        
         lastnumstr=str(int(self.spec_startnum_entry.get())-1)
         while len(lastnumstr)<NUMLEN:
             lastnumstr='0'+lastnumstr
@@ -2227,8 +2211,9 @@ class Dialog:
             self.top.destroy()
     
     def work_offline(self):
+        self.top.destroy()
         dict=self.buttons['work offline']
-        self.execute(dict)
+        self.execute(dict,close=False)
         
 class WaitDialog(Dialog):
     def __init__(self, controller, title='Working...', label='Working...', buttons={}):
@@ -3108,12 +3093,13 @@ class Listener(Thread):
         self.read_command_loc=read_command_loc
         self.controller=None
         self.queue=[]
-        self.cmdfiles0=os.listdir(self.read_command_loc)
+        if not OFFLINE:
+            self.cmdfiles0=os.listdir(self.read_command_loc)
 
     def run(self):
         while True:
-            #I think this calls listen if we are connected?
-            connection=self.connection_checker.check_connection(False)
+            if not OFFLINE:
+                connection=self.connection_checker.check_connection(False)
             time.sleep(INTERVAL)
             
     def listen(self):
@@ -3128,7 +3114,7 @@ class PiListener(Listener):
     def __init__(self, read_command_loc, test=False):
 
         super().__init__(read_command_loc)
-        self.connection_checker=PiConnectionChecker(read_command_loc,'not main',controller=self.controller, func=self.listen)
+        self.connection_checker=PiConnectionChecker(read_command_loc,controller=self.controller, func=self.listen)
             
     def listen(self):
         self.cmdfiles=os.listdir(self.read_command_loc)  
@@ -3148,17 +3134,14 @@ class PiListener(Listener):
 class SpecListener(Listener):
     def __init__(self, read_command_loc):
         super().__init__(read_command_loc)
-        self.connection_checker=SpecConnectionChecker(read_command_loc,'not main',controller=self.controller, func=self.listen)
+        self.connection_checker=SpecConnectionChecker(read_command_loc,controller=self.controller, func=self.listen)
         self.unexpected_files=[]
         self.wait_for_unexpected_count=0
 
         self.alert_lostconnection=True
         self.new_dialogs=True
         
-    def run(self):
-        while True:
-            connection=self.connection_checker.check_connection(False)
-            time.sleep(INTERVAL)
+
             
     def listen(self):
         self.cmdfiles=os.listdir(self.read_command_loc)  
@@ -3444,8 +3427,7 @@ class SpecCommander(Commander):
         self.send(filename)
         
 class ConnectionChecker():
-    def __init__(self,dir,thread,controller=None, func=None):
-        self.thread=thread
+    def __init__(self,dir,controller=None, func=None):
         self.dir=dir
         self.controller=controller
         self.func=func
@@ -3456,6 +3438,9 @@ class ConnectionChecker():
                 self.release:[],
                 self.check_connection:[False]
                 },
+            'work offline':{
+                self.set_work_offline:[]
+            },
             'exit':{
                 exit_func:[]
             }
@@ -3468,13 +3453,21 @@ class ConnectionChecker():
             'retry':{
                 self.release:[],
                 self.check_connection:[True]
-                
-                },
+            },
+            'work offline':{
+                self.set_work_offline:[],
+                self.func:[]
+            },
             'exit':{
                 exit_func:[]
             }
         }
         self.no_dialog(buttons)
+        
+    def set_work_offline(self):
+        global OFFLINE
+        OFFLINE=True
+        
     def have_internet(self):
         conn = httplib.HTTPConnection("www.google.com", timeout=5)
         try:
@@ -3486,6 +3479,11 @@ class ConnectionChecker():
             return False
     
     def check_connection(self,firstconnection, attempt=0):
+        print('CHECK')
+        if OFFLINE:
+            print('offline hooray!')
+            self.func()
+            return True
         if self.busy:
             return
 
@@ -3496,27 +3494,15 @@ class ConnectionChecker():
             connected=False
         else: 
             connected=os.path.isdir(self.dir)
-        
-        # This code doesn't work on windows.
-        # if self.thread=='main':
-        #     signal.signal(signal.SIGALRM, self.alert_not_connected)
-        #     signal.alarm(2)
-        #     # This may take a while to complete
-        #     connected = os.path.isdir(self.dir)
-        #     signal.alarm(0)          # Disable the alarm
-
-        #   else:
-        #     if self.have_internet()==False:
-        #         connected=False
-        #     else: 
-        #         connected=os.path.isdir(self.dir)
                 
         if connected==False:
             #For some reason reconnecting only seems to work on the second attempt. This seems like a pretty poor way to handle that, but I just call check_connection twice if it fails the first time.
             if attempt>0 and firstconnection==True:
                 self.alert_not_connected(None, None)
+                return False
             elif attempt>0 and firstconnection==False:
                 self.alert_lost_connection(None, None)
+                return False
             else:
                 time.sleep(0.5)
                 self.release()
@@ -3542,24 +3528,36 @@ class PretendEvent():
         self.height=height
 
 class SpecConnectionChecker(ConnectionChecker):
-    def __init__(self,dir,thread,controller=None, func=None):
-        super().__init__(dir,thread,controller=controller, func=func)
+    def __init__(self,dir,controller=None, func=None):
+        print('new spec con checker!')
+        super().__init__(dir,controller=controller, func=func)
             
     def lost_dialog(self,buttons):
-        dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons)
-        
+        try:
+            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons)
+        except:
+            pass
     def no_dialog(self,buttons):
-        dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: No connection with Spec Compy.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons)
-        
+        print('new dialog!')
+        try:
+            dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: No connection with Spec Compy.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons,button_width=15)
+        except:
+            pass
 class PiConnectionChecker(ConnectionChecker):
-    def __init__(self,dir,thread,controller=None, func=None):
-        super().__init__(dir,thread,controller=controller, func=func)
+    def __init__(self,dir,controller=None, func=None):
+        super().__init__(dir,controller=controller, func=func)
             
     def lost_dialog(self,buttons):
-        dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with Raspberry Pi.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons)
+        try:
+            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with Raspberry Pi.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons)
+        except:
+            pass
         
     def no_dialog(self,buttons):
-        dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: Raspberry Pi not connected.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons)
+        try:
+            dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: Raspberry Pi not connected.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons)
+        except:
+            pass
         
 
 
