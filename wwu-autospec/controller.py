@@ -218,7 +218,7 @@ def main_part_3():
     
     #Create a listener, which listens for commands, and a controller, which manages the model (which writes commands) and the view.
     #spec_listener=SpecListener(spec_read_loc)
-    spec_listener=PiListener(spec_read_loc)
+    spec_listener=SpecListener(spec_read_loc)
     pi_listener=PiListener(pi_read_loc)
 
     icon_loc=package_loc+'exception'#test_icon.xbm'
@@ -241,6 +241,7 @@ class Controller():
         self.pi_write_loc=pi_write_loc
         self.spec_commander=SpecCommander(self.spec_write_loc)
         self.pi_commander=PiCommander(self.pi_write_loc)
+        
         self.remote_directory_worker=RemoteDirectoryWorker(self.spec_commander, self.spec_read_loc, self.spec_listener)
         
         self.config_loc=config_loc
@@ -256,6 +257,19 @@ class Controller():
         #One wait dialog open at a time. CommandHandlers check whether to use an existing one or make a new one.
         self.wait_dialog=None
         
+        try:
+            with open(self.config_loc+'geom','r') as f:
+                self.last_i=int(f.readline().strip('\n'))
+                self.last_e=int(f.readline().strip('\n'))
+        except:
+            self.last_i=None
+            self.last_e=None
+            
+        self.i=None
+        self.e=None
+        
+        
+        
         #These will get set via user input.
         self.spec_save_path=''
         self.spec_basename=''
@@ -265,8 +279,6 @@ class Controller():
         self.wr_time=None
         self.opt_time=None
         self.angles_change_time=None
-        self.i=None
-        self.e=None
         self.current_label=''
         self.i_e_pair_frames=[]
         self.incidence_entries=[]
@@ -303,10 +315,15 @@ class Controller():
 
         self.master.title('Control')
         self.master.minsize(1050,750)
+        #When the window closes, send a command to set the geometry to i=0, e=30.
+        self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.tk_master=self.master #this gets used when deciding whether to open a new master when giving a no connection dialog or something. I can't remember. 
         self.notebook_frame=Frame(self.master)
         self.notebook_frame.pack(side=LEFT,fill=BOTH, expand=True)
         self.notebook=ttk.Notebook(self.notebook_frame)
+        self.tk_buttons=[]
+        self.entries=[]
+        self.radiobuttons=[]
         
         #view_frame=Frame(self.master)
         self.test_view=TestView(self)
@@ -366,12 +383,14 @@ class Controller():
         self.spec_save_dir_frame.pack()
         
         self.spec_save_dir_browse_button=Button(self.spec_save_dir_frame,text='Browse',command=self.choose_spec_save_dir)
+        self.tk_buttons.append(self.spec_save_dir_browse_button)
         self.spec_save_dir_browse_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.spec_save_dir_browse_button.pack(side=RIGHT, padx=(3,15))
         
         self.spec_save_dir_var = StringVar()
         self.spec_save_dir_var.trace('w', self.validate_spec_save_dir)
         self.spec_save_dir_entry=Entry(self.spec_save_dir_frame, width=50,bd=self.bd,bg=self.entry_background, selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.spec_save_dir_var)
+        self.entries.append(self.spec_save_dir_entry)
         self.spec_save_dir_entry.insert(0, self.spec_save_path)
         self.spec_save_dir_entry.pack(padx=(15,5), pady=self.pady, side=RIGHT)
         self.spec_save_frame=Frame(self.save_config_frame, bg=self.bg)
@@ -383,6 +402,7 @@ class Controller():
         self.spec_basename_var = StringVar()
         self.spec_basename_var.trace('w', self.validate_basename)
         self.spec_basename_entry=Entry(self.spec_save_frame, width=10,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.spec_basename_var)
+        self.entries.append(self.spec_basename_entry)
         self.spec_basename_entry.pack(side=LEFT,padx=(5,5), pady=self.pady)
         self.spec_basename_entry.insert(0,self.spec_basename)
         
@@ -394,6 +414,7 @@ class Controller():
         self.startnum_var = StringVar()
         self.startnum_var.trace('w', self.validate_startnum)
         self.spec_startnum_entry=Entry(self.spec_save_frame, width=10,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.startnum_var)
+        self.entries.append(self.spec_startnum_entry)
         self.spec_startnum_entry.insert(0,self.spec_startnum)
         self.spec_startnum_entry.pack(side=RIGHT, pady=self.pady)      
         
@@ -409,16 +430,19 @@ class Controller():
         self.logfile_var = StringVar()
         self.logfile_var.trace('w', self.validate_logfile)
         self.logfile_entry=Entry(self.logfile_entry_frame, width=50,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=self.logfile_var)
+        self.entries.append(self.logfile_entry)
         self.logfile_entry.pack(padx=self.padx, pady=(5,15))
         self.logfile_entry.enabled=False
         
 
         
         self.select_logfile_button=Button(self.logfile_entry_frame, fg=self.textcolor,text='Select existing',command=self.chooselogfile, width=13, height=1,bg=self.buttonbackgroundcolor)
+        self.tk_buttons.append(self.select_logfile_button)
         self.select_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor)
         self.select_logfile_button.pack(side=LEFT,padx=(50,5), pady=(0,10))
         
         self.new_logfile_button=Button(self.logfile_entry_frame, fg=self.textcolor,text='New log file',command=self.newlog, width=13, height=1)
+        self.tk_buttons.append(self.new_logfile_button)
         self.new_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.new_logfile_button.pack(side=LEFT,padx=self.padx, pady=(0,10))
         
@@ -438,6 +462,7 @@ class Controller():
         self.instrument_config_label=Label(self.instrument_config_frame, fg=self.textcolor,text='Number of spectra to average:', bg=self.bg)
         self.instrument_config_label.pack(side=LEFT)
         self.instrument_config_entry=Entry(self.instrument_config_frame, width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.entries.append(self.instrument_config_entry)
         self.instrument_config_entry.insert(0, 5)
         self.instrument_config_entry.pack(side=LEFT)
         
@@ -461,9 +486,11 @@ class Controller():
         
         self.individual_range=IntVar()
         self.individual_radio=Radiobutton(self.single_mult_frame, text='Individual         ',bg=self.bg,fg=self.textcolor,highlightthickness=0,variable=self.individual_range,value=0,selectcolor=self.check_bg,command=self.set_individual_range)
+        self.radiobuttons.append(self.individual_radio)
         self.individual_radio.pack()
         
         self.range_radio=Radiobutton(self.single_mult_frame, text='Range with interval\n(Automatic only)',bg=self.bg, fg=self.textcolor,highlightthickness=0,variable=self.individual_range,value=1,selectcolor=self.check_bg,command=self.set_individual_range)
+        self.radiobuttons.append(self.range_radio)
         self.range_radio.configure(state = DISABLED)
         self.range_radio.pack()
         
@@ -476,11 +503,13 @@ class Controller():
         self.manual_radio_frame.pack()
         self.manual_automatic=IntVar()
         self.manual_radio=Radiobutton(self.manual_radio_frame,text='Manual     ',bg=self.bg,fg=self.textcolor,highlightthickness=0,variable=self.manual_automatic, value=0,selectcolor=self.check_bg,command=self.set_manual_automatic)
+        self.radiobuttons.append(self.manual_radio)
         self.manual_radio.pack(side=LEFT,padx=(10,10),pady=(5,5))
         
         self.automation_radio_frame=Frame(self.viewing_geom_options_frame_left, bg=self.bg)
         self.automation_radio_frame.pack()
         self.automation_radio=Radiobutton(self.automation_radio_frame,text='Automatic  ',bg=self.bg,fg=self.textcolor,highlightthickness=0,variable=self.manual_automatic,value=1,selectcolor=self.check_bg,command=self.set_manual_automatic)
+        self.radiobuttons.append(self.automation_radio)
         self.automation_radio.pack(side=LEFT,padx=(10,10))
         self.filler_label=Label(self.viewing_geom_options_frame_left,text='',bg=self.bg)
         self.filler_label.pack()
@@ -521,14 +550,17 @@ class Controller():
         light_entries_frame=Frame(self.light_frame,bg=self.bg,padx=self.padx,pady=self.pady)
         light_entries_frame.pack(side=RIGHT)
         
-        light_start_entry=Entry(light_entries_frame,width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        light_start_entry.pack(padx=self.padx,pady=self.pady)
-        light_start_entry.insert(0,'10')
+        self.light_start_entry=Entry(light_entries_frame,width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.entries.append(self.light_start_entry)
+        self.light_start_entry.pack(padx=self.padx,pady=self.pady)
+        self.light_start_entry.insert(0,'10')
         
-        light_end_entry=Entry(light_entries_frame,width=10, highlightbackground='white', bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        light_end_entry.pack(padx=self.padx,pady=self.pady)    
-        light_increment_entry=Entry(light_entries_frame,width=10,highlightbackground='white', bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        light_increment_entry.pack(padx=self.padx,pady=self.pady)
+        self.light_end_entry=Entry(light_entries_frame,width=10, highlightbackground='white', bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.entries.append(self.light_end_entry)
+        self.light_end_entry.pack(padx=self.padx,pady=self.pady)    
+        self.light_increment_entry=Entry(light_entries_frame,width=10,highlightbackground='white', bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.entries.append(self.light_increment_entry)
+        self.light_increment_entry.pack(padx=self.padx,pady=self.pady)
         
         detector_frame=Frame(self.range_frame,bg=self.bg)
         detector_frame.pack(side=RIGHT)
@@ -550,15 +582,18 @@ class Controller():
         
         detector_entries_frame=Frame(detector_frame,bg=self.bg,padx=self.padx,pady=self.pady)
         detector_entries_frame.pack(side=RIGHT)
-        detector_start_entry=Entry(detector_entries_frame,bd=self.bd,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        detector_start_entry.pack(padx=self.padx,pady=self.pady)
-        detector_start_entry.insert(0,'0')
+        self.detector_start_entry=Entry(detector_entries_frame,bd=self.bd,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.entries.append(self.detector_start_entry)
+        self.detector_start_entry.pack(padx=self.padx,pady=self.pady)
+        self.detector_start_entry.insert(0,'0')
         
-        detector_end_entry=Entry(detector_entries_frame,bd=self.bd,width=10,highlightbackground='white',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        detector_end_entry.pack(padx=self.padx,pady=self.pady)
+        self.detector_end_entry=Entry(detector_entries_frame,bd=self.bd,width=10,highlightbackground='white',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.entries.append(self.detector_end_entry)
+        self.detector_end_entry.pack(padx=self.padx,pady=self.pady)
         
-        detector_increment_entry=Entry(detector_entries_frame,bd=self.bd,width=10, highlightbackground='white',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        detector_increment_entry.pack(padx=self.padx,pady=self.pady)
+        self.detector_increment_entry=Entry(detector_entries_frame,bd=self.bd,width=10, highlightbackground='white',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.entries.append(self.detector_increment_entry)
+        self.detector_increment_entry.pack(padx=self.padx,pady=self.pady)
         
         
         self.spectrum_label_frame=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
@@ -566,6 +601,7 @@ class Controller():
         self.label_label=Label(self.spectrum_label_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Label for this sample:')
         self.label_label.pack(pady=(10,10))
         self.label_entry=Entry(self.spectrum_label_frame, width=50, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.entries.append(self.label_entry)
         self.label_entry.pack(pady=(0,15))
 
         
@@ -586,57 +622,28 @@ class Controller():
         
         button_width=20
         self.opt_button=Button(self.action_button_frame, fg=self.textcolor,text='Optimize', padx=self.padx, pady=self.pady,width=self.button_width, bg='light gray', command=self.opt_button_cmd, height=2)
+        self.tk_buttons.append(self.opt_button)
         self.opt_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.opt_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
         self.wr_button=Button(self.action_button_frame, fg=self.textcolor,text='White Reference', padx=self.padx, pady=self.pady, width=self.button_width, bg='light gray', command=self.wr_button_cmd, height=2)
+        self.tk_buttons.append(self.wr_button)
         self.wr_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
         self.wr_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
     
         self.spec_button=Button(self.action_button_frame, fg=self.textcolor,text='Take Spectrum', padx=self.padx, pady=self.pady, width=self.button_width,height=2,bg='light gray', command=self.spec_button_cmd)
+        self.tk_buttons.append(self.spec_button)
         self.spec_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
         self.spec_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         
         self.acquire_button=Button(self.action_button_frame, fg=self.textcolor,text='Acquire Data', padx=self.padx, pady=self.pady, width=self.button_width,height=2,bg='light gray', command=self.acquire)
+        self.tk_buttons.append(self.acquire_button)
         self.acquire_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         
         #***************************************************************
-        # Frame for settings
         
         self.dumb_frame=Frame(self.notebook, bg=self.bg, pady=2*self.pady)
         self.dumb_frame.pack()
-        # entries_frame=Frame(man_frame, bg=self.bg)
-        # entries_frame.pack(fill=BOTH, expand=True)
-        # man_light_label=Label(entries_frame,padx=self.padx, pady=self.pady,bg=self.bg,fg=self.textcolor,text='Instrument positions:')
-        # man_light_label.pack()
-        # man_light_label=Label(entries_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Incidence:')
-        # man_light_label.pack(side=LEFT, padx=(30,5),pady=(0,8))
-        # man_light_entry=Entry(entries_frame, width=10)
-        # man_light_entry.insert(0,'10')
-        # man_light_entry.pack(side=LEFT)
-        # man_detector_label=Label(entries_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Emission:')
-        # man_detector_label.pack(side=LEFT, padx=(10,0))
-        # man_detector_entry=Entry(entries_frame, width=10,fg=self.textcolor,text='0')
-        # man_detector_entry.insert(0,'10')
-        # man_detector_entry.pack(side=LEFT)
 
-        # self.instrument_config_title_frame=Frame(self.dumb_frame, bg=self.bg)
-        # self.instrument_config_title_frame.pack(pady=self.pady)
-        # self.instrument_config_label0=Label(self.instrument_config_title_frame, fg=self.textcolor,text='Instrument Configuration:                                ', bg=self.bg)
-        # self.instrument_config_label0.pack(side=LEFT)
-
-        
-        # self.automation_title_frame=Frame(self.dumb_frame, bg=self.bg)
-        # self.automation_title_frame.pack(pady=self.pady)
-        # self.automation_label0=Label(self.automation_title_frame, fg=self.textcolor,text='Automation:                                               ', bg=self.bg)
-        # self.automation_label0.pack(side=LEFT)
-        # 
-        # 
-        # self.auto_check_frame=Frame(self.dumb_frame, bg=self.bg)
-        # self.auto_check_frame.pack()
-        # self.auto=IntVar()
-        # self.auto_check=Checkbutton(self.auto_check_frame, fg=self.textcolor,text='Automatically iterate through viewing geometries', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.auto, command=self.auto_cycle_check,selectcolor=self.check_bg)
-        # self.auto_check.pack(side=LEFT, pady=self.pady)
-        # 
         self.timer_title_frame=Frame(self.dumb_frame, bg=self.bg)
         self.timer_title_frame.pack(pady=(10,0))
         self.timer_label0=Label(self.timer_title_frame, fg=self.textcolor,text='Timer:                                                   ', bg=self.bg)
@@ -727,21 +734,6 @@ class Controller():
         self.wr_anglesfailsafe_check.pack(pady=(6,5))
         self.wr_anglesfailsafe_check.select()
         
-        
-        # check_frame=Frame(man_frame, bg=self.bg)
-        # check_frame.pack()
-        # process=IntVar()
-        # process_check=Checkbutton(check_frame, fg=self.textcolor,text='Process data', bg=self.bg, pady=self.pady,highlightthickness=0)
-        # process_check.pack(side=LEFT, pady=(5,15))
-        # 
-        # plot=IntVar()
-        # plot_check=Checkbutton(check_frame, fg=self.textcolor,text='Plot spectrum', bg=self.bg, pady=self.pady,highlightthickness=0)
-        # plot_check.pack(side=LEFT, pady=(5,15))
-    
-        #   move_button=Button(man_frame, fg=self.textcolor,text='Move', padx=self.padx, pady=self.pady, width=int(button_width*1.6),bg='light gray', command=go)
-        # move_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
-        # spectrum_button=Button(man_frame, fg=self.textcolor,text='Collect data', padx=self.padx, pady=self.pady, width=int(button_width*1.6), bg='light gray', command=take_spectrum)
-        # spectrum_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
         
     
         #********************** Process frame ******************************
@@ -928,8 +920,9 @@ class Controller():
         #test=TestView(self.master)
         # frame=Frame(self.control_frame)
         # frame.pack()
-        # button=Button(frame, text=':D',command=self.test_view.draw_circle)
+        # button=Button(frame, text=':D',command=self.move_test)
         # button.pack()
+        # self.next_pos=20
         #test_view.run()
 
 
@@ -943,12 +936,21 @@ class Controller():
         
         #self.view.join()
         
+    def move_test(self):
+        print(self.next_pos)
+        self.test_view.move_light(self.next_pos)
+        if self.next_pos<80:
+            self.next_pos+=10
+        else:
+            self.next_pos-=10
+        
     def bind(self):
         #self.test_view.flip()
         time.sleep(0.25)
         self.master.bind("<Configure>", self.resize)
         window=PretendEvent(self.master,self.master.winfo_height(),self.master.winfo_width())
         self.resize(window)
+        time.sleep(0.2)
         self.log('Spec compy connected.')
         self.log('Raspberry pi connected.')
         
@@ -1017,8 +1019,8 @@ class Controller():
         log.write(str(datetime.datetime.now())+'\n')
         self.logfile_entry.delete(0,'end')
         self.logfile_entry.insert(0, self.log_filename)
+        
     def move_sample():
-        print('Moving the sample tray!')
         self.pi_commander.move_sample()
         
     
@@ -1316,7 +1318,6 @@ class Controller():
     #Check that all input is valid, the save configuration is set, and the instrument is configured.
     #This gets called once when the user clicks something, but not for subsequent actions.
     def setup(self, nextaction):
-
         self.check_logfile()
         
         #Set all entries to active
@@ -1328,6 +1329,7 @@ class Controller():
         #Requested save config is guaranteed to be valid because of input checks above.
         save_config_status=self.check_save_config()
         if self.check_save_config()=='not_set':
+            print('going to set save config')
             self.complete_queue_item()
             self.queue.insert(0,nextaction)
             self.queue.insert(0,{self.set_save_config:[]})
@@ -1354,7 +1356,7 @@ class Controller():
         
         return True
     #Action will be either wr or take a spectrum
-    def acquire(self, override=False, setup_complete=False, action=None):
+    def acquire(self, override=False, setup_complete=False, action=None, garbage=False):
         print('Acquiring!')
         if action==None:
             action=self.acquire
@@ -1383,10 +1385,8 @@ class Controller():
             pass
           
         if self.i!=self.active_incidence_entries[0].get()or self.e!=self.active_emission_entries[0].get():
-            self.angles_change_time=time.time()
-            
-            self.i=self.active_incidence_entries[0].get()
-            self.e=self.active_emission_entries[0].get()
+            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+            self.set_geom()
         
         if action==self.take_spectrum:
             startnum_str=str(self.spec_startnum_entry.get())
@@ -1394,7 +1394,10 @@ class Controller():
                 startnum_str='0'+startnum_str
             
             self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str)
-            handler=SpectrumHandler(self)
+            if not garbage:
+                handler=SpectrumHandler(self)
+            else:
+                handler=SpectrumHandler(self,title='Collecting garbage...',label='Collecting garbage spectrum...')
             
         elif action==self.wr:
             self.spec_commander.white_reference()
@@ -1403,22 +1406,47 @@ class Controller():
         elif action==self.acquire:
         
             self.build_queue()
-            self.pi_commander.move_arms(self.active_incidence_entries[0].get(),self.active_emission_entries[0].get())
-            handler=MotionHandler(self,label='Moving goniometer arms...')
-            # dict=self.queue[0]
-            # for func in dict:
-            #     args=dict[func]
-            #     func(*args)
+            self.next_in_queue()
+                        
+    def set_geom(self):
+        self.angles_change_time=time.time()
+        self.i=self.active_incidence_entries[0].get()
+        self.e=self.active_emission_entries[0].get()
+        print(self.config_loc+'geom')
+        with open(self.config_loc+'geom','w') as f:
+            f.write(self.i+'\n')
+            f.write(self.e)
         
     def next_geom(self):
-        self.active_emission_entries.pop(0)
-        self.active_incidence_entries.pop(0)
+        last_i=int(self.active_incidence_entries.pop(0).get())
+        last_e=int(self.active_emission_entries.pop(0).get())
         self.active_i_e_pair_frames.pop(0)
-
-        self.pi_commander.move_arms(self.active_incidence_entries[0].get(),self.active_emission_entries[0].get())
-        handler=MotionHandler(self,label='Moving goniometer arms...')
         
+        next_i=int(self.active_incidence_entries[0].get())
+        next_e=int(self.active_incidence_entries[0].get())
+        
+        #Don't run the arms into each other.
+        if next_e>last_e:
+            self.queue.insert(0,{self.move_light:[]})
+            self.queue.insert(0,{self.move_detector:[]})
+
+        else:
+            self.queue.insert(0,{self.move_detector:[]})
+            self.queue.insert(0,{self.move_light:[]})
             
+        self.complete_queue_item()
+        self.next_in_queue()
+        
+    def move_light(self):
+        self.pi_commander.move_light(self.active_incidence_entries[0].get())
+        handler=MotionHandler(self,label='Moving light source...')
+        self.test_view.move_light(int(self.active_incidence_entries[0].get()))
+        
+    def move_detector(self):
+        self.pi_commander.move_detector(self.active_emission_entries[0].get())
+        handler=MotionHandler(self,label='Moving detector...')
+        self.test_view.move_detector(int(self.active_emission_entries[0].get()))
+        
     def move_tray(self):
         self.pi_commander.move_tray()
         handler=MotionHandler(self,label='Moving sample tray...')
@@ -1429,23 +1457,46 @@ class Controller():
         if self.individual_range.get()==0:
             #For each (i, e), opt, white reference, save the white reference, move the tray, take a  spectrum, then move the tray back, then update geom to next.
             for entry in self.incidence_entries:
-                self.queue.append({self.next_geom:{}})
                 self.queue.append({self.opt:[]})
                 self.queue.append({self.wr:[True,True]})
                 self.queue.append({self.take_spectrum:[True,True]})
                 self.queue.append({self.move_tray:[]})
-                self.queue.append({self.take_spectrum:[True,True]})
+                self.queue.append({self.take_spectrum:[True,True,True]})
                 self.queue.append({self.delete_placeholder_spectrum:[]})
                 self.queue.append({self.take_spectrum:[True,True]})
                 self.queue.append({self.move_tray:[]})
+                self.queue.append({self.next_geom:[]})
+                
+        #No update geometry call after last spectrum
+        self.queue.pop(-1)
+        
+        #Put in calls to move light and detector for the first geometry.
+        next_i=int(self.active_incidence_entries[0].get())
+        next_e=int(self.active_incidence_entries[0].get())
+        
+        if self.i==None or self.e==None:
+            if self.last_e==None or self.last_e==None:
+                dialog=ErrorDialog(self,label='Warning! Unknown goniometer state.\nManually set the arms to i=0, e=30, then try again.')
+                self.last_i=0
+                self.last_e=30
+                return
+            
+            
+        if next_e>int(self.e):
+            self.queue.insert(0,{self.move_detector:[]})
+            self.queue.insert(0,{self.move_light:[]})
+        else:
+            self.queue.insert(0,{self.move_light:[]})
+            self.queue.insert(0,{self.move_detector:[]})
+
             
     def spec_button_cmd(self):
         self.queue=[]
         self.queue.append({self.take_spectrum:[False,False]})
         self.take_spectrum()
         
-    def take_spectrum(self, override=False, setup_complete=False):
-        self.acquire(override=override, setup_complete=setup_complete,action=self.take_spectrum,)
+    def take_spectrum(self, override=False, setup_complete=False,garbage=False):
+        self.acquire(override=override, setup_complete=setup_complete,action=self.take_spectrum,garbage=garbage)
     
     def wr_button_cmd(self):
         self.queue=[]
@@ -1488,6 +1539,7 @@ class Controller():
                 dialog=ErrorDialog(self,title='Error',label='Could not create directory:\n\n'+dir)
 
         status=self.remote_directory_worker.get_dirs(self.spec_save_dir_entry.get())
+
         if status=='listdirfailed':
             buttons={
                 'yes':{
@@ -1503,7 +1555,8 @@ class Controller():
             return
         
         elif status=='timeout':
-            dialog=ErrorDialog(self, label='Error: Operation timed out.\nCheck connections.\nCheck that the automation script is running on the spectrometer computer\nand the spectrometer is connected.')
+            print('foo')
+            dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer computer\nand the spectrometer is connected.')
             return
             
         self.spec_commander.check_writeable(self.spec_save_dir_entry.get())
@@ -1650,17 +1703,19 @@ class Controller():
             detector_increment_entry.config(bd=1)
         
     def run(self, keypress_event):
-        global user_cmds
-        global user_cmd_index
+        # global user_cmds
+        # global user_cmd_index
         if keypress_event.keycode==36:
             cmd=self.console_entry.get()
             if cmd !='':
-                user_cmds.insert(0,cmd)
-                user_cmd_index=-1
+                # user_cmds.insert(0,cmd)
+                # user_cmd_index=-1
                 self.console_log.insert(END,'>>> '+cmd+'\n')
                 self.console_entry.delete(0,'end')
                 
                 params=cmd.split(' ')
+                if params[0].lower()=='clear':
+                    self.console_log.delete('1.0',END)
                 if params[0].lower()=='process':
                     try:
                         if params[1]=='--save_config':
@@ -1751,26 +1806,16 @@ class Controller():
             self.add_i_e_pair_button.pack_forget()
         except:
             self.add_i_e_pair_button=Button(self.individual_angles_frame, text='Add', command=self.add_i_e_pair,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+            self.tk_buttons.append(self.add_i_e_pair_button)
             self.add_i_e_pair_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
             
-        #self.removal_buttons.append(Button(self.individual_angles_frame, text='Remove', command=lambda x=len(self.removal_buttons):self.remove_i_e_pair(x),width=self.button_width, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
-        # self.removal_buttons[-1].config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
-        # self.removal_buttons[-1].pack(side=LEFT,padx=(5,5))
-        
-        # self.add_i_e_pair_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.i_e_pair_frames.append(Frame(self.individual_angles_frame, bg=self.bg))
-        #self.active_i_e_pair_frames.append(self.i_e_pair_frames[-1])
         self.i_e_pair_frames[-1].pack(pady=(5,0))
-        if True:#len(self.incidence_labels)==0:
-            self.incidence_labels.append(Label(self.i_e_pair_frames[-1],bg=self.bg,fg=self.textcolor,text='Incidence:'))
-        else:
-            #self.
-            self.incidence_labels.append(Label(self.i_e_pair_frames[-1],bg=self.bg,fg=self.textcolor,text='                '))
-
+        self.incidence_labels.append(Label(self.i_e_pair_frames[-1],bg=self.bg,fg=self.textcolor,text='Incidence:'))
         self.incidence_labels[-1].pack(side=LEFT, padx=(5,5),pady=(0,8))
         
         self.incidence_entries.append(Entry(self.i_e_pair_frames[-1], width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground))
-        #self.active_incidence_entries.append(self.incidence_entries[-1])
+        self.entries.append(self.incidence_entries[-1])
         self.incidence_entries[-1].pack(side=LEFT)
         
         if True:#len(self.emission_labels)==0:
@@ -1780,7 +1825,7 @@ class Controller():
         self.emission_labels[-1].pack(side=LEFT, padx=(10,0))
             
         self.emission_entries.append(Entry(self.i_e_pair_frames[-1], width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground))
-        #self.active_emission_entries.append(self.emission_entries[-1])
+        self.entries.append(self.emission_entries[-1])
         self.emission_entries[-1].pack(side=LEFT, padx=(0,20))
         
         self.i_e_removal_buttons.append(Button(self.i_e_pair_frames[-1], text='Remove', command=lambda x=len(self.i_e_removal_buttons):self.remove_i_e_pair(x),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd))
@@ -1804,10 +1849,12 @@ class Controller():
             while len(self.incidence_entries)>1:
                 self.remove_i_e_pair(len(self.incidence_entries)-1)
             self.add_i_e_pair_button.configure(state=DISABLED)
-            
-            self.spec_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
-            self.wr_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
+           
             self.opt_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
+            self.wr_button.pack(padx=self.padx,pady=self.pady, side=LEFT) 
+            self.spec_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
+
+
             self.acquire_button.pack_forget()
         else:
             self.range_radio.configure(state = NORMAL)
@@ -1892,6 +1939,7 @@ class Controller():
         
     def clear(self):
         if self.manual_automatic.get()==0:
+            self.unfreeze()
             self.active_incidence_entries[0].delete(0,'end')
             self.active_emission_entries[0].delete(0,'end')
             self.label_entry.delete(0,'end')
@@ -1950,7 +1998,7 @@ class Controller():
         while t>0:
             if 'rmsuccess' in self.spec_listener.queue:
                 self.spec_listener.queue.remove('rmsuccess')
-                self.log('\nRemoved placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd.')
+                self.log('\nSaved and deleted a garbage spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd).')
                 break
             elif 'rmfailure' in self.spec_listener.queue:
                 self.spec_listener.queue.remove('rmfailure')
@@ -2027,14 +2075,76 @@ class Controller():
             with open(self.log_filename,'a') as log:
                 log.write(info_string)
                 
-        
+    def freeze(self):
+        for button in self.tk_buttons:
+            button.configure(state='disabled')
+        for entry in self.entries:
+            entry.configure(state='disabled')
+        for radio in self.radiobuttons:
+            radio.configure(state='disabled')
+
+    def unfreeze(self):
+        for button in self.tk_buttons:
+            button.configure(state='normal')
+        for entry in self.entries:
+            entry.configure(state='normal')
+        for radio in self.radiobuttons:
+            radio.configure(state='normal')
+            
+        if self.manual_automatic.get()==0:
+            self.range_radio.configure(state='disabled')
+            self.add_i_e_pair_button.configure(state='disabled')
+            
+    def on_closing(self):
+        if self.manual_automatic.get()==1:
+            print('hi!')
+            self.incidence_entries[0].delete(0,'end')
+            self.incidence_entries[0].insert(0,'0')
+            self.emission_entries[0].delete(0,'end')
+            self.emission_entries[0].insert(0,'30')
+            self.active_incidence_entries=[self.incidence_entries[0]]
+            self.active_emission_entries=[self.emission_entries[0]]
+            self.set_geom()
+            
+            self.queue=[]
+            if self.e==None or self.i==None:
+                self.master.destroy()
+                exit()
+            if int(self.e)<0:
+                self.queue.append({self.detector_close:[]})
+                self.queue.append({self.light_close:[]})
+            else:
+                self.queue.append({self.light_close:[]})  
+                self.queue.append({self.detector_close:[]})
+  
+            self.next_in_queue()
+        else:
+            self.master.destroy()
+
+            
+            #dialog=Dialog(self, title='Please reset geometry on exit',label='Please manually set the goniometer to\n\nincidence=0\nemission=30',buttons={'ok':{self.master.destroy:[]}},width=500,height=250)
+            
+                    
+    def light_close(self):
+        self.pi_commander.move_light(self.active_incidence_entries[0].get())
+        handler=CloseHandler(self)
+        self.test_view.move_light(int(self.active_incidence_entries[0].get()))
+    def detector_close(self):
+        self.pi_commander.move_detector(self.active_emission_entries[0].get())
+        handler=CloseHandler(self)
+        self.test_view.move_detector(int(self.active_emission_entries[0].get()))
 
     
 class Dialog:
-    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=30, info_string=None, grab=True):
+    def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=20, info_string=None, grab=True):
         
         self.controller=controller
         self.grab=grab
+        if True:#self.grab:
+            try:
+                self.controller.freeze()
+            except:
+                print('failed to freeze')
         
         try:
             self.textcolor=self.controller.textcolor
@@ -2077,11 +2187,12 @@ class Dialog:
                 self.top=tk.Toplevel(controller.master, width=width, height=height, bg=self.bg)
                 
             #self.controller.master.iconify() 
-            if self.grab:
-                try:
-                    self.top.grab_set()
-                except:
-                    print('failed to grab')
+            # if self.grab:
+            #     pass
+            #     try:
+            #         self.top.grab_set()
+            #     except:
+            #         print('failed to grab')
         
         self.top.attributes('-topmost', 1)
         self.top.attributes('-topmost', 0)
@@ -2090,9 +2201,9 @@ class Dialog:
 
         self.label_frame=Frame(self.top, bg=self.bg)
         self.label_frame.pack(side=TOP)
-        self.label = tk.Label(self.label_frame, fg=self.textcolor,text=label, bg=self.bg)
+        self.__label = tk.Label(self.label_frame, fg=self.textcolor,text=label, bg=self.bg)
         self.set_label_text(label, log_string=info_string)
-        self.label.pack(pady=(10,10), padx=(10,10))
+        self.__label.pack(pady=(10,10), padx=(10,10))
     
         self.button_width=button_width
         self.buttons=buttons
@@ -2107,11 +2218,20 @@ class Dialog:
             
         if controller!=None and info_string!=None:
             self.log(info_string)
-            
+    
+    @property
+    def label(self):
+        return self.__label.cget('text')
+        
+    @label.setter
+    def label(self, val):
+        self.__label.configure(text=val)
+        
+        
     def set_title(self, newtitle):
         self.top.wm_title(newtitle)
     def set_label_text(self, newlabel, log_string=None):
-        self.label.config(fg=self.textcolor,text=newlabel)
+        self.__label.config(fg=self.textcolor,text=newlabel)
         if log_string != None and self.controller!=None:
             self.log(log_string)
             #self.controller.console_log.insert(END, info_string)
@@ -2130,6 +2250,8 @@ class Dialog:
         self.tk_buttons=[]
 
         for button in buttons:
+            
+            
             if 'ok' in button.lower():
                 self.ok_button = Button(self.button_frame, fg=self.textcolor,text='OK', command=self.ok, width=self.button_width)
                 self.tk_buttons.append(self.ok_button)
@@ -2146,6 +2268,10 @@ class Dialog:
                 self.cancel_button=Button(self.button_frame, fg=self.textcolor,text='Cancel',command=self.cancel, width=self.button_width)
                 self.cancel_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
                 self.tk_buttons.append(self.cancel_button)
+            elif 'cancel_queue' in button.lower():
+                self.cancel_queue_button=Button(self.button_frame, fg=self.textcolor,text='Cancel',command=self.cancel_queue, width=self.button_width)
+                self.cancel_queue_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+                self.tk_buttons.append(self.cancel_button)
             elif 'retry' in button.lower():
                 self.retry_button=Button(self.button_frame, fg=self.textcolor,text='Retry',command=self.retry, width=self.button_width)
                 self.retry_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
@@ -2158,6 +2284,15 @@ class Dialog:
                 self.offline_button=Button(self.button_frame, fg=self.textcolor,text='Work offline',command=self.work_offline, width=self.button_width)
                 self.offline_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
                 self.tk_buttons.append(self.offline_button)
+            elif 'pause' in button.lower():
+                self.pause_button=Button(self.button_frame,fg=self.textcolor,text='Pause',command=self.pause,width=self.button_width)
+                self.pause_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
+                self.tk_buttons.append(self.pause_button)
+        
+            elif 'continue' in button.lower():
+                self.continue_button=Button(self.button_frame,fg=self.textcolor,text='Continue',command=self.cont,width=self.button_width)
+                self.continue_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
+                self.tk_buttons.append(self.continue_button)
                 
             for button in self.tk_buttons:
                 button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
@@ -2175,16 +2310,33 @@ class Dialog:
             
     def on_closing(self):
         if self.allow_exit:
+            self.controller.unfreeze()
             self.top.destroy()
+            
+    def close(self):
+        #Might fail if controller==None (happens if server isn't connected at startup)
+        try:
+            self.controller.unfreeze()
+        except:
+            pass
+        self.top.destroy()
     
     def retry(self):
-        self.top.destroy()
+        self.close()
         dict=self.buttons['retry']
         self.execute(dict,False)
         
     def exit(self):
         self.top.destroy()
         exit()
+        
+    def cont(self):
+        dict=self.buttons['continue']
+        self.execute(dict,close=False)
+        
+    def pause(self):
+        dict=self.buttons['pause']
+        self.execute(dict,close=False)
 
     def ok(self):
         dict=self.buttons['ok']
@@ -2202,16 +2354,20 @@ class Dialog:
         dict=self.buttons['cancel']
         self.execute(dict)
         
+    def cancel_queue(self):
+        dict=self.buttons['cancel_queue']
+        self.execute(dict,close=False)
+        
     def execute(self,dict,close=True):
         for func in dict:
             args=dict[func]
             func(*args)
 
         if close:
-            self.top.destroy()
+            self.close()
     
     def work_offline(self):
-        self.top.destroy()
+        self.close()
         dict=self.buttons['work offline']
         self.execute(dict,close=False)
         
@@ -2228,18 +2384,11 @@ class WaitDialog(Dialog):
         self.pbar.start([10])
         self.pbar.pack(padx=(10,10),pady=(10,10))
         
-    #replace with interrupt('Error: Operation timed out')
-    # def timeout()
-    #     self.pbar.stop()
-    #     self.dialog.set_buttons({'ok':{}})
-    
-    def close(self):
-        self.top.destroy()
         
     def interrupt(self,label):
         self.set_label_text(label)
         self.pbar.stop()
-        self.set_buttons({'ok':{}})
+        self.set_buttons({'ok':{}})#self.controller.unfreeze:[]}})
         
     def reset(self, title='Working...', label='Working...', buttons={}):
         self.set_label_text(label)
@@ -2257,25 +2406,35 @@ class CommandHandler():
             print('testy test!')
         try:
             self.controller.wait_dialog.reset(title=title, label=label, buttons=buttons)
-            print('reset from handler!')
         except:
-            print('new wait dialog!')
             self.controller.wait_dialog=WaitDialog(controller,title,label)
-        self.wait_dialog=self.controller.wait_dialog
+        self.wait_dialog=self.controller.wait_dialog 
+        self.controller.freeze()
+        
+        if self.controller.manual_automatic.get()==1 and len(self.controller.queue)>1:
+            buttons={
+                'pause':{
+                    self.pause:[]
+                },
+                'cancel_queue':{
+                    self.cancel:[]
+                }
+            }
+            self.wait_dialog.set_buttons(buttons)
+
+        
+
         
         #We'll keep track of elapsed time so we can cancel the operation if it takes too long
         self.t0=time.clock()
         self.t=time.clock()
         self.timeout_s=timeout
         
-        #I think these three attributes are useless and should be deleted
-        self.canceled=False
-        self.interrupted=False
-        self.fileexists=False
-
         
+        #The user can pause or cancel if we're executing a list of commands.
+        self.pause=False
+        self.cancel=False
 
-        
         #A Listener object is always running a loop in a separate thread. It  listens for files dropped into a command folder and changes its attributes based on what it finds.
         self.timeout_s=timeout
         
@@ -2312,22 +2471,26 @@ class CommandHandler():
                 'retry':{
                     self.controller.next_in_queue:[]
                 },
-                'cancel':{}
+                'cancel':{
+                    self.finish:[]
+                }
             }
-            self.wait_dalog.set_buttons(buttons)
+            self.wait_dialog.set_buttons(buttons)
 
-    #delme
     def finish(self):
         self.wait_dialog.close()
         
 
-    #delme
+    def pause(self):
+        self.pause=True
+        self.wait_dialog.label='Pausing...'
+    
     def cancel(self):
-        self.canceled=True
+        self.cancel=True
+        self.wait_dialog.label='Canceling...'
         
     def interrupt(self,label, info_string=None, retry=False):
         self.allow_exit=True
-        self.interrupted=True #delme
         self.wait_dialog.interrupt(label)
         if info_string!=None:
             self.log(info_string)
@@ -2336,12 +2499,16 @@ class CommandHandler():
                 'retry':{
                     self.controller.next_in_queue:[]
                 },
-                'cancel':{}
+                'cancel':{
+                    self.finish:[]
+                }
             }
             self.wait_dalog.set_buttons(buttons)
+        self.controller.freeze()
 
         
     def remove_retry(self):
+        self.controller.wait_dialog=None
         removed=self.controller.rm_current()
         if removed: 
             self.controller.log('Warning: overwriting data.')
@@ -2354,16 +2521,35 @@ class CommandHandler():
             self.controller.next_in_queue()
         else:
             dialog=ErrorDialog(self.controller,label='Error: Failed to remove file. Choose a different base name,\nspectrum number, or save directory and try again.')
-            self.set_buttons({'ok':{}})
+            #self.wait_dialog.set_buttons({'ok':{}})
             
     def success(self,close=True):
         
         self.controller.complete_queue_item()
-        
-        if len(self.controller.queue)>0:
+        if self.cancel:
+            self.interrupt('Canceled.')
+        elif self.pause:
+            buttons={
+                'continue':{
+                    self.controller.next_in_queue:[]
+                },
+                'cancel':{
+                    self.finish:[]
+                }
+            }
+            self.interrupt('Paused.')
+            self.wait_dialog.set_buttons(buttons)
+        elif len(self.controller.queue)>0:
             self.controller.next_in_queue()
         else:
             self.interrupt('Success!')
+            
+    def set_text(self,widget, text):
+        widget.configure(state='normal')
+        widget.delete(0,'end')
+        widget.insert(0,text)
+        widget.configure(state='disabled')
+            
 
 class InstrumentConfigHandler(CommandHandler):
     def __init__(self, controller, title='Configuring instrument...', label='Configuring instrument...', timeout=20):
@@ -2389,7 +2575,7 @@ class InstrumentConfigHandler(CommandHandler):
     def success(self):
         self.controller.spec_config_count=self.controller.instrument_config_entry.get()
 
-        self.controller.log('Instrument configured to average '+str(self.controller.spec_config_count)+' spectra.')
+        self.controller.log('Instrument configured to average  '+str(self.controller.spec_config_count)+' spectra.')
 
         super(InstrumentConfigHandler, self).success()
         
@@ -2514,7 +2700,33 @@ class ProcessHandler(CommandHandler):
         
         
         
+class CloseHandler(CommandHandler):
+    def __init__(self, controller, title='Closing...', label='Setting to default geometry and closing...', buttons={'cancel':{}}):
+        self.listener=controller.pi_listener
+        print('handling close!')
+        super().__init__(controller, title, label,timeout=60+BUFFER)
         
+    def wait(self):
+        while self.timeout_s>0:
+            if 'donemoving' in self.listener.queue:
+                self.listener.queue.remove('donemoving')
+                self.success()
+                return
+
+            time.sleep(INTERVAL)
+            self.timeout_s-=INTERVAL
+        
+        self.timeout()
+    def success(self):
+        print('success')
+        print(self.controller.queue)
+        self.controller.complete_queue_item()
+        if len(self.controller.queue)==0:
+            self.interrupt('Finished. Ready to exit')
+            self.wait_dialog.set_buttons({'exit':{exit_func:[]}})
+        else:
+            self.controller.next_in_queue()
+            
 class MotionHandler(CommandHandler):
     def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}):
         self.listener=controller.pi_listener
@@ -2617,7 +2829,7 @@ class SaveConfigHandler(CommandHandler):
         if self.keep_around:
             dialog=WaitDialog(self.controller, title='Warning: Untracked Files',buttons={'ok':[]})
             dialog.top.geometry('400x300')
-            dialog.set_label_text('Save configuration was set successfully,\nbut there are untracked files in the\ndata directory. Do these belong here?')
+            dialog.interrupt('Save configuration was set successfully,\nbut there are untracked files in the\ndata directory. Do these belong here?')
             
             self.controller.log('Untracked files in data directory:\n'+'\n\t'.join(self.unexpected_files))
             
@@ -2642,10 +2854,6 @@ class SpectrumHandler(CommandHandler):
     def wait(self):
         #old_files=list(self.controller.listener.saved_files)
         while self.timeout_s>0:
-            #I took out the option to cancel because it was so dumb
-            if self.canceled==True:
-                self.interrupt("Operation canceled by user. Warning! This really\ndoesn't do anything except stop tkinter from waiting\n, you probably still saved a spectrum")
-                return
                 
 
             if 'failedtosavefile' in self.listener.queue:
@@ -2678,8 +2886,7 @@ class SpectrumHandler(CommandHandler):
                     'yes':{
                         self.remove_retry:[]
                     },
-                    'no':{
-                    }
+                    'no':{}
                 }
                     
                 self.wait_dialog.set_buttons(buttons,button_width=20)
@@ -2697,8 +2904,7 @@ class SpectrumHandler(CommandHandler):
         spec_num_string=str(self.controller.spec_num)
         while len(spec_num_string)<NUMLEN:
             spec_num_string='0'+spec_num_string
-        self.controller.spec_startnum_entry.insert(0,spec_num_string)
-        
+        self.set_text(self.controller.spec_startnum_entry,spec_num_string)
         self.allow_exit=True
         numstr=str(self.controller.spec_num-1)
         while len(numstr)<NUMLEN:
@@ -2711,25 +2917,29 @@ class SpectrumHandler(CommandHandler):
 
         info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.label_entry.get()+'\n'
         
-        self.controller.log(info_string,True)
+        print(self.wait_dialog.label)
+        if 'garbage' in self.wait_dialog.label:
+            pass
+        else:
+            self.controller.log(info_string,True)
 
         #Clear out 'White reference' if that was put in earlier to use for this spectrum.
-        self.controller.label_entry.delete(0,'end')
-        self.controller.label_entry.insert(0,self.controller.current_label)
-    
+        self.set_text(self.controller.label_entry,self.controller.current_label)    
         self.controller.clear()
         
         super(SpectrumHandler, self).success()
         
 class ErrorDialog(Dialog):
     def __init__(self, controller, title='Error', label='Error!', buttons={'ok':{}}, listener=None,allow_exit=False, info_string=None, topmost=True, button_width=30, width=None,height=None):
+        
+        #buttons['ok']={controller.unfreeze:[]}
+        
         self.listener=None
         if info_string==None:
             self.info_string=label+'\n'
         else:
             self.info_string=info_string
         if width==None or height==None:
-            print('hi!')
             super().__init__(controller, title, label,buttons,allow_exit=False, info_string=None, button_width=button_width)#self.info_string)
         else:
             super().__init__(controller, title, label,buttons,allow_exit=False, info_string=None, button_width=button_width,width=width, height=height)
@@ -2880,7 +3090,7 @@ class RemoteFileExplorer(Dialog):
                 self.select(select)
             
             if destroy:
-                self.top.destroy()
+                self.close()
 
                 
         elif status=='listdirfailed':
@@ -2934,10 +3144,10 @@ class RemoteFileExplorer(Dialog):
             if len(index)>0 and self.path_entry.get()==self.current_parent:
     
                 self.target.insert(0,self.current_parent+'\\'+self.listbox.get(index[0]))
-                self.top.destroy()
+                self.close()
             elif self.path_entry.get()==self.current_parent:
                 self.target.insert(0,self.current_parent)
-                self.top.destroy()
+                self.close()
             else:
                 buttons={
                     'yes':{
@@ -2955,7 +3165,9 @@ class RemoteFileExplorer(Dialog):
             if len(self.listbox.curselection())>0 and self.path_entry.get()==self.current_parent and  self.listbox.itemcget(index[0], 'foreground')=='darkblue':
     
                 self.target.insert(0,self.current_parent+'\\'+self.listbox.get(index[0]))
-                self.top.destroy()
+                self.close()
+    
+
             
 class RemoteDirectoryWorker():
     def __init__(self, spec_commander, read_command_loc, listener):
@@ -2966,9 +3178,9 @@ class RemoteDirectoryWorker():
     
     def wait_for_contents(self,cmdfilename):
         #Wait to hear what the listener finds
-        t=self.timeout_s
+        print('something wrong here!')
         print(cmdfilename)
-        while t>0:
+        while self.timeout_s>0:
             #If we get a file back with a list of the contents, replace the old listbox contents with new ones.
             if cmdfilename in self.listener.queue:
                 contents=[]
@@ -2993,8 +3205,8 @@ class RemoteDirectoryWorker():
                 return 'listfilesfailed'
             
             time.sleep(INTERVAL)
-            t-=INTERVAL 
-            
+            self.timeout_s-=INTERVAL 
+        print('rats timed out')
         return 'timeout'
         
         
@@ -3125,7 +3337,7 @@ class PiListener(Listener):
                 if cmdfile not in self.cmdfiles0:
                     cmd, params=decrypt(cmdfile)
 
-                    print('Read command: '+cmd)
+                    print('Pi read command: '+cmd)
                     if 'donemoving' in cmd:
                         self.queue.append('donemoving')
         self.cmdfiles0=list(self.cmdfiles)
@@ -3152,10 +3364,22 @@ class SpecListener(Listener):
                 if cmdfile not in self.cmdfiles0:
                     cmd, params=decrypt(cmdfile)
 
-                    print('Read command: '+cmd)
+                    print('Spec read command: '+cmd)
+                    print('fof')
                     if 'savedfile' in cmd:
                         #self.saved_files.append(params[0])
                         self.queue.append('savedfile')
+                    elif 'listdir' in cmd:
+                        print('should get here!')
+                        if 'listdirfailed' in cmd:
+                            if 'permission' in cmd:
+                                self.queue.append('listdirfailedpermission')
+                            else:
+                                self.queue.append('listdirfailed')
+                        else:
+                            print('here is the file you are looking ofr')
+                            print(cmdfile)
+                            self.queue.append(cmdfile)  
                     elif 'wrfailedfileexists' in cmd:
                         self.queue.append('wrfailedfileexists')
                         
@@ -3199,14 +3423,7 @@ class SpecListener(Listener):
                     elif 'savespecfailedfileexists' in cmd:
                         self.queue.append('savespecfailedfileexists')
                     
-                    elif 'listdir' in cmd:
-                        if 'listdirfailed' in cmd:
-                            if 'permission' in cmd:
-                                self.queue.append('listdirfailedpermission')
-                            else:
-                                self.queue.append('listdirfailed')
-                        else:
-                            self.queue.append(cmdfile)      
+    
                     elif 'listcontents' in cmd:
                         self.queue.append(cmdfile)  
                     
@@ -3356,8 +3573,22 @@ class PiCommander(Commander):
         self.send(filename)
         return filename
         
+    def move_light(self, incidence):
+        filename=self.encrypt('movelight',[incidence])
+        self.send(filename)
+        return filename
+
+    def move_detector(self, emission):
+        filename=self.encrypt('movedetector',[emission])
+        self.send(filename)
+        return filename
+        
     def move_tray(self):
         filename=self.encrypt('movetray',[])
+        self.send(filename)
+        
+    def get_current_geom(self):
+        filename=self.encrypt('getcurrentgeom',[])
         self.send(filename)
     
 
@@ -3479,7 +3710,6 @@ class ConnectionChecker():
             return False
     
     def check_connection(self,firstconnection, attempt=0):
-        print('CHECK')
         if OFFLINE:
             print('offline hooray!')
             self.func()
@@ -3534,7 +3764,7 @@ class SpecConnectionChecker(ConnectionChecker):
             
     def lost_dialog(self,buttons):
         try:
-            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons)
+            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons,button_width=15)
         except:
             pass
     def no_dialog(self,buttons):
@@ -3549,13 +3779,13 @@ class PiConnectionChecker(ConnectionChecker):
             
     def lost_dialog(self,buttons):
         try:
-            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with Raspberry Pi.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons)
+            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with Raspberry Pi.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons,button_width=15)
         except:
             pass
         
     def no_dialog(self,buttons):
         try:
-            dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: Raspberry Pi not connected.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons)
+            dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: Raspberry Pi not connected.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons,button_width=15)
         except:
             pass
         
