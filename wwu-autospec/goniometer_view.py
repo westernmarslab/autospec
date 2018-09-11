@@ -127,6 +127,8 @@ class TestView():
         self.light=pygame.Rect(30,30,60,60)
         self.theta_l=10
         self.theta_d=60
+        self.d_up=False
+        self.l_up=False
         
         pygame.init()
 
@@ -159,14 +161,31 @@ class TestView():
         x_l = pivot[0] + np.sin(np.radians(self.theta_l)) * light_len
         x_l_text=pivot[0] + np.sin(np.radians(self.theta_l)) * (light_len/scale)
         y_l = pivot[1] - np.cos(np.radians(self.theta_l)) * light_len
-        y_l_text = pivot[1] - np.cos(np.radians(self.theta_l)) * light_len*scale-np.sin(np.radians(self.theta_l))*light_len/12
+        y_l_text = pivot[1] - np.cos(np.radians(self.theta_l)) * light_len*scale-abs(np.sin(np.radians(self.theta_l))*light_len/12)
         
         detector_len=light_len
         detector_width=light_width
         x_d = pivot[0] + np.sin(np.radians(self.theta_d)) * detector_len
         x_d_text = pivot[0] + np.sin(np.radians(self.theta_d)) * (detector_len/scale)
         y_d = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len
-        y_d_text = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len*scale-np.sin(np.radians(self.theta_d))*detector_len/12
+        y_d_text = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len*scale-abs(np.sin(np.radians(self.theta_d))*detector_len/12)
+        if np.abs(y_d_text-y_l_text)<self.char_len/30:
+            if self.d_up:
+                y_d_text-=self.char_len/20
+            elif self.l_up:
+                y_l_text-=self.char_len/20
+            elif y_d_text<y_l_text:
+                print('emission above,lift it higher')
+                y_d_text-=self.char_len/20
+                self.d_up=True
+            else:
+                print('incidence above,lift it higher')
+                self.l_up=True
+                y_l_text-=self.char_len/20
+        else:
+            print('RESET!')
+            self.d_up=False
+            self.l_up=False
         
         #deltas to give arm width.
         delta_y_l=light_width/2*np.sin(np.radians(self.theta_l))
@@ -177,11 +196,15 @@ class TestView():
         
         self.screen.fill(pygame.Color(self.controller.bg))
         
+        #Draw goniometer
         pygame.draw.circle(self.screen, pygame.Color('darkgray'), pivot, back_radius+border_thickness)
         pygame.draw.circle(self.screen, (0,0,0), pivot, back_radius)
         pygame.draw.rect(self.screen, pygame.Color(self.controller.bg),(pivot[0]-back_radius,pivot[1]+int(self.char_len/10-5),2*back_radius,2*back_radius))
-        pygame.draw.rect(self.screen, (0,0,0),(pivot[0]-back_radius,pivot[1],2*back_radius,int(self.char_len/10)))
-        
+        pygame.draw.rect(self.screen, (0,0,0),(pivot[0]-back_radius,pivot[1],2*back_radius,int(self.char_len/6.5)))
+        #draw border around bottom part of goniometer
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]-back_radius-1,pivot[1]),(pivot[0]-back_radius-1,pivot[1]+int(self.char_len/6.5)))
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]+back_radius,pivot[1]),(pivot[0]+back_radius,pivot[1]+int(self.char_len/6.5)))
+        pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]-back_radius,pivot[1]+int(self.char_len/6.5)),(pivot[0]+back_radius,pivot[1]+int(self.char_len/6.5)))
 
         
         #draw light arm
@@ -198,10 +221,9 @@ class TestView():
         
         self.screen.blit(i_text,(x_l_text,y_l_text))
         self.screen.blit(e_text,(x_d_text,y_d_text))
-        #pygame.draw.circle(self.screen, 'black', pivot, back_radius=200)
         
         #border around screen
-        pygame.draw.rect(self.screen,pygame.Color('darkgray'),(2,2,self.width-4,self.height-3),2)
+        pygame.draw.rect(self.screen,pygame.Color('darkgray'),(2,2,self.width-6,self.height+15),2)
 
 
         #pygame.display.update()

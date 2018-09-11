@@ -257,16 +257,23 @@ class Controller():
         #One wait dialog open at a time. CommandHandlers check whether to use an existing one or make a new one.
         self.wait_dialog=None
         
-        try:
-            with open(self.config_loc+'geom','r') as f:
-                self.last_i=int(f.readline().strip('\n'))
-                self.last_e=int(f.readline().strip('\n'))
-        except:
-            self.last_i=None
-            self.last_e=None
-            
+        # try:
+        #     with open(self.config_loc+'geom','r') as f:
+        #         self.last_i=int(f.readline().strip('\n'))
+        #         self.last_e=int(f.readline().strip('\n'))
+        # except:
+        #     self.last_i=None
+        #     self.last_e=None
+        
+        self.min_i=-50
+        self.max_i=50
         self.i=None
+        
+        self.min_e=-75
+        self.max_e=75
         self.e=None
+        
+        self.required_angular_separation=15
         
         
         
@@ -455,34 +462,36 @@ class Controller():
 
         
         
-        self.instrument_config_frame=Frame(self.control_frame, bg=self.bg, highlightthickness=0)
+        self.instrument_config_frame=Frame(self.control_frame, bg=self.bg, highlightthickness=1)
         self.spec_settings_label=Label(self.instrument_config_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Instrument Configuration:')
-        self.spec_settings_label.pack(padx=self.padx,pady=(0,10))
-        self.instrument_config_frame.pack(pady=(15,15))
-        self.instrument_config_label=Label(self.instrument_config_frame, fg=self.textcolor,text='Number of spectra to average:', bg=self.bg)
-        self.instrument_config_label.pack(side=LEFT)
-        self.instrument_config_entry=Entry(self.instrument_config_frame, width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.spec_settings_label.pack(padx=self.padx,pady=(10,10))
+        self.instrument_config_frame.pack(fill=BOTH,expand=True)
+        self.i_config_label_entry_frame=Frame(self.instrument_config_frame,bg=self.bg)
+        self.i_config_label_entry_frame.pack()
+        self.instrument_config_label=Label(self.i_config_label_entry_frame, fg=self.textcolor,text='Number of spectra to average:', bg=self.bg)
+        self.instrument_config_label.pack(side=LEFT,padx=(20,0))
+        self.instrument_config_entry=Entry(self.i_config_label_entry_frame, width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.entries.append(self.instrument_config_entry)
         self.instrument_config_entry.insert(0, 5)
         self.instrument_config_entry.pack(side=LEFT)
         
 
-        self.viewing_geom_options_frame_top=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
-        self.viewing_geom_options_frame_top.pack(fill=BOTH,expand=True)     
-        self.viewing_geom_options_label=Label(self.viewing_geom_options_frame_top,text='Viewing geometry options:', fg=self.textcolor, bg=self.bg)
-        self.viewing_geom_options_label.pack(pady=(15,0))
-        self.viewing_geom_options_frame=Frame(self.viewing_geom_options_frame_top,bg=self.bg)
-        self.viewing_geom_options_frame.pack()
+        # self.viewing_geom_options_frame_top=Frame(self.control_frame,bg=self.bg)
+        # self.viewing_geom_options_frame_top.pack(fill=BOTH,expand=True)     
+        # self.viewing_geom_options_label=Label(self.viewing_geom_options_frame_top,text='Viewing geometry options:', fg=self.textcolor, bg=self.bg)
+        # self.viewing_geom_options_label.pack(pady=(15,0))
+        self.viewing_geom_options_frame=Frame(self.control_frame,bg=self.bg)
+        self.viewing_geom_options_frame.pack(fill=BOTH,expand=True)
         
-        self.viewing_geom_options_frame_left=Frame(self.viewing_geom_options_frame, bg=self.bg)
-        self.viewing_geom_options_frame_left.pack(side=LEFT,padx=(15,15))
+        self.viewing_geom_options_frame_left=Frame(self.viewing_geom_options_frame, bg=self.bg,highlightthickness=1)
+        self.viewing_geom_options_frame_left.pack(side=LEFT,fill=BOTH,expand=True)
         
 
         
-        self.single_mult_frame=Frame(self.viewing_geom_options_frame,bg=self.bg)
-        self.single_mult_frame.pack(side=RIGHT, padx=(15,5))
-        self.angle_control_label=Label(self.single_mult_frame,text='Angle specification:      ',bg=self.bg, fg=self.textcolor)
-        self.angle_control_label.pack(padx=(5,5),pady=(5,5))
+        self.single_mult_frame=Frame(self.viewing_geom_options_frame,bg=self.bg,highlightthickness=1)
+        self.single_mult_frame.pack(side=RIGHT, fill=BOTH,expand=True)
+        self.angle_control_label=Label(self.single_mult_frame,text='Geometry specification:      ',bg=self.bg, fg=self.textcolor)
+        self.angle_control_label.pack(padx=(5,5),pady=(10,5))
         
         self.individual_range=IntVar()
         self.individual_radio=Radiobutton(self.single_mult_frame, text='Individual         ',bg=self.bg,fg=self.textcolor,highlightthickness=0,variable=self.individual_range,value=0,selectcolor=self.check_bg,command=self.set_individual_range)
@@ -496,19 +505,19 @@ class Controller():
         
         self.gon_control_label_frame=Frame(self.viewing_geom_options_frame_left, bg=self.bg)
         self.gon_control_label_frame.pack()
-        self.gon_control_label=Label(self.gon_control_label_frame,text='\nGoniometer control:',bg=self.bg, fg=self.textcolor)
-        self.gon_control_label.pack(side=LEFT,padx=(5,5))
+        self.gon_control_label=Label(self.gon_control_label_frame,text='\nGoniometer control:         ',bg=self.bg, fg=self.textcolor)
+        self.gon_control_label.pack(side=LEFT,padx=(10,5))
         
         self.manual_radio_frame=Frame(self.viewing_geom_options_frame_left, bg=self.bg)
         self.manual_radio_frame.pack()
         self.manual_automatic=IntVar()
-        self.manual_radio=Radiobutton(self.manual_radio_frame,text='Manual     ',bg=self.bg,fg=self.textcolor,highlightthickness=0,variable=self.manual_automatic, value=0,selectcolor=self.check_bg,command=self.set_manual_automatic)
+        self.manual_radio=Radiobutton(self.manual_radio_frame,text='Manual            ',bg=self.bg,fg=self.textcolor,highlightthickness=0,variable=self.manual_automatic, value=0,selectcolor=self.check_bg,command=self.set_manual_automatic)
         self.radiobuttons.append(self.manual_radio)
         self.manual_radio.pack(side=LEFT,padx=(10,10),pady=(5,5))
         
         self.automation_radio_frame=Frame(self.viewing_geom_options_frame_left, bg=self.bg)
         self.automation_radio_frame.pack()
-        self.automation_radio=Radiobutton(self.automation_radio_frame,text='Automatic  ',bg=self.bg,fg=self.textcolor,highlightthickness=0,variable=self.manual_automatic,value=1,selectcolor=self.check_bg,command=self.set_manual_automatic)
+        self.automation_radio=Radiobutton(self.automation_radio_frame,text='Automatic         ',bg=self.bg,fg=self.textcolor,highlightthickness=0,variable=self.manual_automatic,value=1,selectcolor=self.check_bg,command=self.set_manual_automatic)
         self.radiobuttons.append(self.automation_radio)
         self.automation_radio.pack(side=LEFT,padx=(10,10))
         self.filler_label=Label(self.viewing_geom_options_frame_left,text='',bg=self.bg)
@@ -1123,14 +1132,18 @@ class Controller():
                             label+=' No white reference has been taken at this viewing geometry.\n\n'
                         
                 if self.anglesfailsafe.get():
-                    valid_i=validate_int_input(incidence,-90,90)
-                    valid_e=validate_int_input(emission,-90,90)
-                    if not valid_i and not valid_e:
-                        label+='The emission and incidence angles are invalid.\n\n'
-                    elif not valid_i:
-                        label+='The incidence angle is invalid.\n\n'
-                    elif not valid_e:
-                        label+='The emission angle is invalid.\n\n'
+                    valid_i=validate_int_input(incidence,self.min_i,self.max_i)
+                    valid_e=validate_int_input(emission,self.min_e,self.max_e)
+                    valid_separation=self.validate_distance(incidence,emission)
+                    # if not valid_i and not valid_e:
+                    #     label+='The emission ('+str(self.min_e)+'to '+str(self.max_e)+') and incidence ('+str(self.min_i)+'to '+str(self.max_i)+') angles are invalid.\n\n'
+                    if not valid_i:
+                        label+='The incidence angle is invalid (Min:'+str(self.min_i)+', Max:'+str(self.max_i)+').\n\n'
+                    if not valid_e:
+                        label+='The emission angle is invalid (Min:'+str(self.min_e)+', Max:'+str(self.max_i)+').\n\n'
+                    if valid_e and valid_i:
+                        if not valid_separation:
+                            label+='Incidence and emission need to be at least '+str(self.required_angular_separation)+' degrees apart.\n\n'
                         
                 if self.anglechangefailsafe.get():
                     anglechangealert=False
@@ -1314,7 +1327,14 @@ class Controller():
         return True
         
             
-            
+    def set_and_animate_geom(self):
+            self.set_geom()
+            valid_i=validate_int_input(self.i,-90,90)
+            if valid_i:
+                self.test_view.move_light(int(self.i))
+            valid_e=validate_int_input(self.e,-90,90)
+            if valid_e:
+                self.test_view.move_detector(int(self.e))
     #Check that all input is valid, the save configuration is set, and the instrument is configured.
     #This gets called once when the user clicks something, but not for subsequent actions.
     def setup(self, nextaction):
@@ -1324,6 +1344,10 @@ class Controller():
         self.active_incidence_entries=list(self.incidence_entries)
         self.active_emission_entries=list(self.emission_entries)
         self.active_i_e_pair_frames=list(self.i_e_pair_frames)
+        
+        if self.manual_automatic.get()==0:
+            thread=Thread(target=self.set_and_animate_geom)
+            thread.start()
 
         
         #Requested save config is guaranteed to be valid because of input checks above.
@@ -1354,6 +1378,7 @@ class Controller():
             self.input_dir_entry.delete(0,'end')
             self.input_dir_entry.insert(0,self.spec_save_dir_entry.get())
         
+
         return True
     #Action will be either wr or take a spectrum
     def acquire(self, override=False, setup_complete=False, action=None, garbage=False):
@@ -1383,10 +1408,8 @@ class Controller():
         elif self.individual_range.get()==0 and len(self.incidence_entries)>1:
             self.active_i_e_pair_frames[0].configure(bg='white')
             pass
-          
-        if self.i!=self.active_incidence_entries[0].get()or self.e!=self.active_emission_entries[0].get():
-            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            self.set_geom()
+
+
         
         if action==self.take_spectrum:
             startnum_str=str(self.spec_startnum_entry.get())
@@ -1398,7 +1421,8 @@ class Controller():
                 handler=SpectrumHandler(self)
             else:
                 handler=SpectrumHandler(self,title='Collecting garbage...',label='Collecting garbage spectrum...')
-            
+                
+
         elif action==self.wr:
             self.spec_commander.white_reference()
             handler=WhiteReferenceHandler(self)
@@ -1412,21 +1436,25 @@ class Controller():
         self.angles_change_time=time.time()
         self.i=self.active_incidence_entries[0].get()
         self.e=self.active_emission_entries[0].get()
-        print(self.config_loc+'geom')
-        with open(self.config_loc+'geom','w') as f:
-            f.write(self.i+'\n')
-            f.write(self.e)
+        # print(self.config_loc+'geom')
+        # with open(self.config_loc+'geom','w') as f:
+        #     f.write(self.i+'\n')
+        #     f.write(self.e)
         
-    def next_geom(self):
-        last_i=int(self.active_incidence_entries.pop(0).get())
-        last_e=int(self.active_emission_entries.pop(0).get())
+    def next_geom(self): 
+        # last_i=int(self.active_incidence_entries.pop(0).get())
+        # last_e=int(self.active_emission_entries.pop(0).get())
+        # self.active_i_e_pair_frames.pop(0)
+        
+        self.active_incidence_entries.pop(0)
+        self.active_emission_entries.pop(0)
         self.active_i_e_pair_frames.pop(0)
         
         next_i=int(self.active_incidence_entries[0].get())
         next_e=int(self.active_incidence_entries[0].get())
         
         #Don't run the arms into each other.
-        if next_e>last_e:
+        if next_e>self.e:
             self.queue.insert(0,{self.move_light:[]})
             self.queue.insert(0,{self.move_detector:[]})
 
@@ -1441,11 +1469,13 @@ class Controller():
         self.pi_commander.move_light(self.active_incidence_entries[0].get())
         handler=MotionHandler(self,label='Moving light source...')
         self.test_view.move_light(int(self.active_incidence_entries[0].get()))
+        self.set_geom()
         
     def move_detector(self):
         self.pi_commander.move_detector(self.active_emission_entries[0].get())
         handler=MotionHandler(self,label='Moving detector...')
         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
+        self.set_geom()
         
     def move_tray(self):
         self.pi_commander.move_tray()
@@ -1838,9 +1868,37 @@ class Controller():
             self.add_i_e_pair_button.configure(state=DISABLED)
         self.add_i_e_pair_button.pack(pady=(10,10))
         
-    def set_manual_automatic(self):
+    def configure_pi(self):
+        self.pi_commander.configure(self.i,self.e)
+        timeout_s=BUFFER
+        while timeout_s>0:
+            if 'piconfigsuccess' in self.pi_listener.queue:
+                self.pi_listener.queue.remove('piconfigsuccess')
+                break
+            time.sleep(INTERVAL)
+            timeout_s-=INTERVAL
+        if timeout_s<=0:
+            dialog=ErrorDialog(self,label='Error: Failed to configure Raspberry Pi.\nCheck connections and/or restart scripts.')
+            self.i=None
+            self.e=None
+            self.manual_automatic.set(0)
+            self.complete_queue_item()
+            return
+        else:
+            self.test_view.move_light(int(self.i))
+            self.test_view.move_detector(int(self.e))
+            self.complete_queue_item()
+            if len(self.queue)>0:
+                self.next_in_queue()
+            else:
+                self.unfreeze()
+        
+    def set_manual_automatic(self,override=False,force=-1):
         #TODO: save individually specified angles to config file
-        if self.manual_automatic.get()==0:
+        
+        if self.manual_automatic.get()==0 or force==0:
+            if force==0:
+                self.manual_automatic.set(0)
             self.range_frame.pack_forget()
             self.individual_angles_frame.pack()
             self.range_radio.configure(state = DISABLED)
@@ -1857,13 +1915,28 @@ class Controller():
 
             self.acquire_button.pack_forget()
         else:
-            self.range_radio.configure(state = NORMAL)
+            if force==1:
+                self.manual_automatic.set(1)
             self.add_i_e_pair_button.configure(state=NORMAL)
-            
             self.acquire_button.pack(padx=self.padx,pady=self.pady)
             self.spec_button.pack_forget()
             self.opt_button.pack_forget()
             self.wr_button.pack_forget()
+            self.range_radio.configure(state = NORMAL)
+            
+            self.queue=[]
+            valid_i=validate_int_input(self.i,-60,60)
+            valid_e=validate_int_input(self.e,-75,75)
+            if not valid_i or not valid_e:
+                self.queue.append({self.configure_pi:[]})
+                #self.queue.append({self.set_manual_automatic:[True]})
+                dialog=IntInputDialog(self,title='Setup Required',label='Setup required: Unknown goniometer state.\n\nPlease enter the current viewing geometry and rotate the\nsample tray to the white reference position.\n',values={'Incidence':[self.i,self.min_i,self.max_i],'Emission':[self.e,self.min_e,self.max_e]},buttons={'ok':{self.next_in_queue:[]},'cancel':{self.set_manual_automatic:[override,0]}})
+            else:
+                dialog=Dialog(self,title='Setup Required',label='Please rotate the sample tray to the white reference position.',buttons={'ok':{}})
+                
+    
+            
+
     
     def set_individual_range(self):
         #TODO: save individually specified angles to config file
@@ -1936,6 +2009,17 @@ class Controller():
         self.spec_startnum_entry.delete(0,'end')
         self.spec_startnum_entry.insert(0,num)
         self.spec_startnum_entry.icursor(pos)
+        
+    def validate_distance(self,i,e):
+        try:
+            i=int(i)
+            e=int(e)
+        except:
+            return False
+        if np.abs(i-e)<self.required_angular_separation:
+            return False
+        else:
+            return True
         
     def clear(self):
         if self.manual_automatic.get()==0:
@@ -2095,31 +2179,31 @@ class Controller():
             self.range_radio.configure(state='disabled')
             self.add_i_e_pair_button.configure(state='disabled')
             
-    def on_closing(self):
-        if self.manual_automatic.get()==1:
-            print('hi!')
-            self.incidence_entries[0].delete(0,'end')
-            self.incidence_entries[0].insert(0,'0')
-            self.emission_entries[0].delete(0,'end')
-            self.emission_entries[0].insert(0,'30')
-            self.active_incidence_entries=[self.incidence_entries[0]]
-            self.active_emission_entries=[self.emission_entries[0]]
-            self.set_geom()
-            
-            self.queue=[]
-            if self.e==None or self.i==None:
-                self.master.destroy()
-                exit()
-            if int(self.e)<0:
-                self.queue.append({self.detector_close:[]})
-                self.queue.append({self.light_close:[]})
-            else:
-                self.queue.append({self.light_close:[]})  
-                self.queue.append({self.detector_close:[]})
+    # def on_closing(self):
+    #     if self.manual_automatic.get()==1:
+    #         print('hi!')
+    #         self.incidence_entries[0].delete(0,'end')
+    #         self.incidence_entries[0].insert(0,'0')
+    #         self.emission_entries[0].delete(0,'end')
+    #         self.emission_entries[0].insert(0,'30')
+    #         self.active_incidence_entries=[self.incidence_entries[0]]
+    #         self.active_emission_entries=[self.emission_entries[0]]
+    #         self.set_geom()
+    #         
+    #         self.queue=[]
+    #         if self.e==None or self.i==None:
+    #             self.master.destroy()
+    #             exit()
+    #         if int(self.e)<0:
+    #             self.queue.append({self.detector_close:[]})
+    #             self.queue.append({self.light_close:[]})
+    #         else:
+    #             self.queue.append({self.light_close:[]})  
+    #             self.queue.append({self.detector_close:[]})
   
-            self.next_in_queue()
-        else:
-            self.master.destroy()
+ #  #           self.next_in_queue()
+    #     else:
+    #         self.master.destroy()
 
             
             #dialog=Dialog(self, title='Please reset geometry on exit',label='Please manually set the goniometer to\n\nincidence=0\nemission=30',buttons={'ok':{self.master.destroy:[]}},width=500,height=250)
@@ -3262,15 +3346,76 @@ class ScrollableListboxBroken(ttk.Treeview):
         # background=entry_background,
         # selectbackground=listboxhighlightcolor,
 
+                
+class IntInputDialog(Dialog):
+    def __init__(self,controller,title,label,values={},buttons={'ok':{},'cancel':{}}):
+        super().__init__(controller,title,label,buttons,allow_exit=False)
+        self.values=values
+        self.entry_frame=Frame(self.top,bg=self.bg)
+        self.entry_frame.pack(pady=(10,20))
+        self.labels={}
+        self.entries={}
+        self.mins={}
+        self.maxes={}
+        for val in values:
+            frame=Frame(self.entry_frame,bg=self.bg)
+            frame.pack(pady=(5,5))
+            text=val
+            while len(text)<10:
+                text=' '+text
+            self.labels[val]=Label(frame, text=text+': ',fg=self.textcolor,bg=self.bg)
+            self.labels[val].pack(side=LEFT,padx=(3,3))
+            self.entries[val]=Entry(frame,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+            self.entries[val].pack(side=LEFT)
+            
+        self.set_buttons(buttons)
+            
+    def ok(self):
+        bad_vals=[]
+        for val in self.values:
+            self.mins[val]=self.values[val][1]
+            self.maxes[val]=self.values[val][2]
+            valid=validate_int_input(self.entries[val].get(),self.mins[val],self.maxes[val])
+            valid_sep=True
+            if valid:
+                #self.values[val][0]=self.entries[val].get()
+                if val=='Incidence':
+                    valid_sep=self.controller.validate_distance(self.entries['Incidence'].get(),self.entries['Emission'].get())
+                    if valid_sep:
+                        self.controller.i=self.entries[val].get()
+                elif val=='Emission':
+                    valid_sep=self.controller.validate_distance(self.entries['Incidence'].get(),self.entries['Emission'].get())
+                    if valid_sep:
+                        self.controller.e=self.entries[val].get()
 
+            else:
+                bad_vals.append(val)
+        if len(bad_vals)==0 and valid_sep:
+            self.top.destroy()
+            dict=self.buttons['ok']
+            for func in dict:
+                args=dict[func]
+                func(*args)
+        else:
+            err_str='Error: Invalid '
+            if len(bad_vals)==1:
+                for val in bad_vals:
+                    err_str+=val.lower()+' value.\nPlease enter a number from '+str(self.mins[val]) +' to '+str(self.maxes[val])+'.'
+            elif valid_sep:
+                err_str+='input. Please enter the following:\n\n'
+                for val in bad_vals:
+                    err_str+=val+' from '+str(self.mins[val])+' to '+str(self.maxes[val])+'\n'
+            else:
+                err_str+='angular separation\n(must be at least '+str(self.controller.required_angular_separation)+' degrees).'
+            dialog=ErrorDialog(self.controller,title='Error: Invalid Input',label=err_str)
+        
+            
 class InputDialog(Dialog):
     def __init__(self, controller, fexplorer,label='Enter input', title='Enter input'):
         super().__init__(controller,label=label,title=title, buttons={'ok':{self.get:[]},'cancel':{}},button_width=15)
         self.dir_entry=Entry(self.top,width=40,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.dir_entry.pack(padx=(10,10))
         self.listener=self.controller.listener
-
-
         self.fexplorer=fexplorer
 
 
@@ -3340,7 +3485,10 @@ class PiListener(Listener):
                     print('Pi read command: '+cmd)
                     if 'donemoving' in cmd:
                         self.queue.append('donemoving')
+                    elif 'piconfigsuccess' in cmd:
+                        self.queue.append('piconfigsuccess')
         self.cmdfiles0=list(self.cmdfiles)
+
                         
                         
 class SpecListener(Listener):
@@ -3486,7 +3634,8 @@ class SpecListener(Listener):
                     elif 'rmfailure' in cmd:
                         self.queue.append('rmfailure')
                         
-
+                    elif 'piconfigsuccess' in cmd:
+                        self.queue.append('piconfigsuccess')
                         
                     elif 'unexpectedfile' in cmd:
                         if self.new_dialogs:
@@ -3568,10 +3717,15 @@ class PiCommander(Commander):
     def __init__(self,write_command_loc):
         super().__init__(write_command_loc)
     
-    def move_arms(self, incidence,emission):
-        filename=self.encrypt('movearms',[incidence,emission])
+    def configure(self,i,e):
+        filename=self.encrypt('configure',[i,e])
         self.send(filename)
         return filename
+    
+    # def move_arms(self, incidence,emission):
+    #     filename=self.encrypt('movearms',[incidence,emission])
+    #     self.send(filename)
+    #     return filename
         
     def move_light(self, incidence):
         filename=self.encrypt('movelight',[incidence])
