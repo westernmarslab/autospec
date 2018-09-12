@@ -169,7 +169,7 @@ class TestView():
         x_d_text = pivot[0] + np.sin(np.radians(self.theta_d)) * (detector_len/scale)
         y_d = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len
         y_d_text = pivot[1] - np.cos(np.radians(self.theta_d)) * detector_len*scale-abs(np.sin(np.radians(self.theta_d))*detector_len/12)
-        if np.abs(y_d_text-y_l_text)<self.char_len/30:
+        if np.abs(y_d_text-y_l_text)<self.char_len/30 and np.abs(x_d_text-x_l_text)<self.char_len/15:
             if self.d_up:
                 y_d_text-=self.char_len/20
             elif self.l_up:
@@ -183,7 +183,6 @@ class TestView():
                 self.l_up=True
                 y_l_text-=self.char_len/20
         else:
-            print('RESET!')
             self.d_up=False
             self.l_up=False
         

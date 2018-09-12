@@ -268,10 +268,14 @@ class Controller():
         self.min_i=-50
         self.max_i=50
         self.i=None
+        self.final_i=None
+        self.i_interval=None
         
         self.min_e=-75
         self.max_e=75
         self.e=None
+        self.final_e=None
+        self.e_interval=None
         
         self.required_angular_separation=15
         
@@ -562,7 +566,6 @@ class Controller():
         self.light_start_entry=Entry(light_entries_frame,width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.entries.append(self.light_start_entry)
         self.light_start_entry.pack(padx=self.padx,pady=self.pady)
-        self.light_start_entry.insert(0,'10')
         
         self.light_end_entry=Entry(light_entries_frame,width=10, highlightbackground='white', bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.entries.append(self.light_end_entry)
@@ -594,7 +597,6 @@ class Controller():
         self.detector_start_entry=Entry(detector_entries_frame,bd=self.bd,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.entries.append(self.detector_start_entry)
         self.detector_start_entry.pack(padx=self.padx,pady=self.pady)
-        self.detector_start_entry.insert(0,'0')
         
         self.detector_end_entry=Entry(detector_entries_frame,bd=self.bd,width=10,highlightbackground='white',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.entries.append(self.detector_end_entry)
@@ -1316,9 +1318,9 @@ class Controller():
             return False
             
         if self.manual_automatic.get()==1:
-            for index in range(len(self.incidence_entries)):
-                i=self.incidence_entries[index].get()
-                e=self.emission_entries[index].get()
+            for index in range(len(self.active_incidence_entries)):
+                i=self.active_incidence_entries[index].get()
+                e=self.active_emission_entries[index].get()
                 valid_i=validate_int_input(i,-90,90)
                 valid_e=validate_int_input(e,-90,90)
                 if not valid_i or not valid_e:
@@ -1340,16 +1342,12 @@ class Controller():
     def setup(self, nextaction):
         self.check_logfile()
         
-        #Set all entries to active
-        self.active_incidence_entries=list(self.incidence_entries)
-        self.active_emission_entries=list(self.emission_entries)
-        self.active_i_e_pair_frames=list(self.i_e_pair_frames)
+
         
         if self.manual_automatic.get()==0:
             thread=Thread(target=self.set_and_animate_geom)
             thread.start()
 
-        
         #Requested save config is guaranteed to be valid because of input checks above.
         save_config_status=self.check_save_config()
         if self.check_save_config()=='not_set':
@@ -1383,9 +1381,21 @@ class Controller():
     #Action will be either wr or take a spectrum
     def acquire(self, override=False, setup_complete=False, action=None, garbage=False):
         print('Acquiring!')
-        if action==None:
+
+        if not setup_complete:
+            #Set all entries to active
+            self.active_incidence_entries=list(self.incidence_entries)
+            self.active_emission_entries=list(self.emission_entries)
+            self.active_i_e_pair_frames=list(self.i_e_pair_frames)
+            
+
+
+        if action==None: #If this was called by the user clicking acquire
             action=self.acquire
             self.queue.append({self.acquire:[]})
+            if self.individual_range.get()==1:
+                self.range_setup()
+                
         if not override:
             ok=self.check_mandatory_input()
             if not ok:
@@ -1434,26 +1444,35 @@ class Controller():
                         
     def set_geom(self):
         self.angles_change_time=time.time()
-        self.i=self.active_incidence_entries[0].get()
-        self.e=self.active_emission_entries[0].get()
-        # print(self.config_loc+'geom')
-        # with open(self.config_loc+'geom','w') as f:
-        #     f.write(self.i+'\n')
-        #     f.write(self.e)
+        self.i=int(self.active_incidence_entries[0].get())
+        self.e=int(self.active_emission_entries[0].get())
+
         
+    def set_text(self,widget, text):
+        widget.configure(state='normal')
+        widget.delete(0,'end')
+        widget.insert(0,text)
+        widget.configure(state='disabled')
     def next_geom(self): 
-        # last_i=int(self.active_incidence_entries.pop(0).get())
-        # last_e=int(self.active_emission_entries.pop(0).get())
-        # self.active_i_e_pair_frames.pop(0)
+
         
+
+
+        #This only gets called from automatic mode, so the question is just ind. vs range.
+       # if self.individual_range.get()==0:
+            
         self.active_incidence_entries.pop(0)
         self.active_emission_entries.pop(0)
-        self.active_i_e_pair_frames.pop(0)
+        
+        
+        if self.individual_range.get()==0:
+            self.active_i_e_pair_frames.pop(0)
         
         next_i=int(self.active_incidence_entries[0].get())
         next_e=int(self.active_incidence_entries[0].get())
-        
-        #Don't run the arms into each other.
+
+        self.complete_queue_item()
+        #Update goniometer position. Don't run the arms into each other.
         if next_e>self.e:
             self.queue.insert(0,{self.move_light:[]})
             self.queue.insert(0,{self.move_detector:[]})
@@ -1461,9 +1480,9 @@ class Controller():
         else:
             self.queue.insert(0,{self.move_detector:[]})
             self.queue.insert(0,{self.move_light:[]})
-            
-        self.complete_queue_item()
+
         self.next_in_queue()
+                   
         
     def move_light(self):
         self.pi_commander.move_light(self.active_incidence_entries[0].get())
@@ -1484,40 +1503,75 @@ class Controller():
     def build_queue(self):
         self.queue=[]
 
-        if self.individual_range.get()==0:
+        if True:#self.individual_range.get()==0:
             #For each (i, e), opt, white reference, save the white reference, move the tray, take a  spectrum, then move the tray back, then update geom to next.
-            for entry in self.incidence_entries:
+            for entry in self.active_incidence_entries:
                 self.queue.append({self.opt:[]})
                 self.queue.append({self.wr:[True,True]})
-                self.queue.append({self.take_spectrum:[True,True]})
+                self.queue.append({self.take_spectrum:[True,True,False]})
                 self.queue.append({self.move_tray:[]})
                 self.queue.append({self.take_spectrum:[True,True,True]})
                 self.queue.append({self.delete_placeholder_spectrum:[]})
-                self.queue.append({self.take_spectrum:[True,True]})
+                self.queue.append({self.take_spectrum:[True,True,False]})
                 self.queue.append({self.move_tray:[]})
                 self.queue.append({self.next_geom:[]})
                 
-        #No update geometry call after last spectrum
-        self.queue.pop(-1)
-        
-        #Put in calls to move light and detector for the first geometry.
+            #No update geometry call after last spectrum
+            self.queue.pop(-1)
+
+        #Put in calls to move light and detector for the first geometry (this happens in next_indv geom, or repeatedly here if you are specifying a range)
         next_i=int(self.active_incidence_entries[0].get())
-        next_e=int(self.active_incidence_entries[0].get())
+        next_e=int(self.active_emission_entries[0].get())
         
-        if self.i==None or self.e==None:
-            if self.last_e==None or self.last_e==None:
-                dialog=ErrorDialog(self,label='Warning! Unknown goniometer state.\nManually set the arms to i=0, e=30, then try again.')
-                self.last_i=0
-                self.last_e=30
-                return
-            
-            
         if next_e>int(self.e):
             self.queue.insert(0,{self.move_detector:[]})
             self.queue.insert(0,{self.move_light:[]})
         else:
             self.queue.insert(0,{self.move_light:[]})
             self.queue.insert(0,{self.move_detector:[]})
+            
+    def range_setup(self):
+        print('RANGE SETUP')
+        self.active_incidence_entries=[]
+        self.active_emission_entries=[]
+        
+        first_i=int(self.light_start_entry.get())
+        final_i=int(self.light_end_entry.get())
+        i_interval=int(self.light_increment_entry.get())
+        incidences=[]
+        if final_i>first_i:
+            incidences=np.arange(first_i,final_i,i_interval)
+        else:
+            incidences=np.arange(first_i,final_i,-1*i_interval)
+        incidences=list(incidences)
+        incidences.append(final_i)
+
+    
+        
+        
+        first_e=int(self.detector_start_entry.get())
+        final_e=int(self.detector_end_entry.get())
+        e_interval=int(self.detector_increment_entry.get())
+        eimissions=[]
+        if final_e>first_e:
+            emissions=np.arange(first_e,final_e,e_interval)
+        else:
+            emissions=np.arange(first_e,final_e,-1*e_interval)
+        emissions=list(emissions)
+        emissions.append(final_e)
+        
+        for i in incidences:
+            for e in emissions:
+                i_entry=PrivateEntry(str(i))
+                e_entry=PrivateEntry(str(e))
+                self.active_incidence_entries.append(i_entry)
+                self.active_emission_entries.append(e_entry)
+        
+        
+        
+        
+
+
 
             
     def spec_button_cmd(self):
@@ -1526,6 +1580,8 @@ class Controller():
         self.take_spectrum()
         
     def take_spectrum(self, override=False, setup_complete=False,garbage=False):
+        if garbage:
+            print('GARBAGE!')
         self.acquire(override=override, setup_complete=setup_complete,action=self.take_spectrum,garbage=garbage)
     
     def wr_button_cmd(self):
@@ -1544,10 +1600,13 @@ class Controller():
         #Label this as a white reference for the log file
         self.current_label=self.label_entry.get()
         if self.label_entry.get()!='' and 'White reference' not in self.label_entry.get():
-            self.label_entry.insert(0, 'White reference (')
-            self.label_entry.insert('end',')')
+            # self.label_entry.insert(0, 'White reference (')
+            # self.label_entry.insert('end',')')
+            newlabel='White reference: '+self.current_label
+            self.set_text(self.label_entry,newlabel)
         elif self.label_entry.get()=='':
-            self.label_entry.insert(0,'White reference')
+            self.set_text(self.label_entry,'White reference')
+            #self.label_entry.insert(0,'White reference')
             
         self.acquire(override=override, setup_complete=setup_complete,action=self.wr)
     
@@ -2595,11 +2654,12 @@ class CommandHandler():
         self.controller.wait_dialog=None
         removed=self.controller.rm_current()
         if removed: 
-            self.controller.log('Warning: overwriting data.')
+            self.controller.log('Warning: overwriting '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+self.controller.spec_startnum+'.asd.')
             
             #If we are retrying taking a spectrum or white references, don't do input checks again.
             if self.controller.take_spectrum in self.controller.queue[0]:
-                self.controller.queue[0]={self.controller.take_spectrum:[True,True]}
+                garbage=self.controller.queue[0][self.controller.take_spectrum][2]
+                self.controller.queue[0]={self.controller.take_spectrum:[True,True,garbage]}
             elif self.controller.wr in self.controller.queue[0]:
                 self.controller.queue[0]={self.controller.wr:[True,True]}
             self.controller.next_in_queue()
@@ -2830,8 +2890,11 @@ class MotionHandler(CommandHandler):
         self.timeout()
         
     def success(self):
-        if 'arms' in self.label:
-            self.controller.log('Goniometer arms moved.\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get())
+        if 'detector' in self.label:
+            self.controller.log('Goniometer moved to an emission angle of'+self.controller.active_emission_entries[0].get()+' degrees.')
+        elif 'light' in self.label:
+            self.controller.log('Goniometer moved to an incidence angle of'+self.controller.active_incidence_entries[0].get()+' degrees.')
+            
         elif 'tray' in self.label:
             self.controller.log('Sample tray moved.')
         else:
@@ -3000,8 +3063,9 @@ class SpectrumHandler(CommandHandler):
             info_string='Spectrum saved.'
 
         info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.label_entry.get()+'\n'
-        
-        print(self.wait_dialog.label)
+        print('Here are AAAAAAAAAAALLLLLLLLLLLLLLL remaining e')
+        for entry in self.controller.active_emission_entries:
+            print(entry.get())
         if 'garbage' in self.wait_dialog.label:
             pass
         else:
@@ -3360,10 +3424,7 @@ class IntInputDialog(Dialog):
         for val in values:
             frame=Frame(self.entry_frame,bg=self.bg)
             frame.pack(pady=(5,5))
-            text=val
-            while len(text)<10:
-                text=' '+text
-            self.labels[val]=Label(frame, text=text+': ',fg=self.textcolor,bg=self.bg)
+            self.labels[val]=Label(frame, text='{0:>10}'.format(val)+': ',fg=self.textcolor,bg=self.bg)
             self.labels[val].pack(side=LEFT,padx=(3,3))
             self.entries[val]=Entry(frame,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
             self.entries[val].pack(side=LEFT)
@@ -3721,11 +3782,7 @@ class PiCommander(Commander):
         filename=self.encrypt('configure',[i,e])
         self.send(filename)
         return filename
-    
-    # def move_arms(self, incidence,emission):
-    #     filename=self.encrypt('movearms',[incidence,emission])
-    #     self.send(filename)
-    #     return filename
+
         
     def move_light(self, incidence):
         filename=self.encrypt('movelight',[incidence])
@@ -3942,6 +3999,12 @@ class PiConnectionChecker(ConnectionChecker):
             dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: Raspberry Pi not connected.\n\nCheck you and the Raspberry Pi are\nboth on the correct WiFi network and the\nPiShare folder is mounted on your computer',buttons=buttons,button_width=15)
         except:
             pass
+            
+class PrivateEntry():
+    def __init__(self, text):
+        self.text=text
+    def get(self):
+        return self.text
         
 
 
