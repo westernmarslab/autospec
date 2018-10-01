@@ -189,17 +189,14 @@ def retry_func():
 
 def main():
     #Check if you are connected to the server. 
-    print('part 1')
     spec_connection_checker=SpecConnectionChecker(spec_read_loc, func=main_part_2)
     connected = spec_connection_checker.check_connection(True)
 
 def main_part_2():
-    print('part 2!')
     pi_connection_checker=PiConnectionChecker(pi_read_loc, func=main_part_3)
     connected=pi_connection_checker.check_connection(True)
 
 def main_part_3():
-    print('part 3!')
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
     if not OFFLINE:
         delme=os.listdir(spec_write_loc)
@@ -328,7 +325,36 @@ class Controller():
         self.master.minsize(1050,750)
         #When the window closes, send a command to set the geometry to i=0, e=30.
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
-        self.tk_master=self.master #this gets used when deciding whether to open a new master when giving a no connection dialog or something. I can't remember. 
+        self.tk_master=self.master #this gets used when deciding whether to open a new master when giving a no connection dialog or something. I can't remember. Maybe could be deleted, but I don't think so
+
+        menubar = Menu(self.master)
+        
+        def hello():
+            print('hi!')
+
+        # create a pulldown menu, and add it to the menu bar
+        filemenu = Menu(menubar, tearoff=0)
+        filemenu.add_command(label="Load script", command=hello)
+        filemenu.add_command(label="Process and export data", command=self.show_process_frame)
+        filemenu.add_command(label="Plot processed data", command=self.show_plot_frame)
+
+        filemenu.add_separator()
+        filemenu.add_command(label="Exit", command=self.on_closing)
+
+        menubar.add_cascade(label="File", menu=filemenu)
+        
+        # create more pulldown menus
+        editmenu = Menu(menubar, tearoff=0)
+        editmenu.add_command(label="Edit settings", command=self.show_settings_frame)
+        menubar.add_cascade(label="Settings", menu=editmenu)
+        
+        helpmenu = Menu(menubar, tearoff=0)
+        helpmenu.add_command(label="About", command=hello)
+        menubar.add_cascade(label="Help", menu=helpmenu)
+        
+        # display the menu
+        self.master.config(menu=menubar)
+        
         self.notebook_frame=Frame(self.master)
         self.notebook_frame.pack(side=LEFT,fill=BOTH, expand=True)
         self.notebook=ttk.Notebook(self.notebook_frame)
@@ -336,7 +362,7 @@ class Controller():
         self.entries=[]
         self.radiobuttons=[]
         
-        #view_frame=Frame(self.master)
+        #view_notebook=F(self.master)
         self.test_view=TestView(self)
 
         #The plotter, surprisingly, plots things.
@@ -380,9 +406,9 @@ class Controller():
                 while len(self.spec_startnum)<NUMLEN:
                     self.spec_startnum='0'+self.spec_startnum
         self.notebook_frames=[]
-        self.control_frame=Frame(self.notebook, bg=self.bg)
-        self.notebook_frames.append(self.control_frame)
-        self.control_frame.pack()
+        self.control_frame=Frame(self.notebook_frame, bg=self.bg)
+        #self.control_frame.config(width=300)
+        self.control_frame.pack(fill=BOTH,expand=True)
         self.save_config_frame=Frame(self.control_frame,bg=self.bg,highlightthickness=1)
         self.save_config_frame.pack(fill=BOTH,expand=True)
         self.spec_save_label=Label(self.save_config_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Spectra save configuration:')
@@ -631,7 +657,6 @@ class Controller():
         self.action_button_frame=Frame(self.gen_frame, bg=self.bg)
         self.action_button_frame.pack()
         
-        button_width=20
         self.opt_button=Button(self.action_button_frame, fg=self.textcolor,text='Optimize', padx=self.padx, pady=self.pady,width=self.button_width, bg='light gray', command=self.opt_button_cmd, height=2)
         self.tk_buttons.append(self.opt_button)
         self.opt_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
@@ -652,104 +677,74 @@ class Controller():
         
         #***************************************************************
         
-        self.dumb_frame=Frame(self.notebook, bg=self.bg, pady=2*self.pady)
-        self.dumb_frame.pack()
 
-        self.timer_title_frame=Frame(self.dumb_frame, bg=self.bg)
-        self.timer_title_frame.pack(pady=(10,0))
-        self.timer_label0=Label(self.timer_title_frame, fg=self.textcolor,text='Timer:                                                   ', bg=self.bg)
-        self.timer_label0.pack(side=LEFT)
-        self.timer_frame=Frame(self.dumb_frame, bg=self.bg, pady=self.pady)
-        self.timer_frame.pack()
-        self.timer_check_frame=Frame(self.timer_frame, bg=self.bg)
-        self.timer_check_frame.pack(pady=self.pady)
-        self.timer=IntVar()
-        self.timer_check=Checkbutton(self.timer_check_frame, fg=self.textcolor,text='Collect sets of spectra using a timer           ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.timer,selectcolor=self.check_bg)
-        self.timer_check.pack(side=LEFT, pady=self.pady)
-        
-        self.timer_duration_frame=Frame(self.timer_frame, bg=self.bg)
-        self.timer_duration_frame.pack()
-        self.timer_spectra_label=Label(self.timer_duration_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Total duration (min):')
-        self.timer_spectra_label.pack(side=LEFT, padx=self.padx,pady=(0,8))
-        self.timer_spectra_entry=Entry(self.timer_duration_frame, bd=1,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.timer_spectra_entry.pack(side=LEFT)
-        self.filler_label=Label(self.timer_duration_frame,bg=self.bg,fg=self.textcolor,text='              ')
-        self.filler_label.pack(side=LEFT)
-        
-        self.timer_interval_frame=Frame(self.timer_frame, bg=self.bg)
-        self.timer_interval_frame.pack()
-        self.timer_interval_label=Label(self.timer_interval_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Interval (min):')
-        self.timer_interval_label.pack(side=LEFT, padx=(10,0))
-        self.timer_interval_entry=Entry(self.timer_interval_frame,bd=self.bd,width=10,fg=self.textcolor,text='0',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-    # self.timer_interval_entry.insert(0,'-1')
-        self.timer_interval_entry.pack(side=LEFT, padx=(0,20))
-        self.filler_label=Label(self.timer_interval_frame,bg=self.bg,fg=self.textcolor,text='                   ')
-        self.filler_label.pack(side=LEFT)
-        
-        self.failsafe_title_frame=Frame(self.dumb_frame, bg=self.bg)
-        self.failsafe_title_frame.pack(pady=(10,0))
-        self.failsafe_label0=Label(self.failsafe_title_frame, fg=self.textcolor,text='Failsafes:                                              ', bg=self.bg)
-        self.failsafe_label0.pack(side=LEFT)
-        self.failsafe_frame=Frame(self.dumb_frame, bg=self.bg, pady=self.pady)
-        self.failsafe_frame.pack(pady=self.pady)
 
-        
-        self.wrfailsafe=IntVar()
-        self.wrfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Prompt if no white reference has been taken.    ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.wrfailsafe,selectcolor=self.check_bg)
-        self.wrfailsafe_check.pack()#side=LEFT, pady=self.pady)
-        self.wrfailsafe_check.select()
-        
-        self.wr_timeout_frame=Frame(self.failsafe_frame, bg=self.bg)
-        self.wr_timeout_frame.pack(pady=(0,10))
-        self.wr_timeout_label=Label(self.wr_timeout_frame, fg=self.textcolor,text='Timeout (minutes):', bg=self.bg)
-        self.wr_timeout_label.pack(side=LEFT, padx=(10,0))
-        self.wr_timeout_entry=Entry(self.wr_timeout_frame, bd=self.bd,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.wr_timeout_entry.pack(side=LEFT, padx=(0,20))
-        self.wr_timeout_entry.insert(0,'8')
-        self.filler_label=Label(self.wr_timeout_frame,bg=self.bg,fg=self.textcolor,text='              ')
-        self.filler_label.pack(side=LEFT)
-        
-        
-        self.optfailsafe=IntVar()
-        self.optfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Prompt if the instrument has not been optimized.', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.optfailsafe)
-        self.optfailsafe_check.pack()#side=LEFT, pady=self.pady)
-        self.optfailsafe_check.select()
-        
-        self.opt_timeout_frame=Frame(self.failsafe_frame, bg=self.bg)
-        self.opt_timeout_frame.pack()
-        self.opt_timeout_label=Label(self.opt_timeout_frame, fg=self.textcolor,text='Timeout (minutes):', bg=self.bg)
-        self.opt_timeout_label.pack(side=LEFT, padx=(10,0))
-        self.opt_timeout_entry=Entry(self.opt_timeout_frame,bd=self.bd, width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.opt_timeout_entry.pack(side=LEFT, padx=(0,20))
-        self.opt_timeout_entry.insert(0,'60')
-        self.filler_label=Label(self.opt_timeout_frame,bg=self.bg,fg=self.textcolor,text='              ')
-        self.filler_label.pack(side=LEFT)
-        
-        self.anglesfailsafe=IntVar()
-        self.anglesfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Check validity of emission and incidence angles.', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.anglesfailsafe)
-        self.anglesfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=self.pady)
-        self.anglesfailsafe_check.select()
-        
-        self.labelfailsafe=IntVar()
-        self.labelfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Require a label for each spectrum.', bg=self.bg, pady=self.pady,highlightthickness=0, selectcolor=self.check_bg,variable=self.labelfailsafe)
-        self.labelfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=self.pady)
-        self.labelfailsafe_check.select()
-        
-        self.anglechangefailsafe=IntVar()
-        self.anglechangefailsafe_check=Checkbutton(self.failsafe_frame, selectcolor=self.check_bg,fg=self.textcolor,text='Remind me to check the goniometer if\nincidence and/or emission angles change.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.anglechangefailsafe)
-        self.anglechangefailsafe_check.pack(pady=(6,5))#side=LEFT, pady=self.pady)
-        self.anglechangefailsafe_check.select()
-        
-        self.wr_anglesfailsafe=IntVar()
-        self.wr_anglesfailsafe_check=Checkbutton(self.failsafe_frame,selectcolor=self.check_bg, fg=self.textcolor,text='Require a new white reference at each viewing geometry', bg=self.bg, pady=self.pady, highlightthickness=0, variable=self.wr_anglesfailsafe)
-        self.wr_anglesfailsafe_check.pack(pady=(6,5))
-        self.wr_anglesfailsafe_check.select()
-        
-        
     
+        
+
+       
+    
+        #************************Console********************************
+        self.console_frame=Frame(self.test_view.embed, bg=self.border_color, height=200, highlightthickness=2,highlightcolor=self.bg)
+        self.console_frame.pack(fill=BOTH, expand=True, padx=(1,1))
+        #self.console_frame.configure(height=400)
+        self.console_title_label=Label(self.console_frame,padx=self.padx,pady=self.pady,bg=self.border_color,fg='black',text='Console',font=("Helvetica", 11))
+        self.console_title_label.pack(pady=(5,5))
+        self.text_frame=Frame(self.console_frame)
+        self.scrollbar = Scrollbar(self.text_frame)
+        self.some_width=self.control_frame.winfo_width()
+        self.console_log = Text(self.text_frame, width=self.some_width,bg=self.bg, fg=self.textcolor)
+        self.scrollbar.pack(side=RIGHT, fill=Y)
+    
+        self.scrollbar.config(command=self.console_log.yview)
+        self.console_log.configure(yscrollcommand=self.scrollbar.set)
+        self.console_entry=Entry(self.console_frame, width=self.some_width,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.console_entry.bind("<Return>",self.run)
+        self.console_entry.bind('<Up>',self.run)
+        self.console_entry.bind('<Down>',self.run)
+        self.console_entry.pack(fill=BOTH, side=BOTTOM)
+        self.text_frame.pack(fill=BOTH, expand=True)
+        self.console_log.pack(fill=BOTH,expand=True)
+        self.console_entry.focus()
+    
+        #self.notebook.add(self.control_frame)
+        # self.notebook.add(self.dumb_frame, text='Settings')
+        # self.notebook.add(self.process_frame, text='Data processing')
+        # self.notebook.add(self.plot_frame, text='Plot')
+        #self.notebook.add(self.console_frame,text='Console')
+        #self.notebook.add(val_frame, fg=self.textcolor,text='Validation tools')
+        #checkbox: Iterate through a range of geometries
+        #checkbox: Choose a single geometry
+        #checkbox: Take one spectrum
+        #checkbox: Use a self.timer to collect a series of spectra
+        #self.timer interval: 
+        #Number of spectra to collect:
+        #self.control_frame.pack(fill=BOTH, expand=True)
+        
+
+        #test=TestView(self.master)
+        # frame=Frame(self.control_frame)
+        # frame.pack()
+        # button=Button(frame, text=':D',command=self.move_test)
+        # button.pack()
+        # self.next_pos=20
+        #test_view.run()
+
+
+        self.test_view.draw_circle(1000,700)
+
+
+        self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
+        thread = Thread(target =self.bind)
+        thread.start()
+        self.master.mainloop()
+        
+        #self.view.join()
+    def show_process_frame(self):
         #********************** Process frame ******************************
-    
-        self.process_frame=Frame(self.notebook, bg=self.bg, pady=2*self.pady)
+        self.process_top=Toplevel(self.master)
+        self.process_top.wm_title('Process Data')
+        self.process_frame=Frame(self.process_top, bg=self.bg, pady=15,padx=15)
         self.process_frame.pack()
 
         self.input_dir_label=Label(self.process_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Input directory:')
@@ -767,7 +762,7 @@ class Controller():
         self.input_dir_var.trace('w', self.validate_input_dir)
          
         self.input_dir_entry=Entry(self.input_frame, width=50,bd=self.bd, textvariable=self.input_dir_var,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.input_dir_entry.insert(0, input_dir)
+        self.input_dir_entry.insert(0, self.spec_save_dir_entry.get())
         self.input_dir_entry.pack(side=RIGHT,padx=self.padx)
         
 
@@ -781,7 +776,7 @@ class Controller():
         self.process_output_browse_button.pack(side=RIGHT, padx=self.padx)
         
         self.output_dir_entry=Entry(self.output_frame, width=50,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.output_dir_entry.insert(0, output_dir)
+        self.output_dir_entry.insert(0, self.spec_save_dir_entry.get())
         self.output_dir_entry.pack(side=RIGHT,padx=self.padx)
         
         self.output_file_frame=Frame(self.process_frame, bg=self.bg)
@@ -796,20 +791,128 @@ class Controller():
         self.process_check_frame.pack(pady=(15,5))
         self.process_save_dir=IntVar()
         self.process_save_dir_check=Checkbutton(self.process_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text='Save file configuration', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.process_save_dir)
-        self.process_save_dir_check.pack(side=LEFT, pady=(5,15))
+        #self.process_save_dir_check.pack(side=LEFT, pady=(5,15))
         self.process_save_dir_check.select()
         # self.process_plot=IntVar()
         # self.process_plot_check=Checkbutton(self.process_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, pady=self.pady,highlightthickness=0)
         # self.process_plot_check.pack(side=LEFT, pady=(5,15))
         
-        self.process_button=Button(self.process_frame, fg=self.textcolor,text='Process', padx=self.padx, pady=self.pady, width=int(button_width*1.6),bg='light gray', command=self.process_cmd)
+        self.process_button=Button(self.process_frame, fg=self.textcolor,text='Process', padx=self.padx, pady=self.pady, width=int(self.button_width*1.6),bg='light gray', command=self.process_cmd)
         self.process_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.process_button.pack()
+        
+    def show_settings_frame(self):
+        # self.dumb_frame=Frame(self.notebook, bg=self.bg, pady=2*self.pady)
+        # self.dumb_frame.pack()
+        
+        self.settings_top=Toplevel(self.master)
+        self.settings_top.wm_title('Settings')
+        self.settings_frame=Frame(self.settings_top, bg=self.bg, pady=2*self.pady,padx=15)
+        self.settings_frame.pack()
 
+        # self.timer_title_frame=Frame(self.dumb_frame, bg=self.bg)
+        # self.timer_title_frame.pack(pady=(10,0))
+        # self.timer_label0=Label(self.timer_title_frame, fg=self.textcolor,text='Timer:                                                   ', bg=self.bg)
+        # self.timer_label0.pack(side=LEFT)
+        # self.timer_frame=Frame(self.dumb_frame, bg=self.bg, pady=self.pady)
+        # self.timer_frame.pack()
+        # self.timer_check_frame=Frame(self.timer_frame, bg=self.bg)
+        # self.timer_check_frame.pack(pady=self.pady)
+        # self.timer=IntVar()
+        # self.timer_check=Checkbutton(self.timer_check_frame, fg=self.textcolor,text='Collect sets of spectra using a timer           ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.timer,selectcolor=self.check_bg)
+        # self.timer_check.pack(side=LEFT, pady=self.pady)
+        # 
+        # self.timer_duration_frame=Frame(self.timer_frame, bg=self.bg)
+        # self.timer_duration_frame.pack()
+        # self.timer_spectra_label=Label(self.timer_duration_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Total duration (min):')
+        # self.timer_spectra_label.pack(side=LEFT, padx=self.padx,pady=(0,8))
+        # self.timer_spectra_entry=Entry(self.timer_duration_frame, bd=1,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        # self.timer_spectra_entry.pack(side=LEFT)
+    #     self.filler_label=Label(self.timer_duration_frame,bg=self.bg,fg=self.textcolor,text='              ')
+    #     self.filler_label.pack(side=LEFT)
+    #     
+    #     self.timer_interval_frame=Frame(self.timer_frame, bg=self.bg)
+    #     self.timer_interval_frame.pack()
+    #     self.timer_interval_label=Label(self.timer_interval_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Interval (min):')
+    #     self.timer_interval_label.pack(side=LEFT, padx=(10,0))
+    #     self.timer_interval_entry=Entry(self.timer_interval_frame,bd=self.bd,width=10,fg=self.textcolor,text='0',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+    # # self.timer_interval_entry.insert(0,'-1')
+    #     self.timer_interval_entry.pack(side=LEFT, padx=(0,20))
+    #     self.filler_label=Label(self.timer_interval_frame,bg=self.bg,fg=self.textcolor,text='                   ')
+    #     self.filler_label.pack(side=LEFT)
+        
+        self.failsafe_title_frame=Frame(self.settings_frame, bg=self.bg)
+        self.failsafe_title_frame.pack(pady=(10,0))
+        self.failsafe_label0=Label(self.failsafe_title_frame, fg=self.textcolor,text='Failsafes:                                                                      ', bg=self.bg)
+        self.failsafe_label0.pack(side=LEFT)
+        self.failsafe_frame=Frame(self.settings_frame, bg=self.bg, pady=self.pady)
+        self.failsafe_frame.pack(side=LEFT,pady=self.pady)
+
+        
+        self.wrfailsafe=IntVar()
+        self.wrfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Prompt if no white reference has been taken.                  ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.wrfailsafe,selectcolor=self.check_bg)
+        self.wrfailsafe_check.pack()#side=LEFT, pady=self.pady)
+        self.wrfailsafe_check.select()
+        
+        self.wr_timeout_frame=Frame(self.failsafe_frame, bg=self.bg)
+        self.wr_timeout_frame.pack(pady=(0,10))
+        self.wr_timeout_label=Label(self.wr_timeout_frame, fg=self.textcolor,text='Timeout (minutes):', bg=self.bg)
+        self.wr_timeout_label.pack(side=LEFT, padx=(10,0))
+        self.wr_timeout_entry=Entry(self.wr_timeout_frame, bd=self.bd,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.wr_timeout_entry.pack(side=LEFT, padx=(0,20))
+        self.wr_timeout_entry.insert(0,'8')
+        self.filler_label=Label(self.wr_timeout_frame,bg=self.bg,fg=self.textcolor,text='              ')
+        self.filler_label.pack(side=LEFT)
+        
+        
+        self.optfailsafe=IntVar()
+        self.optfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Prompt if the instrument has not been optimized.              ', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.optfailsafe)
+        self.optfailsafe_check.pack()#side=LEFT, pady=self.pady)
+        self.optfailsafe_check.select()
+        
+        self.opt_timeout_frame=Frame(self.failsafe_frame, bg=self.bg)
+        self.opt_timeout_frame.pack()
+        self.opt_timeout_label=Label(self.opt_timeout_frame, fg=self.textcolor,text='Timeout (minutes):', bg=self.bg)
+        self.opt_timeout_label.pack(side=LEFT, padx=(10,0))
+        self.opt_timeout_entry=Entry(self.opt_timeout_frame,bd=self.bd, width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.opt_timeout_entry.pack(side=LEFT, padx=(0,20))
+        self.opt_timeout_entry.insert(0,'60')
+        self.filler_label=Label(self.opt_timeout_frame,bg=self.bg,fg=self.textcolor,text='              ')
+        self.filler_label.pack(side=LEFT)
+        
+        self.anglesfailsafe=IntVar()
+        self.anglesfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Check validity of emission and incidence angles.              ', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.anglesfailsafe)
+        self.anglesfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=self.pady)
+        self.anglesfailsafe_check.select()
+        
+        self.labelfailsafe=IntVar()
+        self.labelfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Require a label for each spectrum.                            ', bg=self.bg, pady=self.pady,highlightthickness=0, selectcolor=self.check_bg,variable=self.labelfailsafe)
+        self.labelfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=self.pady)
+        self.labelfailsafe_check.select()
+
+
+        self.wr_anglesfailsafe=IntVar()
+        self.wr_anglesfailsafe_check=Checkbutton(self.failsafe_frame,selectcolor=self.check_bg, fg=self.textcolor,text='Require a new white reference at each viewing geometry             ', bg=self.bg, pady=self.pady, highlightthickness=0, variable=self.wr_anglesfailsafe)
+        self.wr_anglesfailsafe_check.pack(pady=(6,5),padx=(35,0))
+        self.wr_anglesfailsafe_check.select()
+        
+        self.wrap_frame=Frame(self.failsafe_frame,bg=self.bg)
+        self.wrap_frame.pack(side=LEFT,padx=(30,10))
+        self.filler_label=Label(self.wrap_frame,bg=self.bg,fg=self.textcolor,text='')
+        self.filler_label.pack(side=LEFT)
+        self.anglechangefailsafe=IntVar()
+        self.anglechangefailsafe_check=Checkbutton(self.wrap_frame, selectcolor=self.check_bg,fg=self.textcolor,text='Remind me to check the goniometer if the viewing geometry changes.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.anglechangefailsafe)
+        self.anglechangefailsafe_check.pack(pady=(6,5),side=LEFT)#side=LEFT, pady=self.pady)
+        self.anglechangefailsafe_check.select()
+        
+        
+    def show_plot_frame(self):
         
         #********************** Plot frame ******************************
         
-        self.plot_frame=Frame(self.notebook, bg=self.bg, pady=2*self.pady)
+        self.plot_top=Toplevel(self.master)
+        self.plot_top.wm_title('Plot')
+        self.plot_frame=Frame(self.plot_top, bg=self.bg, pady=2*self.pady,padx=15)
         self.plot_frame.pack()
         
         self.plot_title_label=Label(self.plot_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Plot title:')
@@ -843,7 +946,7 @@ class Controller():
         self.plot_file_browse_button.pack(side=RIGHT, padx=self.padx)
         
         self.plot_input_dir_entry=Entry(self.plot_file_frame, width=50,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.plot_input_dir_entry.insert(0, input_dir)
+        self.plot_input_dir_entry.insert(0, self.spec_save_dir_entry.get())
         self.plot_input_dir_entry.pack(side=RIGHT)
         
         # self.no_wr_frame=Frame(self.plot_frame, bg=self.bg)
@@ -885,67 +988,9 @@ class Controller():
         # self.process_plot_check=Checkbutton(self.process_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, pady=self.pady,highlightthickness=0)
         # self.process_plot_check.pack(side=LEFT, pady=(5,15))
         
-        self.plot_button=Button(self.plot_frame, fg=self.textcolor,text='Plot', padx=self.padx, pady=self.pady, width=int(button_width*1.6),bg='light gray', command=self.plot)
+        self.plot_button=Button(self.plot_frame, fg=self.textcolor,text='Plot', padx=self.padx, pady=self.pady, width=int(self.button_width*1.6),bg='light gray', command=self.plot)
         self.plot_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.plot_button.pack(pady=(20,20))
-    
-        #************************Console********************************
-        self.console_frame=Frame(self.test_view.embed, bg=self.border_color, height=200, highlightthickness=2,highlightcolor=self.bg)
-        self.console_frame.pack(fill=BOTH, expand=True, padx=(1,1))
-        #self.console_frame.configure(height=400)
-        self.console_title_label=Label(self.console_frame,padx=self.padx,pady=self.pady,bg=self.border_color,fg='black',text='Console',font=("Helvetica", 11))
-        self.console_title_label.pack(pady=(5,5))
-        self.text_frame=Frame(self.console_frame)
-        self.scrollbar = Scrollbar(self.text_frame)
-        self.notebook_width=self.notebook.winfo_width()
-        self.notebook_height=self.notebook.winfo_width()
-        self.console_log = Text(self.text_frame, width=self.notebook_width,bg=self.bg, fg=self.textcolor)
-        self.scrollbar.pack(side=RIGHT, fill=Y)
-    
-        self.scrollbar.config(command=self.console_log.yview)
-        self.console_log.configure(yscrollcommand=self.scrollbar.set)
-        self.console_entry=Entry(self.console_frame, width=self.notebook_width,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.console_entry.bind("<Return>",self.run)
-        self.console_entry.bind('<Up>',self.run)
-        self.console_entry.bind('<Down>',self.run)
-        self.console_entry.pack(fill=BOTH, side=BOTTOM)
-        self.text_frame.pack(fill=BOTH, expand=True)
-        self.console_log.pack(fill=BOTH,expand=True)
-        self.console_entry.focus()
-    
-        self.notebook.add(self.control_frame, text='Spectrometer control')
-        self.notebook.add(self.dumb_frame, text='Settings')
-        self.notebook.add(self.process_frame, text='Data processing')
-        self.notebook.add(self.plot_frame, text='Plot')
-        #self.notebook.add(self.console_frame,text='Console')
-        #self.notebook.add(val_frame, fg=self.textcolor,text='Validation tools')
-        #checkbox: Iterate through a range of geometries
-        #checkbox: Choose a single geometry
-        #checkbox: Take one spectrum
-        #checkbox: Use a self.timer to collect a series of spectra
-        #self.timer interval: 
-        #Number of spectra to collect:
-        self.notebook.pack(fill=BOTH, expand=True)
-        
-
-        #test=TestView(self.master)
-        # frame=Frame(self.control_frame)
-        # frame.pack()
-        # button=Button(frame, text=':D',command=self.move_test)
-        # button.pack()
-        # self.next_pos=20
-        #test_view.run()
-
-
-        self.test_view.draw_circle(1000,700)
-
-
-        self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
-        thread = Thread(target =self.bind)
-        thread.start()
-        self.master.mainloop()
-        
-        #self.view.join()
         
     def move_test(self):
         print(self.next_pos)
@@ -1394,7 +1439,9 @@ class Controller():
             action=self.acquire
             self.queue.append({self.acquire:[]})
             if self.individual_range.get()==1:
-                self.range_setup()
+                valid_range=self.range_setup(override)
+                if not valid_range:
+                    return
                 
         if not override:
             ok=self.check_mandatory_input()
@@ -1530,42 +1577,109 @@ class Controller():
             self.queue.insert(0,{self.move_light:[]})
             self.queue.insert(0,{self.move_detector:[]})
             
-    def range_setup(self):
+    def range_setup(self,override=False):
         print('RANGE SETUP')
         self.active_incidence_entries=[]
         self.active_emission_entries=[]
         
-        first_i=int(self.light_start_entry.get())
-        final_i=int(self.light_end_entry.get())
-        i_interval=int(self.light_increment_entry.get())
+        incidence_err_str=''
+        incidence_warn_str=''
+        
+        first_i=self.light_start_entry.get()
+        valid=validate_int_input(first_i,self.min_i,self.max_i)
+        if not valid: 
+            incidence_err_str+='Incidence must be a number from '+str(self.min_i)+' to '+str(self.max_i)+'.\n'
+        else:
+            first_i=int(first_i)
+        final_i=self.light_end_entry.get()
+        valid=validate_int_input(final_i,self.min_i,self.max_i)
+        
+        if not valid and incidence_err_str=='': 
+            incidence_err_str+='Incidence must be a number from '+str(self.min_i)+' to '+str(self.max_i)+'.\n'
+        else:
+            final_i=int(final_i)
+            
+        i_interval=self.light_increment_entry.get()
+        valid=validate_int_input(i_interval,0,2*self.max_i)
+        if not valid:
+            incidence_err_str+='Incidence interval must be a number from 0 to '+str(2*self.max_i) +'.\n'
+        else:
+            i_interval=int(i_interval)
         incidences=[]
-        if final_i>first_i:
-            incidences=np.arange(first_i,final_i,i_interval)
-        else:
-            incidences=np.arange(first_i,final_i,-1*i_interval)
-        incidences=list(incidences)
-        incidences.append(final_i)
+        if incidence_err_str=='':
+            if i_interval==0:
+                if first_i==final_i:
+                    incidences=[first_i]
+                else:
+                    incidences=[first_i]
+                    incidence_warn_str='Incidence interval = 0. Only using first given incidence value.\n'
+            elif final_i>first_i:
+                incidences=np.arange(first_i,final_i,i_interval)
+                incidences=list(incidences)
+                incidences.append(final_i)
+            else:
+                incidences=np.arange(first_i,final_i,-1*i_interval)
+                incidences=list(incidences)
+                incidences.append(final_i)
 
-    
+
+        emission_err_str=''
+        emission_warn_str=''
         
-        
-        first_e=int(self.detector_start_entry.get())
-        final_e=int(self.detector_end_entry.get())
-        e_interval=int(self.detector_increment_entry.get())
-        eimissions=[]
-        if final_e>first_e:
-            emissions=np.arange(first_e,final_e,e_interval)
+        first_e=self.detector_start_entry.get()
+        valid=validate_int_input(first_e,self.min_e,self.max_e)
+        if not valid: 
+            emission_err_str+='Emission must be a number from '+str(self.min_e)+' to '+str(self.max_e)+'.\n'
         else:
-            emissions=np.arange(first_e,final_e,-1*e_interval)
-        emissions=list(emissions)
-        emissions.append(final_e)
+            first_e=int(first_e)
+        final_e=self.detector_end_entry.get()
+        valid=validate_int_input(final_e,self.min_e,self.max_e)
+        
+        if not valid and emission_err_str=='': 
+            emission_err_str+='Emission must be a number from '+str(self.min_e)+' to '+str(self.max_e)+'.\n'
+        else:
+            final_e=int(final_e)
+            
+        e_interval=self.detector_increment_entry.get()
+        valid=validate_int_input(e_interval,0,2*self.max_e)
+        if not valid:
+            emission_err_str+='Emission interval must be a number from 0 to '+str(2*self.max_e) +'.\n'
+        else:
+            e_interval=int(e_interval)
+        emissions=[]
+        if emission_err_str=='':
+            if e_interval==0:
+                if first_e==final_e:
+                    emissions=[first_e]
+                else:
+                    emissions=[first_e]
+                    emission_warn_str='Emission interval = 0. Only using first given emission value.'
+            elif final_e>first_e:
+                emissions=np.arange(first_e,final_e,e_interval)
+                emissions=list(emissions)
+                emissions.append(final_e)
+            else:
+                emissions=np.arange(first_e,final_e,-1*e_interval)
+                emissions=list(emissions)
+                emissions.append(final_e)
+                
+        err_str='Error: '+incidence_err_str+emission_err_str
+        if err_str!='Error: ':
+            dialog=ErrorDialog(self,title='Error',label=err_str)
+            return False
+        warning_str='Warning: '+incidence_warn_str+emission_warn_str
+        if warning_str!='Warning: ' and override==False:
+            dialog=ErrorDialog(self,title='Warning',label=warning_str)
         
         for i in incidences:
             for e in emissions:
-                i_entry=PrivateEntry(str(i))
-                e_entry=PrivateEntry(str(e))
-                self.active_incidence_entries.append(i_entry)
-                self.active_emission_entries.append(e_entry)
+                if e-i>=15:
+                    i_entry=PrivateEntry(str(i))
+                    e_entry=PrivateEntry(str(e))
+                    self.active_incidence_entries.append(i_entry)
+                    self.active_emission_entries.append(e_entry)
+                
+        return True
         
         
         
@@ -1580,8 +1694,6 @@ class Controller():
         self.take_spectrum()
         
     def take_spectrum(self, override=False, setup_complete=False,garbage=False):
-        if garbage:
-            print('GARBAGE!')
         self.acquire(override=override, setup_complete=setup_complete,action=self.take_spectrum,garbage=garbage)
     
     def wr_button_cmd(self):
@@ -1647,7 +1759,11 @@ class Controller():
             print('foo')
             dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer computer\nand the spectrometer is connected.')
             return
-            
+        #Only needed if something went wrong in the past, but be sure to start clean.
+        while 'yeswriteable' in self.spec_listener.queue:
+            self.spec_listener.queue.remove('yeswriteable')
+        while 'notwriteable' in self.spec_listener.queue:
+            self.spec_listener.queue.remove('notwriteable')
         self.spec_commander.check_writeable(self.spec_save_dir_entry.get())
             
         t=2*BUFFER
@@ -1669,9 +1785,10 @@ class Controller():
         spec_num=self.spec_startnum_entry.get()
         while len(spec_num)<NUMLEN:
             spec_num='0'+spec_num
-        self.spec_commander.set_save_path(self.spec_save_dir_entry.get(), self.spec_basename_entry.get(), self.spec_startnum_entry.get())
+
 
         handler=SaveConfigHandler(self)
+        self.spec_commander.set_save_path(self.spec_save_dir_entry.get(), self.spec_basename_entry.get(), self.spec_startnum_entry.get())
             
             
     def increment_num(self):
@@ -1723,6 +1840,12 @@ class Controller():
         if self.opsys=='Windows' or self.remote.get(): filename=filename.replace('\\','/')
         
         if self.remote.get():
+            
+            #Only needed if something went wrong in the past, but be sure to start clean.
+            while 'datacopied' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('datacopied')
+            while 'datafailure' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('datafailure')
             self.spec_commander.get_data(filename)
 
             t=3*BUFFER
@@ -1850,7 +1973,7 @@ class Controller():
         r=RemoteFileExplorer(self,label='Select a directory to save raw spectral data.\nThis must be to a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data', target=self.spec_save_dir_entry)
         
     def choose_process_input_dir(self):
-        r=RemoteFileExplorer(self,label='Select the directory containing the data you want to process.\nThis must be to a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data',target=self.input_dir_entry)
+        r=RemoteFileExplorer(self,label='Select the directory containing the data you want to process.\nThis must be on a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data',target=self.input_dir_entry)
         
     def choose_process_output_dir(self):
         r=RemoteFileExplorer(self,label='Select the directory where you want to save your processed data.\nThis must be to a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data',target=self.output_dir_entry)
@@ -2407,14 +2530,15 @@ class Dialog:
                 self.no_button=Button(self.button_frame, fg=self.textcolor,text='No',command=self.no, width=self.button_width)
                 self.no_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
                 self.tk_buttons.append(self.no_button)
+            elif 'cancel_queue' in button.lower():
+                self.cancel_queue_button=Button(self.button_frame, fg=self.textcolor,text='Cancel',command=self.cancel_queue, width=self.button_width)
+                self.cancel_queue_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+                self.tk_buttons.append(self.cancel_queue_button)
             elif 'cancel' in button.lower():
                 self.cancel_button=Button(self.button_frame, fg=self.textcolor,text='Cancel',command=self.cancel, width=self.button_width)
                 self.cancel_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
                 self.tk_buttons.append(self.cancel_button)
-            elif 'cancel_queue' in button.lower():
-                self.cancel_queue_button=Button(self.button_frame, fg=self.textcolor,text='Cancel',command=self.cancel_queue, width=self.button_width)
-                self.cancel_queue_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
-                self.tk_buttons.append(self.cancel_button)
+
             elif 'retry' in button.lower():
                 self.retry_button=Button(self.button_frame, fg=self.textcolor,text='Retry',command=self.retry, width=self.button_width)
                 self.retry_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
@@ -2646,7 +2770,7 @@ class CommandHandler():
                     self.finish:[]
                 }
             }
-            self.wait_dalog.set_buttons(buttons)
+            self.wait_dialog.set_buttons(buttons)
         self.controller.freeze()
 
         
@@ -2654,7 +2778,10 @@ class CommandHandler():
         self.controller.wait_dialog=None
         removed=self.controller.rm_current()
         if removed: 
-            self.controller.log('Warning: overwriting '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+self.controller.spec_startnum+'.asd.')
+            numstr=str(self.controller.spec_num)
+            while len(numstr)<NUMLEN:
+                numstr='0'+numstr
+            self.controller.log('Warning: overwriting '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd.')
             
             #If we are retrying taking a spectrum or white references, don't do input checks again.
             if self.controller.take_spectrum in self.controller.queue[0]:
@@ -2699,6 +2826,12 @@ class InstrumentConfigHandler(CommandHandler):
     def __init__(self, controller, title='Configuring instrument...', label='Configuring instrument...', timeout=20):
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=timeout)
+        
+        #Only needed if something has gone wrong in the past, but make sure to start out clean
+        while 'iconfigsuccess' in self.listener.queue:
+            self.listener.queue.remove('iconfigsuccess')
+        while 'iconfigfailure' in self.listener.queue:
+            self.listener.queue.remove('iconfigfailure')
 
     def wait(self):
         while self.timeout_s>0:
@@ -2732,6 +2865,14 @@ class OptHandler(CommandHandler):
             timeout_s=1000
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=timeout_s)
+        
+        #Only needed if something has gone wrong in the past, but make sure to start out clean
+        while 'nonumspectra' in self.listener.queue:
+            self.listener.queue.remove('nonumspectra')
+        while 'optsuccess' in self.listener.queue:
+            self.listener.queue.remove('optsuccess')
+        while 'optfailure' in self.listener.queue:
+            self.listener.queue.remove('optfailure')
 
     def wait(self):
         while self.timeout_s>0:
@@ -2767,6 +2908,16 @@ class WhiteReferenceHandler(CommandHandler):
         timeout_s=int(controller.spec_config_count)/9+6+BUFFER
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=timeout_s)
+        
+        #Only needed if something has gone wrong in the past, but make sure to start out clean
+        while 'wrsuccess' in self.listener.queue:
+            self.listener.queue.remove('wrsuccess')
+        while 'nonumspectra' in self.listener.queue:
+            self.listener.queue.remove('nonumspectra')
+        while 'noconfig' in self.listener.queue:
+            self.listener.queue.remove('noconfig')
+        while 'wrfailedfileexists' in self.listener.queue:
+            self.listener.queue.remove('wrfailedfileexists')
         
 
     def wait(self):
@@ -2811,6 +2962,16 @@ class ProcessHandler(CommandHandler):
     def __init__(self, controller, title='Processing...', label='Processing...'):
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=60+BUFFER)
+        
+        #Only needed if something has gone wrong in the past, but make sure to start out clean
+        while 'processsuccess' in self.listener.queue:
+            self.listener.queue.remove('processsuccess')
+        while 'processerrorfileexists' in self.listener.queue:
+            self.controller.listener.queue.remove('processerrorfileexists')
+        while 'processerrorwropt' in self.listener.queue:
+            self.listener.queue.remove('processerrorwropt')
+        while 'processerror' in self.listener.queue:
+            self.listener.queue.remove('processerror')
 
     def wait(self):
         while self.timeout_s>0:
@@ -2850,6 +3011,10 @@ class CloseHandler(CommandHandler):
         print('handling close!')
         super().__init__(controller, title, label,timeout=60+BUFFER)
         
+        #Only needed if something has gone wrong in the past, but make sure to start out clean
+        while 'donemoving' in self.listener.queue:
+            self.listener.queue.remove('donemoving')
+        
     def wait(self):
         while self.timeout_s>0:
             if 'donemoving' in self.listener.queue:
@@ -2875,6 +3040,10 @@ class MotionHandler(CommandHandler):
     def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}):
         self.listener=controller.pi_listener
         super().__init__(controller, title, label,timeout=45+BUFFER)
+
+        #Only needed if something has gone wrong in the past, but make sure to start out clean
+        while 'donemoving' in self.listener.queue:
+            self.listener.queue.remove('donemoving')
 
 
     def wait(self):
@@ -2909,6 +3078,18 @@ class SaveConfigHandler(CommandHandler):
         self.unexpected_files=[]
         self.listener.new_dialogs=False
         super().__init__(controller, title, label=label,timeout=timeout)
+        
+        #Only needed if something has gone wrong in the past, but make sure to start out clean
+        while 'saveconfigsuccess' in self.listener.queue:
+            self.listener.queue.remove('saveconfigsuccess')
+        while 'donelookingforunexpected' in self.listener.queue:
+            self.listener.queue.remove('donelookingforunexpected')
+        while 'saveconfigfailedfileexists' in self.listener.queue:
+            self.listener.queue.remove('saveconfigfailedfileexists')
+        while 'saveconfigfailed' in self.listener.queue:
+            self.listener.queue.remove('saveconfigfailed')
+        while 'saveconfigerror' in self.listener.queue:
+            self.listener.queue.remove('saveconfigerror')
         
     def wait(self):
         t=30
@@ -2952,8 +3133,17 @@ class SaveConfigHandler(CommandHandler):
 
             elif 'saveconfigfailed' in self.listener.queue:
                 self.listener.queue.remove('saveconfigfailed')
-                self.interrupt('Error: There was a problem with\nsetting the save configuration.\nIs the spectrometer connected?',retry=True)
-                self.log('Error: There was a problem setting the save configuration.')
+                self.interrupt('Error: There was a problem setting the save configuration.\nIs the spectrometer connected?\nIs the spectrometer computer awake and unlocked?',retry=True)
+                self.controller.log('Error: There was a problem setting the save configuration.')
+                self.controller.spec_save_path=''
+                self.controller.spec_basename=''
+                self.controller.spec_num=None
+                return
+                
+            elif 'saveconfigerror' in self.listener.queue:
+                self.listener.queue.remove('saveconfigerror')
+                self.interrupt('Error: There was a problem setting the save configuration.\nIs the spectrometer connected? Is the spectrometer computer awake and unlocked?',retry=True)
+                self.controller.log('Error: There was a problem setting the save configuration.')
                 self.controller.spec_save_path=''
                 self.controller.spec_basename=''
                 self.controller.spec_num=None
@@ -2998,14 +3188,27 @@ class SpectrumHandler(CommandHandler):
         self.listener=controller.spec_listener
         super().__init__(controller, title, label, timeout=timeout)
         
+        #Only needed if something has gone wrong in the past, but make sure to start out clean
+        while 'failedtosavefile' in self.listener.queue:
+            self.listener.queue.remove('failedtosavefile')
+        while 'noconfig' in self.listener.queue:
+            self.listener.queue.remove('noconfig')
+        while 'nonumspectra' in self.listener.queue:
+            self.listener.queue.remove('nonumspectra')
+        while 'savedfile' in self.listener.queue:
+            self.listener.queue.remove('savedfile')
+        while 'savespecfailedfileexists' in self.listener.queue:
+            self.listener.queue.remove('savespecfailedfileexists')
+        
     def wait(self):
         #old_files=list(self.controller.listener.saved_files)
         while self.timeout_s>0:
                 
 
             if 'failedtosavefile' in self.listener.queue:
-                self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?',retry=True)
                 self.listener.queue.remove('failedtosavefile')
+                self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?',retry=True)
+                
                 return
 
             elif 'noconfig' in self.listener.queue:
@@ -3063,9 +3266,7 @@ class SpectrumHandler(CommandHandler):
             info_string='Spectrum saved.'
 
         info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.label_entry.get()+'\n'
-        print('Here are AAAAAAAAAAALLLLLLLLLLLLLLL remaining e')
-        for entry in self.controller.active_emission_entries:
-            print(entry.get())
+
         if 'garbage' in self.wait_dialog.label:
             pass
         else:
@@ -3326,8 +3527,6 @@ class RemoteDirectoryWorker():
     
     def wait_for_contents(self,cmdfilename):
         #Wait to hear what the listener finds
-        print('something wrong here!')
-        print(cmdfilename)
         while self.timeout_s>0:
             #If we get a file back with a list of the contents, replace the old listbox contents with new ones.
             if cmdfilename in self.listener.queue:
@@ -3364,10 +3563,27 @@ class RemoteDirectoryWorker():
         return self.wait_for_contents(cmdfilename)
                 
     def get_contents(self,parent):
+        
+        #Only needed if something went wrong in the past, but be sure to start clean.
+        while 'listdirfailedpermission' in self.listener.queue:
+            self.listener.queue.remove('listdirfailedpermission')
+        while 'listfilesfailed' in self.listener.queue:
+            self.listener.queue.remove('listfilesfailed')
+        while 'listdirfailed' in self.listener.queue:
+            self.listener.queue.remove('listdirfailed')
+            
         cmdfilename=self.spec_commander.list_contents(parent)
         return self.wait_for_contents(cmdfilename)
         
     def mkdir(self, newdir):
+        #Only needed if something went wrong in the past, but be sure to start clean.
+        while 'mkdirsuccess' in self.listener.queue:
+            self.listener.queue.remove('mkdirsuccess')
+        while 'mkdirfailedfileexists' in self.listener.queue:
+            self.listener.queue.remove('mkdirfailedfileexists')
+        while 'mkdirfailed' in self.listener.queue:
+            self.listener.queue.remove('mkdirfailed')
+            
         self.spec_commander.mkdir(newdir)
                 
         while True:
@@ -3629,6 +3845,10 @@ class SpecListener(Listener):
                     
                     elif 'saveconfigfailedfileexists' in cmd:
                         self.queue.append('saveconfigfailedfileexists')
+                        
+                    elif 'saveconfigfailed' in cmd:
+                        self.queue.append('saveconfigfailed')
+                        
                     elif 'savespecfailedfileexists' in cmd:
                         self.queue.append('savespecfailedfileexists')
                     
@@ -3970,7 +4190,6 @@ class PretendEvent():
 
 class SpecConnectionChecker(ConnectionChecker):
     def __init__(self,dir,controller=None, func=None):
-        print('new spec con checker!')
         super().__init__(dir,controller=controller, func=func)
             
     def lost_dialog(self,buttons):

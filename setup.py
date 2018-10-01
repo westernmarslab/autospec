@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='WWU-AutoSpec',
-    version='0.1.18',
+    version='0.1.19',
     packages=['wwu-autospec'],
     license='Creative Commons Attribution-Noncommercial-Share Alike license',
     description='Control software for spectroscopy using ASD RS3 and ViewSpec Pro',
