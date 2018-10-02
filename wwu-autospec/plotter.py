@@ -4,23 +4,40 @@ import tkinter as tk
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
+from tkinter import *
 
 import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class Plotter():
-    def __init__(self, root):
+    def __init__(self, notebook,dpi):
         plt.close() 
-        self.root=root
+        #self.root=root
         self.plots={}
         self.canvases={}
         self.num=0
+        self.notebook=notebook
+        self.dpi=dpi
+        self.titles=[]
  
     def new_plot(self,title):
-        top = tk.Toplevel(self.root)
-        top.wm_title(title)
-        fig = mpl.figure.Figure(figsize=(20,15))
+
+                
+        #top = tk.Toplevel(self.root)
+        #top.wm_title(title)
+        close_img=tk.PhotoImage("img_close", data='''
+                R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
+                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
+                5kEJADs=
+                ''')
+        top=Frame(self.notebook)
+        top.pack()
+        #self.notebook.add(top,text=title,image=close_img,compound=tk.RIGHT)
+        self.notebook.add(top,text=title+' x')
+        width=self.notebook.winfo_width()
+        height=self.notebook.winfo_height()
+        fig = mpl.figure.Figure(figsize=(width/self.dpi, height/self.dpi), dpi=self.dpi)
         plot = fig.add_subplot(111)
         canvas = FigureCanvasTkAgg(fig, master=top)
         canvas.get_tk_widget().pack()
@@ -33,9 +50,10 @@ class Plotter():
             #     del self.plots[i]
             # #del self.plots[i]
             top.destroy()
-        top.protocol("WM_DELETE_WINDOW", on_closing)
+        #top.protocol("WM_DELETE_WINDOW", on_closing)
         
     def plot_spectrum(self,i,e, data):
+
         #If we've never plotted spectra at this incidence angle, make a whole new plot.
         if i not in self.plots:
             self.new_plot('Incidence='+str(i))
@@ -64,6 +82,7 @@ class Plotter():
     #     
 
     def plot_spectra(self, title, file, caption, loglabels):
+        print(file)
         try:
             wavelengths, reflectance, default_labels=self.load_data(file)
         except:
@@ -86,7 +105,18 @@ class Plotter():
                 if loglabels[label2]!='':
                     print(loglabels[label2])
                     default_labels[i]=loglabels[label2]
-            
+                    
+        if title=='':
+            title='Plot '+str(self.num+1)
+            self.num+=1
+        elif title in self.titles:
+            j=1
+            new=title+' ('+str(j)+')'
+            while new in self.titles:
+                j+=1
+                new=title+' ('+str(j)+')'
+            title=new
+        self.titles.append(title)
         self.new_plot(title)
         #self.num=0
         colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
