@@ -82,14 +82,15 @@ class Plotter():
     #     
 
     def plot_spectra(self, title, file, caption, loglabels):
-        print(file)
         try:
             wavelengths, reflectance, default_labels=self.load_data(file)
         except:
             print('Error loading data!')
             raise('Error loading data!')
             return
-        print(loglabels)
+        for label in loglabels:
+            print(label)
+            print(loglabels[label])
         for i, label in enumerate(default_labels):
             if i==0:
                 continue

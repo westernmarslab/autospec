@@ -282,6 +282,9 @@ class Controller():
         self.e_interval=None
         
         self.required_angular_separation=15
+        self.text_only=False
+        self.user_cmds=[]
+        self.user_cmd_index=0
         
         
         
@@ -728,9 +731,9 @@ class Controller():
         self.scrollbar.config(command=self.console_log.yview)
         self.console_log.configure(yscrollcommand=self.scrollbar.set)
         self.console_entry=Entry(self.console_frame, width=self.some_width,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.console_entry.bind("<Return>",self.run)
-        self.console_entry.bind('<Up>',self.run)
-        self.console_entry.bind('<Down>',self.run)
+        self.console_entry.bind("<Return>",self.execute_cmd)
+        self.console_entry.bind('<Up>',self.iterate_cmds)
+        self.console_entry.bind('<Down>',self.iterate_cmds)
         self.console_entry.pack(fill=BOTH, side=BOTTOM)
         self.text_frame.pack(fill=BOTH, expand=True)
         self.console_log.pack(fill=BOTH,expand=True)
@@ -1346,7 +1349,10 @@ class Controller():
             try:
                 os.makedirs(new)
             except:
-                dialog=ErrorDialog(self, title='Error',label='Error: failed to create log directory.\n Creating new log file in current working directory.',topmost=False)
+                if not self.text_only:
+                    dialog=ErrorDialog(self, title='Error',label='Error: failed to create log directory.\n Creating new log file in current working directory.',topmost=False)
+                else:
+                    self.log('Error: failed to create log directory. Creating new log file in current working directory.')
                 self.logfile_entry.delete(0,'end')
                 dialog.top.lower()
                 dialog.top.tkraise(self.master)
@@ -1562,7 +1568,7 @@ class Controller():
 
         #Highlight whatever i, e pair is being currently used if there are multiple to do.
         elif self.individual_range.get()==0 and len(self.incidence_entries)>1:
-            self.active_i_e_pair_frames[0].configure(bg='white')
+            self.active_i_e_pair_frames[0].configure(highlightbackground=self.border_color,bd=2,pady=5)
             pass
 
 
@@ -1599,11 +1605,8 @@ class Controller():
         widget.delete(0,'end')
         widget.insert(0,text)
         widget.configure(state='disabled')
-    def next_geom(self): 
-
         
-
-
+    def next_geom(self): 
         #This only gets called from automatic mode, so the question is just ind. vs range.
        # if self.individual_range.get()==0:
             
@@ -1631,20 +1634,24 @@ class Controller():
                    
         
     def move_light(self):
+        timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i)*10+BUFFER)
+        print('TIMEOUT = '+str(timeout))
         self.pi_commander.move_light(self.active_incidence_entries[0].get())
-        handler=MotionHandler(self,label='Moving light source...')
+        handler=MotionHandler(self,label='Moving light source...',timeout=timeout)
         self.test_view.move_light(int(self.active_incidence_entries[0].get()))
         self.set_geom()
         
     def move_detector(self):
+        timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.i)*10+BUFFER)
+        print('TIMEOUT = '+str(timeout))
         self.pi_commander.move_detector(self.active_emission_entries[0].get())
-        handler=MotionHandler(self,label='Moving detector...')
+        handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
         self.set_geom()
         
     def move_tray(self):
         self.pi_commander.move_tray()
-        handler=MotionHandler(self,label='Moving sample tray...')
+        handler=MotionHandler(self,label='Moving sample tray...',timeout=30+BUFFER)
         
     def build_queue(self):
         self.queue=[]
@@ -1858,10 +1865,10 @@ class Controller():
             return
         
         elif status=='timeout':
-            print('timeout')
-            print(self)
-            self.remote_file_explorer.cancel()
-            dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer computer\nand the spectrometer is connected.')
+            if not self.text_only:
+                dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer computer\nand the spectrometer is connected.')
+            else:
+                self.log('Error: Operation timed out while trying to set save configuration')
             
             return
 
@@ -1890,6 +1897,118 @@ class Controller():
 
         self.spec_commander.set_save_path(self.spec_save_dir_entry.get(), self.spec_basename_entry.get(), self.spec_startnum_entry.get())
         handler=SaveConfigHandler(self)
+        
+    #when the focus is on the console entry box, the user can scroll through past commands.
+    #these are stored in user_cmds with the index of the most recent command at 0
+    #Every time the user enters a command, the user_cmd_index is changed to -1
+    def iterate_cmds(self,keypress_event): 
+        if keypress_event.keycode==111: #up arrow
+            print(self.user_cmd_index)
+            print(self.user_cmds)
+            if len(self.user_cmds)>self.user_cmd_index+1 and len(self.user_cmds)>0:
+                self.user_cmd_index=self.user_cmd_index+1
+                last=self.user_cmds[self.user_cmd_index]
+                self.console_entry.delete(0,'end')
+                self.console_entry.insert(0,last)
+
+        elif keypress_event.keycode==116: #down arrow
+            if self.user_cmd_index>0:
+                self.user_cmd_index=self.user_cmd_index-1
+                next=self.user_cmds[self.user_cmd_index]
+                self.console_entry.delete(0,'end')
+                self.console_entry.insert(0,next)
+                
+    def execute_cmd(self,event):
+        
+        def get_val(param):
+            return param.split('=')[1].strip(' ').strip('"').strip("'")
+            
+        self.text_only=True
+        cmd=self.console_entry.get()
+        self.user_cmds.insert(0,cmd)
+        self.user_cmd_index=-1
+        
+        self.console_log.insert(END,'>>> '+cmd+'\n')
+        self.console_entry.delete(0,'end')
+
+        if cmd=='wr()':
+            self.queue=[]
+            self.queue.append({self.wr:[True,False]})
+            self.queue.append({self.take_spectrum:[True,True]})
+            self.wr(True,False)
+        elif cmd=='opt()':
+            self.queue=[]
+            self.queue.append({self.opt:[]})
+            self.opt()
+        elif cmd=='goniometer.configure(MANUAL)':
+            self.manual_automatic.set(0)
+        elif cmd=='goniometer.configure(AUTOMATIC)':
+            self.manual_automatic.set(1)
+        elif cmd=='collect_garbage()':
+            self.queue=[]
+            self.queue.append({self.take_spectrum:[True,False,True]})
+            self.take_spectrum(True,False,True)
+            
+        elif cmd=='take_spectrum()':
+            self.queue=[]
+            self.queue.append({self.take_spectrum:[True,True,False]})
+            self.take_spectrum(True,True,False)
+
+        elif 'spec_save.configure(' in cmd:
+            params=cmd[0:-1].split('spec_save.configure(')[1].split(',')
+            for param in params:
+                if 'directory' in param:
+                    dir=get_val(param)
+                    self.spec_save_dir_entry.delete(0,'end')
+                    self.spec_save_dir_entry.insert(0,dir)
+                elif 'basename' in param:
+                    basename=get_val(param)
+                    self.spec_basename_entry.delete(0,'end')
+                    self.spec_basename_entry.insert(0,basename)
+                elif 'num' in param:
+                    num=get_val(param)
+                    self.spec_startnum_entry.delete(0,'end')
+                    self.spec_startnum_entry.insert(0,num)
+                    
+            self.queue=[]
+            self.queue.append({self.set_save_config:[]})
+            self.set_save_config()
+        elif 'instrument.configure('in cmd:
+            param=cmd[0:-1].split('instrument.configure(')[1]
+            try:
+                num=int(param)
+                self.instrument_config_entry.delete(0,'end')
+                self.instrument_config_entry.insert(0,str(num))
+                
+                self.queue=[]
+                self.queue.append({self.configure_instrument:[]})
+                self.configure_instrument()
+            except:
+                self.log('Error: could not parse command '+cmd)
+                
+
+        elif 'sleep' in cmd:
+            param=cmd[0:-1].split('sleep(')[1]
+            print(param)
+            try:
+                print('sleep')
+                num=float(param)
+                time.sleep(num)
+                print('wake up')
+            except:
+                self.log('Error: could not parse command '+cmd)
+        elif 'log(' in cmd:
+            info=cmd[0:-1].split('log(')[1]
+            info.strip('"')
+            info.strip("'")
+            self.check_logfile()
+            self.log(info,write_to_file=True)
+            
+                
+        else:
+            self.log('Error: could not parse command '+cmd)
+            
+        self.text_only=False
             
             
     def increment_num(self):
@@ -1911,6 +2030,7 @@ class Controller():
         # self.model.move_light(i)
         # self.model.move_detector(e)
         
+        
     def process_cmd(self):
         output_file=self.output_file_entry.get()
         if output_file=='':
@@ -1928,7 +2048,7 @@ class Controller():
             file.write(self.output_dir_entry.get()+'\n')
             file.write(output_file+'\n')
             self.plot_input_file=self.output_dir_entry.get()+'\\'+output_file
-            self.plot_title=self.spec_basename
+            self.plot_title=output_file.strip('.tsv')
             self.plot_loc='remote'
             self.remote.set(1)
            
@@ -2030,48 +2150,43 @@ class Controller():
             light_increment_entry.config(bd=1)
             detector_increment_entry.config(bd=1)
         
-    def run(self, keypress_event):
-        # global user_cmds
-        # global user_cmd_index
-        if keypress_event.keycode==36:
-            cmd=self.console_entry.get()
-            if cmd !='':
-                # user_cmds.insert(0,cmd)
-                # user_cmd_index=-1
-                self.console_log.insert(END,'>>> '+cmd+'\n')
-                self.console_entry.delete(0,'end')
-                
-                params=cmd.split(' ')
-                if params[0].lower()=='clear':
-                    self.console_log.delete('1.0',END)
-                if params[0].lower()=='process':
-                    try:
-                        if params[1]=='--save_config':
-                            self.process_save_dir_check.select()
-                            params.pop(1)
-                        self.input_dir_entry.delete(0,'end')
-                        self.input_dir_entry.insert(0,params[1])
-                        self.output_dir_entry.delete(0,'end')
-                        self.output_dir_entry.insert(0,params[2]) 
-                        self.output_file_entry.delete(0,'end')
-                        self.output_file_entry.insert(0,params[3])
-                        process_cmd()
-                    except:
-                        self.console_log.insert(END,'Error: Failed to process file.')
-                elif params[0].lower()=='wr':
-                    self.wr()
-                elif params[0].lower()=='opt':
-                    self.opt()
-                elif params[0].lower()=='log':
-                    logstring=''
-                    for word in params:
-                        logstring=logstring+word+' '
-                    logstring=logstring+'\n'
-                    with open('log.txt','a') as log:
-                        log.write(logstring)
+    # def run(self, keypress_event):
+    #     # global user_cmds
+    #     # global user_cmd_index
+    #     if keypress_event.keycode==36:
+    #         cmd=self.console_entry.get()
+    #         if cmd !='':
+    #             # user_cmds.insert(0,cmd)
+    #             # user_cmd_index=-1
+    #             self.console_log.insert(END,'>>> '+cmd+'\n')
+    #             self.console_entry.delete(0,'end')
+    #             
+    #             params=cmd.split(' ')
+    #             if params[0].lower()=='clear':
+    #                 self.console_log.delete('1.0',END)
+    #             if params[0].lower()=='process':
+    #                 try:
+    #                     if params[1]=='--save_config':
+    #                         self.process_save_dir_check.select()
+    #                         params.pop(1)
+    #                     self.input_dir_entry.delete(0,'end')
+    #                     self.input_dir_entry.insert(0,params[1])
+    #                     self.output_dir_entry.delete(0,'end')
+    #                     self.output_dir_entry.insert(0,params[2]) 
+    #                     self.output_file_entry.delete(0,'end')
+    #                     self.output_file_entry.insert(0,params[3])
+    #                     process_cmd()
+    #                 except:
+    #                     self.console_log.insert(END,'Error: Failed to process file.')
+    #             elif params[0].lower()=='wr':
+    #                 self.wr()
+    #             elif params[0].lower()=='opt':
+    #                 self.opt()
+                    
+
                     
             
-        elif keypress_event.keycode==111:
+        if keypress_event.keycode==111:
             if len(user_cmds)>user_cmd_index+1 and len(user_cmds)>0:
                 user_cmd_index=user_cmd_index+1
                 last=user_cmds[user_cmd_index]
@@ -2080,8 +2195,8 @@ class Controller():
 
         elif keypress_event.keycode==116:
             if user_cmd_index>0:
-                user_cmd_index=user_cmd_index-1
-                next=user_cmds[user_cmd_index]
+                user_cmd_index=self.user_cmd_index-1
+                next=selfuser_cmds[user_cmd_index]
                 self.console_entry.delete(0,'end')
                 self.console_entry.insert(0,next)
                 
@@ -2175,6 +2290,11 @@ class Controller():
         while timeout_s>0:
             if 'piconfigsuccess' in self.pi_listener.queue:
                 self.pi_listener.queue.remove('piconfigsuccess')
+                self.complete_queue_item()
+                if len(self.queue)>0:
+                    self.next_in_queue()
+            else:
+                print('no queue')
                 break
             time.sleep(INTERVAL)
             timeout_s-=INTERVAL
@@ -2427,6 +2547,7 @@ class Controller():
                 self.plot_input_dir_entry.insert(0, file)
             
     def log(self, info_string, write_to_file=False):
+        self.check_logfile()
         self.master.update()
         space=self.console_log.winfo_width()
         space=str(int(space/8.5))
@@ -2439,6 +2560,9 @@ class Controller():
             
         while info_string[0]=='\n':
             info_string=info_string[1:]
+            
+        if write_to_file:
+            info_string_copy=str(info_string)
             
         if '\n' in info_string:
             lines=info_string.split('\n')
@@ -2459,16 +2583,39 @@ class Controller():
         self.console_log.insert(END,info_string+'\n')
         self.console_log.see(END)
         if write_to_file:
+            info_string=str(info_string_copy)
+            space=str(80)
+            if '\n' in info_string:
+                lines=info_string.split('\n')
+    
+                lines[0]=('{1:'+space+'}{0}').format(datestring,lines[0])
+                info_string='\n'.join(lines)
+            else:
+                info_string=('{1:'+space+'}{0}').format(datestring,info_string)
+                
+            if info_string[-2:-1]!='\n':
+                info_string+='\n'
+            print(self.log_filename)
             with open(self.log_filename,'a') as log:
                 log.write(info_string)
+                log.write('\n')
                 
     def freeze(self):
         for button in self.tk_buttons:
-            button.configure(state='disabled')
+            try:
+                button.configure(state='disabled')
+            except:
+                pass
         for entry in self.entries:
-            entry.configure(state='disabled')
+            try:
+                entry.configure(state='disabled')
+            except:
+                pass
         for radio in self.radiobuttons:
-            radio.configure(state='disabled')
+            try:
+                radio.configure(state='disabled')
+            except:
+                pass
 
     def unfreeze(self):
         for button in self.tk_buttons:
@@ -2538,7 +2685,7 @@ class Controller():
             try:
                 self.view_notebook.tab(self.last_tab,text=self.last_tab_text+'x')
             except:
-                print('no last tab')
+                pass
             return
         elif dist_to_edge<18:
             tab=self.view_notebook.tab("@%d,%d" % (event.x, event.y))
@@ -2553,7 +2700,7 @@ class Controller():
             try:
                 self.view_notebook.tab(self.last_tab,text=self.last_tab_text+'x')
             except:
-                print('on a tab, no last tab')
+                pass
             
             
     def dist_to_edge(self,event):
@@ -2866,7 +3013,6 @@ class CommandHandler():
                 }
             }
             self.wait_dialog.set_buttons(buttons)
-            print(self.wait_dialog.top.geometry())
         else:
             self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 119, 107, 69))
 
@@ -3030,7 +3176,7 @@ class InstrumentConfigHandler(CommandHandler):
     def success(self):
         self.controller.spec_config_count=self.controller.instrument_config_entry.get()
 
-        self.controller.log('Instrument configured to average  '+str(self.controller.spec_config_count)+' spectra.')
+        self.controller.log('Instrument configured to average '+str(self.controller.spec_config_count)+' spectra.',write_to_file=True)
 
         super(InstrumentConfigHandler, self).success()
         
@@ -3070,7 +3216,7 @@ class OptHandler(CommandHandler):
                 
     def success(self):
         self.controller.opt_time=int(time.time())
-        self.controller.log('Instrument optimized.')# \n\ti='+self.controller.active_incidence_entries[0].get()+'\n\te='+self.controller.active_emission_entries[0].get())
+        self.controller.log('Instrument optimized.',write_to_file=True)# \n\ti='+self.controller.active_incidence_entries[0].get()+'\n\te='+self.controller.active_emission_entries[0].get())
         super(OptHandler, self).success()
 
         
@@ -3194,9 +3340,9 @@ class CloseHandler(CommandHandler):
             self.controller.next_in_queue()
             
 class MotionHandler(CommandHandler):
-    def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}):
+    def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}, timeout=60):
         self.listener=controller.pi_listener
-        super().__init__(controller, title, label,timeout=45+BUFFER)
+        super().__init__(controller, title, label,timeout=timeout)
 
 
 
@@ -3207,17 +3353,23 @@ class MotionHandler(CommandHandler):
                 self.listener.queue.remove('donemoving')
                 self.success()
                 return
+            elif 'nopiconfig' in self.listener.queue:
+                print('nopiconfig')
+                self.listener.queue.remove('nopiconfig')
+                #self.controller.queue.append({self.controller.set_manual_automatic:[]})
+                self.controller.set_manual_automatic(self,force=1)
+                
+                return
 
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
         
         self.timeout()
-        
     def success(self):
         if 'detector' in self.label:
-            self.controller.log('Goniometer moved to an emission angle of'+self.controller.active_emission_entries[0].get()+' degrees.')
+            self.controller.log('Goniometer moved to an emission angle of '+self.controller.active_emission_entries[0].get()+' degrees.')
         elif 'light' in self.label:
-            self.controller.log('Goniometer moved to an incidence angle of'+self.controller.active_incidence_entries[0].get()+' degrees.')
+            self.controller.log('Goniometer moved to an incidence angle of '+self.controller.active_incidence_entries[0].get()+' degrees.')
             
         elif 'tray' in self.label:
             self.controller.log('Sample tray moved.')
@@ -3306,7 +3458,8 @@ class SaveConfigHandler(CommandHandler):
         self.controller.spec_num=int(spec_num)
         
         self.allow_exit=True
-        self.controller.log('Save configuration set.\n\tDirectory: '+self.controller.spec_save_dir_entry.get()+'\n\tBasename: '+self.controller.spec_basename_entry.get())
+        self.controller.log('Save configuration set.\n\tDirectory: '+self.controller.spec_save_dir_entry.get()+'\n\tBasename: '+self.controller.spec_basename_entry.get()+'\n\tStart number: '+self.controller.spec_startnum_entry.get(),write_to_file=True)
+        print('write to file')
         
         if self.keep_around:
             dialog=WaitDialog(self.controller, title='Warning: Untracked Files',buttons={'ok':[]})
@@ -3907,7 +4060,10 @@ class PiListener(Listener):
                         self.queue.append('donemoving')
                     elif 'piconfigsuccess' in cmd:
                         self.queue.append('piconfigsuccess')
+                    elif 'nopiconfig' in cmd:
+                        self.queue.append('nopiconfig')
         self.cmdfiles0=list(self.cmdfiles)
+                    
 
                         
                         
@@ -3938,7 +4094,6 @@ class SpecListener(Listener):
                     cmd, params=decrypt(cmdfile)
 
                     print('Spec read command: '+cmd)
-                    print('fof')
                     if 'savedfile' in cmd:
                         #self.saved_files.append(params[0])
                         self.queue.append('savedfile')
@@ -4139,8 +4294,6 @@ class Commander():
     def encrypt(self,cmd,parameters=[]):
         filename=cmd+str(self.cmdnum)
         self.cmdnum+=1
-        print('encrypting')
-        print(filename)
         for param in parameters:
             param=param.replace('/','+')
             param=param.replace('\\','+')
@@ -4153,18 +4306,19 @@ class PiCommander(Commander):
         super().__init__(write_command_loc,listener)
     
     def configure(self,i,e):
+        self.remove_from_listener_queue(['piconfigsuccess'])
         filename=self.encrypt('configure',[i,e])
         self.send(filename)
         return filename
         
     def move_light(self, incidence):
-        self.remove_from_listener_queue(['donemoving'])
+        self.remove_from_listener_queue(['donemoving','nopiconfig'])
         filename=self.encrypt('movelight',[incidence])
         self.send(filename)
         return filename
 
     def move_detector(self, emission):
-        self.remove_from_listener_queue(['donemoving'])
+        self.remove_from_listener_queue(['donemoving','nopiconfig'])
         filename=self.encrypt('movedetector',[emission])
         self.send(filename)
         return filename
@@ -4174,9 +4328,10 @@ class PiCommander(Commander):
         filename=self.encrypt('movetray',[])
         self.send(filename)
         
-    def get_current_geom(self):
-        filename=self.encrypt('getcurrentgeom',[])
-        self.send(filename)
+    # def get_current_geom(self):
+    #     self.remove_from_listener_queue
+    #     filename=self.encrypt('getcurrentgeom',[])
+    #     self.send(filename)
     
 
 class SpecCommander(Commander):
@@ -4256,10 +4411,7 @@ class SpecCommander(Commander):
         filename=self.encrypt('process',[input_dir,output_dir,output_file])
         self.send(filename)
         return filename
-        
 
-        
-        
         
 class ConnectionChecker():
     def __init__(self,dir,controller=None, func=None):
@@ -4382,13 +4534,13 @@ class SpecConnectionChecker(ConnectionChecker):
             
     def lost_dialog(self,buttons):
         try:
-            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with server.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons,button_width=15)
+            dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with spec compy.\n\nCheck that you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons,button_width=15)
         except:
             pass
     def no_dialog(self,buttons):
         print('new dialog!')
         try:
-            dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: No connection with Spec Compy.\n\nCheck you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons,button_width=15)
+            dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: No connection with Spec Compy.\n\nCheck that you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons,button_width=15)
         except:
             pass
 class PiConnectionChecker(ConnectionChecker):
