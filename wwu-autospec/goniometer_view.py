@@ -33,19 +33,17 @@ class TestView():
 
         
         self.notebook.add(self.embed,text='Goniometer view')
-        #self.notebook.add(frame,text='lalala x',image=close_img,compound=tk.RIGHT)
         
-
         self.master.update()
+        
         os.environ['SDL_WINDOWID'] = str(self.double_embed.winfo_id())
         if self.controller.opsys=='Windows':
             os.environ['SDL_VIDEODRIVER'] = 'windib'
-        #pygame.display.init()
-        self.screen = pygame.display.set_mode((self.width,self.height))#self.width,self.height))
+        self.screen = pygame.display.set_mode((self.width,self.height))
         
         self.light=pygame.Rect(30,30,60,60)
-        self.theta_l=10
-        self.theta_d=60
+        self.theta_l=-30
+        self.theta_d=0
         self.d_up=False
         self.l_up=False
         

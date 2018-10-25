@@ -11,19 +11,22 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class Plotter():
-    def __init__(self, notebook,dpi):
-        plt.close() 
-        #self.root=root
+    def __init__(self, notebook,dpi, style):
+
         self.plots={}
+        self.figs={}
         self.canvases={}
+        self.data={}
         self.num=0
         self.notebook=notebook
         self.dpi=dpi
         self.titles=[]
+        self.style=style
+        plt.style.use(style)
+        
+        
+    def embed_plot(self,title):
  
-    def new_plot(self,title):
-
-                
         #top = tk.Toplevel(self.root)
         #top.wm_title(title)
         close_img=tk.PhotoImage("img_close", data='''
@@ -38,9 +41,17 @@ class Plotter():
         width=self.notebook.winfo_width()
         height=self.notebook.winfo_height()
         fig = mpl.figure.Figure(figsize=(width/self.dpi, height/self.dpi), dpi=self.dpi)
+        self.figs[title]=fig
         plot = fig.add_subplot(111)
         canvas = FigureCanvasTkAgg(fig, master=top)
-        canvas.get_tk_widget().pack()
+        vbar=Scrollbar(top,orient=VERTICAL)
+        vbar.pack(side=RIGHT,fill=Y)
+        vbar.config(command=canvas.get_tk_widget().yview)
+        canvas.get_tk_widget().config(width=300,height=300)
+        canvas.get_tk_widget().config(yscrollcommand=vbar.set)
+        canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
+        
+        #canvas.get_tk_widget().pack()
         canvas.draw()
         self.plots[title]=plot
         self.canvases[title]=canvas
@@ -56,7 +67,7 @@ class Plotter():
 
         #If we've never plotted spectra at this incidence angle, make a whole new plot.
         if i not in self.plots:
-            self.new_plot('Incidence='+str(i))
+            self.embed_plot('Incidence='+str(i))
         #Next, plot data onto the appropriate plot.
         self.plots[i].plot(data[0],data[1])
         self.canvases[i].draw()
@@ -81,31 +92,27 @@ class Plotter():
     #     return wavelengths, reflectance
     #     
 
-    def plot_spectra(self, title, file, caption, loglabels):
+    def plot_spectra(self, title, file, caption, loglabels,exclude_wr=True):
         try:
-            wavelengths, reflectance, default_labels=self.load_data(file)
+            wavelengths, reflectance, labels=self.load_data(file)
         except:
             print('Error loading data!')
             raise('Error loading data!')
             return
-        for label in loglabels:
-            print(label)
-            print(loglabels[label])
-        for i, label in enumerate(default_labels):
+
+        for i, label in enumerate(labels):
             if i==0:
                 continue
-            print(label)
-            print(label[0:-3])
+
             if label in loglabels:
                 if loglabels[label]!='':
-                    print(loglabels[label])
-                    default_labels[i]=loglabels[label]
+                    labels[i]=loglabels[label]
             label2=label[0:-3]
             if label2 in loglabels:
-                print('scolabel')
+                print('and it is there! +sco')
                 if loglabels[label2]!='':
                     print(loglabels[label2])
-                    default_labels[i]=loglabels[label2]
+                    labels[i]=loglabels[label2]
                     
         if title=='':
             title='Plot '+str(self.num+1)
@@ -118,19 +125,40 @@ class Plotter():
                 new=title+' ('+str(j)+')'
             title=new
         self.titles.append(title)
-        self.new_plot(title)
+        self.data[title]={'wavelengths':wavelengths,'reflectance':reflectance,'labels':labels}
+        self.embed_plot(title)
+        self.draw_plot(title)
+        self.canvases[title].draw()
         #self.num=0
-        colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
+        # light_colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
+        # dark_colors=['mediumaquamarine','lemonchiffon','mediumpurple','lightcoral','skyblue','sandybrown','yellowgreen','pink','lightgray','mediumpurple']
+
+        
+    def draw_plot(self, title, exclude_wr=True):
+        labels=self.data[title]['labels']
+        wavelengths=self.data[title]['wavelengths']
+        reflectance=self.data[title]['reflectance']
+        
         for i,spectrum in enumerate(reflectance):
-            if 'White reference' in default_labels[i+1]:
+            if 'White reference' in labels[i+1] and exclude_wr:
                 continue
-            self.plots[title].plot(wavelengths, spectrum, label=default_labels[i+1], color=colors[i])
+            if True: #dark in style
+                self.plots[title].plot(wavelengths, spectrum, label=labels[i+1])
+        
         self.plots[title].set_title(title, fontsize=24)
         self.plots[title].set_ylabel('Relative Reflectance',fontsize=18)
         self.plots[title].set_xlabel('Wavelength (nm)',fontsize=18)
         self.plots[title].tick_params(labelsize=14)
         self.plots[title].legend()
-        self.canvases[title].draw()
+        
+        
+        self.figs[title].savefig(title)
+    
+    def savefig(self,title):
+        self.draw_plot(title, 'v2.0')
+        self.plots[title].savefig(title)
+        self.draw_plot(self.style)
+        
         
     def load_data(self, file):
 

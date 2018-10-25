@@ -269,14 +269,14 @@ class Controller():
         #     self.last_i=None
         #     self.last_e=None
         
-        self.min_i=-50
-        self.max_i=50
+        self.min_i=-45
+        self.max_i=45
         self.i=None
         self.final_i=None
         self.i_interval=None
         
-        self.min_e=-75
-        self.max_e=75
+        self.min_e=-30
+        self.max_e=60
         self.e=None
         self.final_e=None
         self.e_interval=None
@@ -285,6 +285,11 @@ class Controller():
         self.text_only=False
         self.user_cmds=[]
         self.user_cmd_index=0
+        self.cmd_complete=False
+        self.script_failed=False
+        self.num_samples=4
+        self.sample_tray_pos=None
+        self.script_running=False
         
         
         
@@ -344,7 +349,7 @@ class Controller():
 
         # create a pulldown menu, and add it to the menu bar
         filemenu = Menu(menubar, tearoff=0)
-        filemenu.add_command(label="Load script", command=hello)
+        filemenu.add_command(label="Load script", command=self.load_script)
         filemenu.add_command(label="Process and export data", command=self.show_process_frame)
         filemenu.add_command(label="Plot processed data", command=self.show_plot_frame)
 
@@ -355,8 +360,23 @@ class Controller():
         
         # create more pulldown menus
         editmenu = Menu(menubar, tearoff=0)
-        editmenu.add_command(label="Edit settings", command=self.show_settings_frame)
+        #self.goniometermenu=Menu(editmenu, tearoff=0)
+        # editmenu.add_command(label="Goniometer settings", command=self.show_goniometer_settings_frame)
+        editmenu.add_command(label="Failsafes...", command=self.show_settings_frame)
+        editmenu.add_command(label="Plot settings...", command=self.show_plot_settings_frame)
         menubar.add_cascade(label="Settings", menu=editmenu)
+        
+        
+        
+        self.goniometermenu=Menu(editmenu, tearoff=0)
+        self.goniometermenu.add_command(label='X Manual', command=lambda:self.set_manual_automatic(force=0))
+        self.goniometermenu.add_command(label='  Automatic', command=lambda:self.set_manual_automatic(force=1))
+        editmenu.add_cascade(label="Goniometer control", menu=self.goniometermenu)
+        
+        self.geommenu=Menu(editmenu, tearoff=0)
+        self.geommenu.add_command(label='X Individual', command=lambda:self.set_individual_range(0))
+        self.geommenu.add_command(label='  Range (Automatic only)', command=lambda:self.set_individual_range(1),state=DISABLED)
+        editmenu.add_cascade(label='Geometry specification', menu=self.geommenu)
         
         helpmenu = Menu(menubar, tearoff=0)
         helpmenu.add_command(label="About", command=hello)
@@ -390,7 +410,7 @@ class Controller():
         self.view_notebook.bind('<Motion>',lambda event: self.mouseover_tab(event))
 
         #The plotter, surprisingly, plots things.
-        self.plotter=Plotter(self.view_notebook,self.get_dpi())
+        self.plotter=Plotter(self.view_notebook,self.get_dpi(),[ self.config_loc+'color_config.mplstyle',self.config_loc+'size_config.mplstyle'])
         
         
         #The commander is in charge of sending all the commands for the spec compy to read
@@ -443,7 +463,7 @@ class Controller():
         self.control_frame.pack(fill=BOTH,expand=True)
         self.save_config_frame=Frame(self.control_frame,bg=self.bg,highlightthickness=1)
         self.save_config_frame.pack(fill=BOTH,expand=True)
-        self.spec_save_label=Label(self.save_config_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Spectra save configuration:')
+        self.spec_save_label=Label(self.save_config_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Raw spectral data save configuration:')
         self.spec_save_label.pack(pady=(15,5))
         self.spec_save_path_label=Label(self.save_config_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Directory:')
         self.spec_save_path_label.pack(padx=self.padx)
@@ -543,7 +563,7 @@ class Controller():
         # self.viewing_geom_options_label=Label(self.viewing_geom_options_frame_top,text='Viewing geometry options:', fg=self.textcolor, bg=self.bg)
         # self.viewing_geom_options_label.pack(pady=(15,0))
         self.viewing_geom_options_frame=Frame(self.control_frame,bg=self.bg)
-        self.viewing_geom_options_frame.pack(fill=BOTH,expand=True)
+        #self.viewing_geom_options_frame.pack(fill=BOTH,expand=True)
         
         self.viewing_geom_options_frame_left=Frame(self.viewing_geom_options_frame, bg=self.bg,highlightthickness=1)
         self.viewing_geom_options_frame_left.pack(side=LEFT,fill=BOTH,expand=True)
@@ -672,6 +692,11 @@ class Controller():
         self.label_entry=Entry(self.spectrum_label_frame, width=50, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.entries.append(self.label_entry)
         self.label_entry.pack(pady=(0,15))
+        
+        self.add_sample_button=Button(self.spectrum_label_frame, text='Add Sample', command=self.add_sample,width=10, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.tk_buttons.append(self.add_sample_button)
+        self.add_sample_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
+        self.add_sample_button.pack()
 
         
         # self.auto_check_frame=Frame(self.control_frame, bg=self.bg)
@@ -862,7 +887,8 @@ class Controller():
         
     def close_process(self):
         self.process_top.destroy()
-    
+    def show_plot_settings_frame(self):
+        pass
     def show_settings_frame(self):
         # self.dumb_frame=Frame(self.notebook, bg=self.bg, pady=2*self.pady)
         # self.dumb_frame.pack()
@@ -1150,6 +1176,43 @@ class Controller():
         self.log_filename = askopenfilename(initialdir=log_loc,title='Select existing log file to append to')
         self.logfile_entry.delete(0,'end')
         self.logfile_entry.insert(0, self.log_filename)
+        
+    def load_script(self):
+        self.script_running=True
+        self.script_failed=False
+        script_file = askopenfilename(initialdir=log_loc,title='Select script')
+        self.queue=[]
+        print(script_file)
+        with open(script_file,'r') as script:
+            cmd=script.readline().strip('\n')
+            success=True
+            while cmd!='' and success==True and self.script_failed==False:
+                self.queue.append({self.next_script_line:[cmd]})
+                cmd=script.readline().strip('\n')
+                
+                continue
+        print('here is the queue I am setting up:')
+        for item in self.queue:
+            print(item)
+        self.queue.append({self.next_script_line:['end file']})
+        self.next_in_queue()
+
+    
+    def next_script_line(self,cmd):
+        print('********************')
+        print(cmd)
+        if cmd=='end file':
+            self.log('Script complete')
+            self.script_running=False
+        if self.script_failed:
+            self.log('Exiting')
+        else:
+            self.console_entry.delete(0,'end')
+            self.console_entry.insert(0,cmd)
+            success=self.execute_cmd('event!')
+            if success==False:
+                self.log('Exiting.')
+                
 
         
     def newlog(self):
@@ -1530,8 +1593,8 @@ class Controller():
         return True
     #Action will be either wr or take a spectrum
     def acquire(self, override=False, setup_complete=False, action=None, garbage=False):
-        print('Acquiring!')
-
+        print('action: ')
+        print(action)
         if not setup_complete:
             #Set all entries to active
             self.active_incidence_entries=list(self.incidence_entries)
@@ -1540,7 +1603,7 @@ class Controller():
             
 
 
-        if action==None: #If this was called by the user clicking acquire
+        if action==None: #If this was called by the user clicking acquire. otherwise, it will be take_spectrum or wr?
             action=self.acquire
             self.queue.append({self.acquire:[]})
             if self.individual_range.get()==1:
@@ -1553,13 +1616,21 @@ class Controller():
             if not ok:
                 return
             
-            #If input isn't valid and the user asks to continue, take_spectrum will be called again with override set to True  
-            valid_input=self.check_optional_input(action,[True,False])
+            #If input isn't valid and the user asks to continue, take_spectrum will be called again with override set to True
+            valid_input=False
+            if action==self.take_spectrum:
+                print('yep this worked')
+                valid_input=self.check_optional_input(action,[True,False,garbage])
+            else:
+                valid_input=self.check_optional_input(action,[True,False])
             if not valid_input:
                 return         
                 
         if not setup_complete:
-            setup=self.setup({action:[True, False]})
+            if action==self.take_spectrum:
+                setup=self.setup({action:[True, False,garbage]})
+            else:
+                setup=self.setup({action:[True, False]})
             #If things were not already set up (instrument config, etc) then the compy will take care of that and call take_spectrum again after it's done.
             if not setup:
                 return
@@ -1598,6 +1669,14 @@ class Controller():
         self.angles_change_time=time.time()
         self.i=int(self.active_incidence_entries[0].get())
         self.e=int(self.active_emission_entries[0].get())
+        
+    def set_light_geom(self):
+        self.angles_change_time=time.time()
+        self.i=int(self.active_incidence_entries[0].get())
+
+    def set_detector_geom(self):
+        self.angles_change_time=time.time()
+        self.e=int(self.active_emission_entries[0].get())
 
         
     def set_text(self,widget, text):
@@ -1634,20 +1713,25 @@ class Controller():
                    
         
     def move_light(self):
-        timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i)*10+BUFFER)
+        timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i))*15+BUFFER
+        print(self.active_incidence_entries[0].get())
+        print(self.i)
         print('TIMEOUT = '+str(timeout))
         self.pi_commander.move_light(self.active_incidence_entries[0].get())
         handler=MotionHandler(self,label='Moving light source...',timeout=timeout)
         self.test_view.move_light(int(self.active_incidence_entries[0].get()))
-        self.set_geom()
+        self.set_light_geom()
         
     def move_detector(self):
-        timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.i)*10+BUFFER)
+        print('moving detector')
+        print(self.e)
+        print(self.active_emission_entries[0].get())
+        timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.e))*15+BUFFER
         print('TIMEOUT = '+str(timeout))
         self.pi_commander.move_detector(self.active_emission_entries[0].get())
         handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
-        self.set_geom()
+        self.set_detector_geom()
         
     def move_tray(self):
         self.pi_commander.move_tray()
@@ -1796,17 +1880,17 @@ class Controller():
             
     def spec_button_cmd(self):
         self.queue=[]
-        self.queue.append({self.take_spectrum:[False,False]})
-        self.take_spectrum()
+        self.queue.append({self.take_spectrum:[False,False,False]})
+        self.take_spectrum(False, False, False)
         
-    def take_spectrum(self, override=False, setup_complete=False,garbage=False):
+    def take_spectrum(self, override, setup_complete,garbage):
         self.acquire(override=override, setup_complete=setup_complete,action=self.take_spectrum,garbage=garbage)
         
     
     def wr_button_cmd(self):
         self.queue=[]
         self.queue.append({self.wr:[False,False]})
-        self.queue.append({self.take_spectrum:[True,True]})
+        self.queue.append({self.take_spectrum:[True,True,False]})
         self.wr()
         
     def opt_button_cmd(self):
@@ -1919,7 +2003,9 @@ class Controller():
                 self.console_entry.insert(0,next)
                 
     def execute_cmd(self,event):
-        
+        self.cmd_complete=False
+        wait_for_cmd=True
+        foo=False
         def get_val(param):
             return param.split('=')[1].strip(' ').strip('"').strip("'")
             
@@ -1932,26 +2018,63 @@ class Controller():
         self.console_entry.delete(0,'end')
 
         if cmd=='wr()':
-            self.queue=[]
-            self.queue.append({self.wr:[True,False]})
-            self.queue.append({self.take_spectrum:[True,True]})
+            if not self.script_running:
+                self.queue=[]
+            self.queue.insert(0,{self.wr:[True,False]})
+            self.queue.insert(1,{self.take_spectrum:[True,True,False]})
             self.wr(True,False)
         elif cmd=='opt()':
-            self.queue=[]
-            self.queue.append({self.opt:[]})
+            if not self.script_running:
+                self.queue=[]
+            self.queue.insert(0,{self.opt:[]})
             self.opt()
         elif cmd=='goniometer.configure(MANUAL)':
-            self.manual_automatic.set(0)
-        elif cmd=='goniometer.configure(AUTOMATIC)':
-            self.manual_automatic.set(1)
+            self.set_manual_automatic(force=0)
+
+        elif 'goniometer.configure(' in cmd:
+            wait_for_cmd=False
+            try:
+                if 'AUTOMATIC' in cmd:
+                    params=cmd[0:-1].split('goniometer.configure(AUTOMATIC')[1].split(',')[1:]
+                elif 'MANUAL' in cmd:
+                    params=cmd[0:-1].split('goniometer.configure(MANUAL')[1].split(',')[1:]
+                    params.append(1)
+                else:
+                    raise Exception()
+                valid_i=validate_int_input(params[0],self.min_i,self.max_i)
+                valid_e=validate_int_input(params[1],self.min_e,self.max_e)
+                valid_sample=validate_int_input(params[2],0,int(self.num_samples))
+                if valid_i and valid_e and valid_sample:
+                    self.i=params[0]
+                    self.e=params[1]
+                    self.sample_tray_pos=params[2]
+                    
+                    if 'AUTOMATIC' in cmd:
+                        self.set_manual_automatic(force=1)
+                    else:
+                        self.set_manual_automatic(force=0)
+                    self.incidence_entries[0].delete(0,'end')
+                    self.incidence_entries[0].insert(0,params[0])
+                    self.emission_entries[0].delete(0,'end')
+                    self.emission_entries[0].insert(0,params[1])
+                    if self.script_running:
+                        self.complete_queue_item()
+                    if len(self.queue)>0 and self.script_running:
+                        self.next_in_queue()
+                else:
+                    self.log('Error: invalid arguments for control, i, e, sample_num: '+params)
+            except:
+                self.log('Error: could not parse command '+cmd)
         elif cmd=='collect_garbage()':
-            self.queue=[]
-            self.queue.append({self.take_spectrum:[True,False,True]})
+            if not self.script_running:
+                self.queue=[]
+            self.queue.insert(0,{self.take_spectrum:[True,False,True]})
             self.take_spectrum(True,False,True)
             
         elif cmd=='take_spectrum()':
-            self.queue=[]
-            self.queue.append({self.take_spectrum:[True,True,False]})
+            if not self.script_running:
+                self.queue=[]
+            self.queue.insert(0,{self.take_spectrum:[True,True,False]})
             self.take_spectrum(True,True,False)
 
         elif 'spec_save.configure(' in cmd:
@@ -1970,8 +2093,9 @@ class Controller():
                     self.spec_startnum_entry.delete(0,'end')
                     self.spec_startnum_entry.insert(0,num)
                     
-            self.queue=[]
-            self.queue.append({self.set_save_config:[]})
+            if not self.script_running:
+                self.queue=[]
+            self.queue.insert(0,{self.set_save_config:[]})
             self.set_save_config()
         elif 'instrument.configure('in cmd:
             param=cmd[0:-1].split('instrument.configure(')[1]
@@ -1980,35 +2104,46 @@ class Controller():
                 self.instrument_config_entry.delete(0,'end')
                 self.instrument_config_entry.insert(0,str(num))
                 
-                self.queue=[]
-                self.queue.append({self.configure_instrument:[]})
+                if not self.script_running:
+                    self.queue=[]
+                self.queue.insert(0,{self.configure_instrument:[]})
                 self.configure_instrument()
             except:
                 self.log('Error: could not parse command '+cmd)
-                
+
+                    
 
         elif 'sleep' in cmd:
             param=cmd[0:-1].split('sleep(')[1]
-            print(param)
+            wait_for_cmd=False
             try:
-                print('sleep')
                 num=float(param)
                 time.sleep(num)
-                print('wake up')
+                self.cmd_complete==True
             except:
                 self.log('Error: could not parse command '+cmd)
+            
+
         elif 'log(' in cmd:
             info=cmd[0:-1].split('log(')[1]
             info.strip('"')
             info.strip("'")
             self.check_logfile()
             self.log(info,write_to_file=True)
+            wait_for_cmd=False
+
             
                 
         else:
             self.log('Error: could not parse command '+cmd)
+            return False
             
+        if self.script_running:
+            self.complete_queue_item()
+            if len(self.queue)>0 and self.script_running and wait_for_cmd==False:
+                self.next_in_queue()
         self.text_only=False
+        return True
             
             
     def increment_num(self):
@@ -2065,7 +2200,7 @@ class Controller():
             self.spec_commander.get_data(filename)
 
             t=3*BUFFER
-            while True:
+            while t>0:
                 if 'datacopied' in self.spec_listener.queue:
                     self.spec_listener.queue.remove('datacopied')
                     filename=self.spec_share_loc+'temp.tsv'
@@ -2085,7 +2220,24 @@ class Controller():
         try:
             if self.load_labels.get():
                 with open(self.plot_logfile_entry.get()) as log:
-                    for line in log:
+                    line=log.readline()
+                    while line!='':
+                        while 'i: ' not in line and line!='':
+                            line=log.readline()
+                        if 'i:' in line:
+                            try:
+                                nextnote=' (i='+line.split('i: ')[-1].strip('\n')
+                            except:
+                                nextnote=' (i=?'
+                        while 'e: ' not in line and line!='':
+                            line=log.readline()
+                        if 'e:' in line:
+                            try:
+                                nextnote=nextnote+',e='+line.split('e: ')[-1].strip('\n')+')'
+                            except:
+                                nextnote=nextnote+',e=?)'
+                        while 'filename' not in line and line!='':
+                            line=log.readline()
                         if 'filename' in line:
                             if '\\' in line:
                                 line=line.split('\\')
@@ -2094,20 +2246,36 @@ class Controller():
                             nextfile=line[-1].strip('\n')
                             nextfile=nextfile.split('.')
                             nextfile=nextfile[0]+nextfile[1]
-                        elif 'Label' in line:
-                            nextnote=line.split('Label: ')[-1]
+                                
+                        while 'Label' not in line and line!='':
+                            line=log.readline()
+                        if 'Label' in line:
+                            nextnote=line.split('Label: ')[-1].strip('\n')+nextnote
+                        print('here is what controller found:')
+                        print(nextfile)
+                        print(nextnote)
+                            
                         if nextfile != None and nextnote != None:
-                            labels[nextfile]=nextnote.strip('\n')
+                            nextnote=nextnote.strip('\n')
+                            labels[nextfile]=nextnote
+                            print(nextnote)
+
                             nextfile=None
                             nextnote=None
+                        line=log.readline()
                         
                     
-        except:
-            dialog=ErrorDialog(self, label='Error! File not found: '+self.load_labels_entry.get())
+        except Exception as e:
+            raise e
+            dialog=ErrorDialog(self, label='Error! File not found or cannot be parsed: '+self.plot_logfile_entry.get())
             
                     
         try:
-            self.plotter.plot_spectra(title,filename,caption,labels)
+            if self.no_wr.get()==1:
+                
+                self.plotter.plot_spectra(title,filename,caption,labels,exclude_wr=True)
+            else:
+                self.plotter.plot_spectra(title,filename,caption,labels,exclude_wr=False)
             self.test_view.flip()
     
             last=len(self.view_notebook.tabs())-1
@@ -2126,7 +2294,8 @@ class Controller():
                 plot_config.write(self.plot_title+'\n')
                 
             self.plot_top.destroy()
-        except:
+        except Exception as e:
+            raise e
             dialog=Dialog(self, 'Plotting Error', 'Error: Plotting failed. Does file exist?',{'ok':{}})
     
     
@@ -2227,7 +2396,8 @@ class Controller():
     #             num=0+num
     #     self.spec_startnum_entry.delete(0,'end')
     #     self.spec_startnum_entry.insert(0,num)
-    
+    def add_sample(self):
+        pass
     def remove_i_e_pair(self,index):
         self.incidence_labels.pop(index)
         self.incidence_entries.pop(index)
@@ -2251,7 +2421,7 @@ class Controller():
         try:
             self.add_i_e_pair_button.pack_forget()
         except:
-            self.add_i_e_pair_button=Button(self.individual_angles_frame, text='Add', command=self.add_i_e_pair,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+            self.add_i_e_pair_button=Button(self.individual_angles_frame, text='Add new', command=self.add_i_e_pair,width=10, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
             self.tk_buttons.append(self.add_i_e_pair_button)
             self.add_i_e_pair_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
             
@@ -2285,7 +2455,7 @@ class Controller():
         self.add_i_e_pair_button.pack(pady=(10,10))
         
     def configure_pi(self):
-        self.pi_commander.configure(self.i,self.e)
+        self.pi_commander.configure(str(self.i),str(self.e))
         timeout_s=BUFFER
         while timeout_s>0:
             if 'piconfigsuccess' in self.pi_listener.queue:
@@ -2316,10 +2486,17 @@ class Controller():
         
     def set_manual_automatic(self,override=False,force=-1):
         #TODO: save individually specified angles to config file
+        print('man_auto')
+        print(force)
+        menu=self.goniometermenu
+        if force==0:
+            self.manual_automatic.set(0)
+        elif force==1:
+            self.manual_automatic.set(1)
         
-        if self.manual_automatic.get()==0 or force==0:
-            if force==0:
-                self.manual_automatic.set(0)
+        if self.manual_automatic.get()==0:# or force==0:
+            # if force==0:
+            #     self.manual_automatic.set(0)
             self.range_frame.pack_forget()
             self.individual_angles_frame.pack()
             self.range_radio.configure(state = DISABLED)
@@ -2335,38 +2512,65 @@ class Controller():
 
 
             self.acquire_button.pack_forget()
+            menu.entryconfigure(0,label='X Manual')
+            menu.entryconfigure(1,label='  Automatic')
+            self.geommenu.entryconfigure(0, label='X Individual')
+            self.geommenu.entryconfigure(1,state=DISABLED, label='  Range (Automatic only)')
         else:
-            if force==1:
-                self.manual_automatic.set(1)
+
             self.add_i_e_pair_button.configure(state=NORMAL)
             self.acquire_button.pack(padx=self.padx,pady=self.pady)
             self.spec_button.pack_forget()
             self.opt_button.pack_forget()
             self.wr_button.pack_forget()
             self.range_radio.configure(state = NORMAL)
+            self.add_sample_button.configure(state=NORMAL)
             
             self.queue=[]
             valid_i=validate_int_input(self.i,-60,60)
             valid_e=validate_int_input(self.e,-75,75)
-            if not valid_i or not valid_e:
-                self.queue.append({self.configure_pi:[]})
-                #self.queue.append({self.set_manual_automatic:[True]})
-                dialog=IntInputDialog(self,title='Setup Required',label='Setup required: Unknown goniometer state.\n\nPlease enter the current viewing geometry and rotate the\nsample tray to the white reference position.\n',values={'Incidence':[self.i,self.min_i,self.max_i],'Emission':[self.e,self.min_e,self.max_e]},buttons={'ok':{self.next_in_queue:[]},'cancel':{self.set_manual_automatic:[override,0]}})
-            else:
-                dialog=Dialog(self,title='Setup Required',label='Please rotate the sample tray to the white reference position.',buttons={'ok':{}})
+            #if not valid_i or not valid_e:
+            self.queue.append({self.configure_pi:[]})
+            #self.queue.append({self.set_manual_automatic:[True]})
+            dialog=IntInputDialog(self,title='Setup Required',label='Setup required: Unknown goniometer state.\n\nPlease enter the current viewing geometry and tray position.\n',values={'Incidence':[self.i,self.min_i,self.max_i],'Emission':[self.e,self.min_e,self.max_e],'Tray position':[self.sample_tray_pos,0,self.num_samples]},buttons={'ok':{self.next_in_queue:[]},'cancel':{self.set_manual_automatic:[override,0]}})
+            menu.entryconfigure(0,label='  Manual')
+            menu.entryconfigure(1,label='X Automatic')
+            self.geommenu.entryconfigure(1,state=NORMAL, label='  Range (Automatic only)')
+            # else:
+            #     dialog=Dialog(self,title='Setup Required',label='Please rotate the sample tray to the white reference position.',buttons={'ok':{}})
                 
-    
+  
+    def set_individual_range(self, force=-1):
+        print('setting ind vs range!')
+        #TODO: save individually specified angles to config file
+        if force==0:
+            self.range_frame.pack_forget()
+            self.individual_angles_frame.pack()
+            self.geommenu.entryconfigure(1,label='X Individual')
+            self.geommenu.entryconfigure(1,label='  Range (Automatic only)')
+            self.individual_range.set(0)
+        elif force==1:
+            self.individual_angles_frame.pack_forget()
+            self.range_frame.pack()
+            self.geommenu.entryconfigure(1,label='  Individual')
+            self.geommenu.entryconfigure(1,label='X Range (Automatic only)')  
+            self.individual_range.set(1)
             
 
     
-    def set_individual_range(self):
-        #TODO: save individually specified angles to config file
-        if self.individual_range.get()==0:
-            self.range_frame.pack_forget()
-            self.individual_angles_frame.pack()
-        else:
-            self.individual_angles_frame.pack_forget()
-            self.range_frame.pack()
+    # def set_individual_range(self, force=-1):
+    #     print('setting ind vs range!')
+    #     #TODO: save individually specified angles to config file
+    #     if self.individual_range.get()==0:
+    #         self.range_frame.pack_forget()
+    #         self.individual_angles_frame.pack()
+    #         self.geommenu.entryconfigure(1,label='X Individual')
+    #         self.geommenu.entryconfigure(1,label='  Range (Automatic only)')
+    #     else:
+    #         self.individual_angles_frame.pack_forget()
+    #         self.range_frame.pack()
+    #         self.geommenu.entryconfigure(1,label='  Individual')
+    #         self.geommenu.entryconfigure(1,label='X Range (Automatic only)')
     
     def validate_input_dir(self,*args):
         pos=self.input_dir_entry.index(INSERT)
@@ -2507,15 +2711,16 @@ class Controller():
                 break
             elif 'rmfailure' in self.spec_listener.queue:
                 self.spec_listener.queue.remove('rmfailure')
-                self.log('\nError: Failed to remove placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd. This data is likely garbage.')
+                self.log('\nError: Failed to remove placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd. This data is likely garbage. ')
                 break
             t=t-INTERVAL
             time.sleep(INTERVAL)
         if t<=0:
-            self.log('\nError: Operation timed out removing placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd. This data is likely garbage.')
+            self.log('\nError: Operation timed out removing placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd). This data is likely garbage.')
         self.complete_queue_item()
         self.next_in_queue()
         
+                        
     def rm_current(self):
         self.spec_commander.delete_spec(self.spec_save_dir_entry.get(),self.spec_basename_entry.get(),self.spec_startnum_entry.get())
 
@@ -2619,11 +2824,20 @@ class Controller():
 
     def unfreeze(self):
         for button in self.tk_buttons:
-            button.configure(state='normal')
+            try:
+                button.configure(state='normal')
+            except Exception as e:
+                print(e)
         for entry in self.entries:
-            entry.configure(state='normal')
+            try:
+                entry.configure(state='normal')
+            except Exception as e:
+                print(e)
         for radio in self.radiobuttons:
-            radio.configure(state='normal')
+            try:
+                radio.configure(state='normal')
+            except Exception as e:
+                print(e)
             
         if self.manual_automatic.get()==0:
             self.range_radio.configure(state='disabled')
@@ -2990,6 +3204,7 @@ class WaitDialog(Dialog):
 class CommandHandler():
     def __init__(self, controller, title='Working...', label='Working...', buttons={}, timeout=30):
         self.controller=controller
+        self.text_only=self.controller.text_only
         self.label=label
         self.title=title
         #Either update the existing wait dialog, or make a new one.
@@ -3053,24 +3268,27 @@ class CommandHandler():
                 self.timeout()
             time.sleep(1)
                
-    def timeout(self, log_string=None, retry=True):
+    def timeout(self, log_string=None, retry=True, dialog=True, dialog_string='Error: Operation timed out'):
         print('timeout')
+        if self.text_only:
+            self.cmd_complete=True
+            self.script_failed=True
         if log_string==None:
             self.controller.log('Error: Operation timed out')
         else:
             self.controller.log(log_string)
-            
-        self.wait_dialog.interrupt('Error: Operation timed out')
-        if retry:
-            buttons={
-                'retry':{
-                    self.controller.next_in_queue:[]
-                },
-                'cancel':{
-                    self.finish:[]
+        if dialog:
+            self.wait_dialog.interrupt(dialog_string)
+            if retry:
+                buttons={
+                    'retry':{
+                        self.controller.next_in_queue:[]
+                    },
+                    'cancel':{
+                        self.finish:[]
+                    }
                 }
-            }
-            self.wait_dialog.set_buttons(buttons)
+                self.wait_dialog.set_buttons(buttons)
 
     def finish(self):
         self.wait_dialog.close()
@@ -3123,8 +3341,17 @@ class CommandHandler():
             #self.wait_dialog.set_buttons({'ok':{}})
             
     def success(self,close=True):
-        
+        print()
+        print('here is the new queue:')
+        print()
+        for item in self.controller.queue:
+            print(item)
         self.controller.complete_queue_item()
+        print()
+        print('here is the new queue:')
+        print()
+        for item in self.controller.queue:
+            print(item)
         if self.cancel:
             self.interrupt('Canceled.')
         elif self.pause:
@@ -3140,6 +3367,9 @@ class CommandHandler():
             self.wait_dialog.set_buttons(buttons)
         elif len(self.controller.queue)>0:
             self.controller.next_in_queue()
+        elif self.controller.script_running:
+            self.controller.log('Success!')
+            self.finish()
         else:
             self.interrupt('Success!')
             
@@ -3190,13 +3420,15 @@ class OptHandler(CommandHandler):
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=timeout_s)
         
+        
 
 
     def wait(self):
         while self.timeout_s>0:
             if 'nonumspectra' in self.listener.queue:
+                print("NONUM")
                 self.listener.queue.remove('nonumspectra')
-                self.controller.queue.append(self.controller.configure_instrument)
+                self.controller.queue.insert(0,{self.controller.configure_instrument:[]})
                 self.controller.configure_instrument()
                 #self.finish()
                 return
@@ -3208,6 +3440,7 @@ class OptHandler(CommandHandler):
             elif 'optfailure' in self.listener.queue:
                 self.listener.queue.remove('optfailure')
                 self.interrupt('Error: There was a problem with\noptimizing the instrument.',retry=True)
+
                 self.controller.log('Error: There was a problem with optimizing the instrument.')
                 return
             time.sleep(INTERVAL)
@@ -3215,6 +3448,7 @@ class OptHandler(CommandHandler):
         self.timeout()
                 
     def success(self):
+
         self.controller.opt_time=int(time.time())
         self.controller.log('Instrument optimized.',write_to_file=True)# \n\ti='+self.controller.active_incidence_entries[0].get()+'\n\te='+self.controller.active_emission_entries[0].get())
         super(OptHandler, self).success()
@@ -3238,13 +3472,17 @@ class WhiteReferenceHandler(CommandHandler):
                 return
             elif 'nonumspectra' in self.listener.queue:
                 self.listener.queue.remove('nonumspectra')
-                self.controller.queue.append({self.controller.configure_instrument:[]})
+                self.controller.queue.insert(0,{self.controller.configure_instrument:[]})
                 self.controller.configure_instrument()
                 return
             elif 'noconfig' in self.listener.queue:
                 self.listener.queue.remove('noconfig')
-                self.controller.queue.append({self.controller.set_save_config:[]})
+                self.controller.queue.insert(0,{self.controller.set_save_config:[]})
                 self.controller.set_save_config()
+                return
+            elif 'wrfailed' in self.listener.queue:
+                self.listener.queue.remove('wrfailed')
+                self.interrupt('Error: Failed to take white reference.',retry=True)
                 return
                 
             elif 'wrfailedfileexists' in self.listener.queue:
@@ -3265,6 +3503,7 @@ class WhiteReferenceHandler(CommandHandler):
         self.timeout()
                 
     def success(self):
+
         self.controller.wr_time=int(time.time())
         super(WhiteReferenceHandler, self).success()
             
@@ -3278,24 +3517,28 @@ class ProcessHandler(CommandHandler):
     def wait(self):
         while self.timeout_s>0:
             if 'processsuccess' in self.listener.queue:
+
                 self.listener.queue.remove('processsuccess')
                 self.controller.log('Files processed.\n\t'+self.controller.output_dir_entry.get()+'/'+self.controller.output_file_entry.get())
                 self.interrupt('Success!')
                 return
                 
             elif 'processerrorfileexists' in self.listener.queue:
+
                 self.listener.queue.remove('processerrorfileexists')
                 self.interrupt('Error processing files: Output file already exists')
                 self.log('Error processing files: output file exists.')
                 return
                 
             elif 'processerrorwropt' in self.listener.queue:
+
                 self.listener.queue.remove('processerrorwropt')
                 self.interrupt('Error processing files.\nDid you optimize and white reference before collecting data?')
                 self.log('Error processing files')
                 return
                 
             elif 'processerror' in self.listener.queue:
+
                 self.listener.queue.remove('processerror')
                 self.interrupt('Error processing files.\nIs ViewSpecPro running?\nDo directories exist?')
                 self.controller.log('Error processing files')
@@ -3385,9 +3628,7 @@ class SaveConfigHandler(CommandHandler):
         self.unexpected_files=[]
         self.listener.new_dialogs=False
         super().__init__(controller, title, label=label,timeout=timeout)
-        
 
-        
     def wait(self):
         t=30
         while 'donelookingforunexpected' not in self.listener.queue and t>0:
@@ -3409,11 +3650,13 @@ class SaveConfigHandler(CommandHandler):
         while self.timeout_s>0:
             self.timeout_s-=INTERVAL
             if 'saveconfigsuccess' in self.listener.queue:
+
                 self.listener.queue.remove('saveconfigsuccess')
                 self.success()
                 return
                 
             elif 'saveconfigfailedfileexists' in self.listener.queue:
+                
                 self.listener.queue.remove('saveconfigfailedfileexists')
                 self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
                 buttons={
@@ -3435,6 +3678,7 @@ class SaveConfigHandler(CommandHandler):
                 self.controller.spec_save_path=''
                 self.controller.spec_basename=''
                 self.controller.spec_num=None
+
                 return
                 
             elif 'saveconfigerror' in self.listener.queue:
@@ -3444,6 +3688,7 @@ class SaveConfigHandler(CommandHandler):
                 self.controller.spec_save_path=''
                 self.controller.spec_basename=''
                 self.controller.spec_num=None
+
                 return
                 
             time.sleep(INTERVAL)
@@ -3452,6 +3697,7 @@ class SaveConfigHandler(CommandHandler):
         
 
     def success(self):
+
         self.controller.spec_save_path=self.controller.spec_save_dir_entry.get()
         self.controller.spec_basename = self.controller.spec_basename_entry.get()
         spec_num=self.controller.spec_startnum_entry.get()
@@ -3485,6 +3731,11 @@ class SpectrumHandler(CommandHandler):
         timeout=int(controller.spec_config_count)/9+BUFFER
         self.listener=controller.spec_listener
         super().__init__(controller, title, label, timeout=timeout)
+        # try:
+        #     self.timeout_s=self.controller.temp_timeout
+        # except:
+        #     self.controller.temp_timeout=50
+        #     self.timeout_s=0
         
 
         
@@ -3496,18 +3747,18 @@ class SpectrumHandler(CommandHandler):
             if 'failedtosavefile' in self.listener.queue:
                 self.listener.queue.remove('failedtosavefile')
                 self.interrupt('Error: Failed to save file.\nAre you sure the spectrometer is connected?',retry=True)
-                
+                self.wait_dialog.top.wm_geometry('420x130')
                 return
 
             elif 'noconfig' in self.listener.queue:
                 self.listener.queue.remove('noconfig')
-                self.controller.queue.append({self.controller.set_save_config:[]})
+                self.controller.queue.insert(0,{self.controller.set_save_config:[]})
                 self.controller.set_save_config()#self.controller.take_spectrum, [True])
                 return
                 
             elif 'nonumspectra' in self.listener.queue:
                 self.listener.queue.remove('nonumspectra')
-                self.controller.queue.append({self.controller.configure_instrument:[]})
+                self.controller.queue.insert(0,{self.controller.configure_instrument:[]})
                 self.controller.configure_instrument()
                 return
                 
@@ -3519,6 +3770,7 @@ class SpectrumHandler(CommandHandler):
             elif 'savespecfailedfileexists' in self.listener.queue:
                 self.listener.queue.remove('savespecfailedfileexists')
                 self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                self.wait_dialog.top.wm_geometry('420x130')
                 
                 buttons={
                     'yes':{
@@ -3532,8 +3784,10 @@ class SpectrumHandler(CommandHandler):
                 
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
-            
-        self.timeout(log_string='Error: Operation timed out while waiting to save spectrum',retry=True)
+        dialog_string='Error: Operation timed out while waiting to save spectrum.\n\nIf it completes later, an unexpected file could be saved to the data directory.\nThis could cause errors. Restart the software to be safe.'
+        log_string='Error: Operation timed out while waiting to save spectrum.\n\tIf it completes later, an unexpected file could be saved to the data directory.\n\tThis could cause errors. Restart the software to be safe.'
+        self.timeout(log_string=log_string, dialog_string=dialog_string,retry=True)
+        self.wait_dialog.top.wm_geometry("680x155")
 
         
     def success(self):
@@ -3559,8 +3813,19 @@ class SpectrumHandler(CommandHandler):
             pass
         else:
             self.controller.log(info_string,True)
+            
+        if 'White reference' in self.controller.label_entry.get():
+            self.controller.unfreeze()
+            label=self.controller.label_entry.get()
+            label=label.replace('White reference:','')
+            label=label.replace('White reference','')
+            self.controller.label_entry.delete(0,'end')
+            self.controller.label_entry.insert(0,label)
+            self.controller.freeze()
 
         #Clear out 'White reference' if that was put in earlier to use for this spectrum.
+        print('here is the current label (should not have wr)')
+        print(self.controller.current_label)
         self.set_text(self.controller.label_entry,self.controller.current_label)    
         self.controller.clear()
         # self.controller.plot_input_file=self.controller.spec_save_dir_entry.get()
@@ -3598,7 +3863,6 @@ def validate_int_input(input, min, max):
         return False
     if input>max: return False
     if input<min: return False
-    
     return True
     
 
@@ -3930,10 +4194,17 @@ class IntInputDialog(Dialog):
         for val in values:
             frame=Frame(self.entry_frame,bg=self.bg)
             frame.pack(pady=(5,5))
-            self.labels[val]=Label(frame, text='{0:>10}'.format(val)+': ',fg=self.textcolor,bg=self.bg)
+            self.labels[val]=Label(frame, text='{0:>15}'.format(val)+': ',fg=self.textcolor,bg=self.bg)
             self.labels[val].pack(side=LEFT,padx=(3,3))
-            self.entries[val]=Entry(frame,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-            self.entries[val].pack(side=LEFT)
+            if val !='Tray position':
+                self.entries[val]=Entry(frame,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+                self.entries[val].pack(side=LEFT)
+            else:
+                self.entries[val]=StringVar()
+                self.entries[val].set('White reference')
+                menu = OptionMenu(frame, self.entries[val],'{0:18}'.format('White reference'), '{0:18}'.format('1'),'2          ','3          ','4          ','5          ')
+                menu.configure(width=15,highlightbackground=self.controller.highlightbackgroundcolor)
+                menu.pack()
             
         self.set_buttons(buttons)
             
@@ -3949,12 +4220,17 @@ class IntInputDialog(Dialog):
                 if val=='Incidence':
                     valid_sep=self.controller.validate_distance(self.entries['Incidence'].get(),self.entries['Emission'].get())
                     if valid_sep:
-                        self.controller.i=self.entries[val].get()
+                        self.controller.i=int(self.entries[val].get())
+                        
                 elif val=='Emission':
                     valid_sep=self.controller.validate_distance(self.entries['Incidence'].get(),self.entries['Emission'].get())
                     if valid_sep:
-                        self.controller.e=self.entries[val].get()
-
+                        self.controller.e=int(self.entries[val].get())
+                elif val=='Tray position':
+                    self.sample_tray_pos=int(self.entries[val].get())
+            elif val=='Tray position':
+                if self.entries[val].get().lower=='white reference':
+                    self.sample_tray_pos=0
             else:
                 bad_vals.append(val)
         if len(bad_vals)==0 and valid_sep:
@@ -4087,6 +4363,29 @@ class SpecListener(Listener):
     def listen(self):
         self.cmdfiles=os.listdir(self.read_command_loc)  
         if self.cmdfiles==self.cmdfiles0:
+            # for file in self.cmdfiles:
+            #     if 'lostconnection' in cmdfile:
+            #         print('lostconnection')
+            #         os.remove(self.read_command_loc+cmdfile)
+            #         self.cmdfiles.remove(cmdfile)
+            #         if self.alert_lostconnection:
+            #             print('alert_lostconnection')
+            #             self.alert_lostconnection=False
+    
+       #    #               buttons={
+            #                 'retry':{
+            #                     self.set_alert_lostconnection:[True]
+            #                     },
+            #                 'work offline':{
+            #                 },
+            #                 'exit':{
+            #                     exit_func:[]
+            #                 }
+            #             }
+            #             try:
+            #                 dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: RS3 lost connection with the spectrometer.\nCheck that the spectrometer is on.',buttons=buttons,button_width=15)
+            #             except:
+            #                 print('Ignoring an error in Listener when I make a new error dialog')
             pass
         else:
             for cmdfile in self.cmdfiles:
@@ -4108,6 +4407,8 @@ class SpecListener(Listener):
                             self.queue.append(cmdfile)  
                     elif 'wrfailedfileexists' in cmd:
                         self.queue.append('wrfailedfileexists')
+                    elif 'wrfailed' in cmd:
+                        self.queue.append('wrfailed')
                         
                     elif 'failedtosavefile' in cmd:
                         self.queue.append('failedtosavefile')
@@ -4208,7 +4509,7 @@ class SpecListener(Listener):
                                 }
                             }
                             try:
-                                dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: RS3 lost connection with the spectrometer.\nCheck that the spectrometer is on.',buttons=buttons,button_width=15)
+                                dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: RS3 has no connection with the spectrometer.\nCheck that the spectrometer is on.\n\nNote that RS3 can take some time to connect to the spectrometer.\nBe patient and wait for the dot at the lower right of RS3 to turn green.',buttons=buttons,button_width=15, width=600)
                             except:
                                 print('Ignoring an error in Listener when I make a new error dialog')
                     elif 'rmsuccess' in cmd:
@@ -4279,10 +4580,12 @@ class Commander():
         try:
             file=open(self.write_command_loc+filename,'w')
         except OSError as e:
-            if e.errno==22:
+            if e.errno==22 or e.errno==2:
                 pass
             else:
                 raise e
+        except FileNotFoundError as e:
+            pass
         except Exception as e:
             raise e
             
@@ -4345,7 +4648,8 @@ class SpecCommander(Commander):
         return filename
         
     def white_reference(self):
-        self.remove_from_listener_queue(['nonumspectra','noconfig','wrsuccess','wrfailedfileexists'])
+        print('clear queue')
+        self.remove_from_listener_queue(['nonumspectra','noconfig','wrsuccess','wrfailedfileexists','wrfailed'])
         filename=self.encrypt('wr')
         self.send(filename)
         return filename
