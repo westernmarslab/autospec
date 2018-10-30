@@ -22,7 +22,7 @@ class Plotter():
         self.dpi=dpi
         self.titles=[]
         self.style=style
-        plt.style.use(style)
+        #plt.style.use(style)
         
         
     def embed_plot(self,title):
@@ -139,10 +139,23 @@ class Plotter():
         wavelengths=self.data[title]['wavelengths']
         reflectance=self.data[title]['reflectance']
         
+        sample_names=[]
+        samples={}
+        colors=[]
+        colors.append([(1, 0, 0),(1, 0.3, 0.3),(1, 0.6, 0.6)])
+        colors.append([(0, 0, 1),(0.3, 0.3, 1),(0.6, 0.6, 1)])
+        
         for i,spectrum in enumerate(reflectance):
             if 'White reference' in labels[i+1] and exclude_wr:
                 continue
+            if labels[i+1] not in sample_names:
+                num=len(sample_names)
+                sample_names.append(labels[i+1])
+                samples[labels[i+1]]=Sample(colors[num%len(colors)])
             if True: #dark in style
+                print(samples[labels[i+1]])
+                color=samples[labels[i+1]].next_color
+                print('next color: '+str(color))
                 self.plots[title].plot(wavelengths, spectrum, label=labels[i+1])
         
         self.plots[title].set_title(title, fontsize=24)
@@ -181,6 +194,18 @@ class Plotter():
                 #reflectance[0].append(d)
                 #reflectance[1].append(d2)
         return wavelengths, reflectance, labels
+        
+class Sample():
+    def __init__(self, colors):
+        self.__colors=colors
+        self.__index=0
+        self.__next_color=self.__colors[self.__index]
+    
+    @property
+    def next_color(self):
+        self.__index+=1
+        return self.__colors[self.__index-1]
+        
             
         
         

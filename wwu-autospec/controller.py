@@ -313,6 +313,20 @@ class Controller():
         self.active_i_e_pair_frames=[]
         self.i_e_removal_buttons=[]
         
+        self.sample_removal_buttons=[]
+        self.sample_buttons=[]
+        self.sample_frames=[]
+        self.sample_label_entries=[]
+        self.sample_labels=[]
+        self.sample_num_labels=[]
+        self.sample_label_pos_frames=[]
+        self.sample_pos_vars=[]
+        self.current_sample_index=0
+        self.current_sample_gui_index=0
+        
+        self.available_sample_positions=['Sample 1','Sample 2','Sample 3','Sample 4','Sample 5']
+        self.taken_sample_positions=[]
+        
         
         #Yay formatting. Might not work for Macs.
         self.bg='#333333'
@@ -683,20 +697,43 @@ class Controller():
         self.detector_increment_entry=Entry(detector_entries_frame,bd=self.bd,width=10, highlightbackground='white',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.entries.append(self.detector_increment_entry)
         self.detector_increment_entry.pack(padx=self.padx,pady=self.pady)
+       
+        self.samples_frame=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
+        self.samples_frame.pack(fill=BOTH,expand=True) 
+
+        self.samples_label=Label(self.samples_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Samples')
+        self.samples_label.pack(pady=(10,10))
         
-        
-        self.spectrum_label_frame=Frame(self.control_frame,bg=self.bg, highlightthickness=1)
-        self.spectrum_label_frame.pack(fill=BOTH,expand=True)
-        self.label_label=Label(self.spectrum_label_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Label for this sample:')
-        self.label_label.pack(pady=(10,10))
-        self.label_entry=Entry(self.spectrum_label_frame, width=50, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.entries.append(self.label_entry)
-        self.label_entry.pack(pady=(0,15))
-        
-        self.add_sample_button=Button(self.spectrum_label_frame, text='Add Sample', command=self.add_sample,width=10, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
-        self.tk_buttons.append(self.add_sample_button)
-        self.add_sample_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
-        self.add_sample_button.pack()
+        self.add_sample()
+        # self.sample_1_frame=Frame(self.samples_frame, bg=self.bg)
+        # self.sample_1_frame.pack()
+        # self.sample_label_frame=Frame(self.sample_1_frame,bg=self.bg)
+        # self.sample_label_frame.pack(fill=X)
+        # self.label_label=Label(self.sample_label_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Sample 1:                                              ')
+        # self.label_label.pack(pady=(0,10),padx=(10,0), side=LEFT)
+        # 
+        # self.sample_label_pos_frame=Frame(self.sample_1_frame,bg=self.bg)
+        # self.sample_label_pos_frame.pack(pady=(0,10))
+        # 
+        # self.sample_label_label=Label(self.sample_label_pos_frame, text='Label:', bg=self.bg,pady=5, padx=5)
+        # self.sample_label_label.pack(side=LEFT)
+        # self.sample_label_entries[self.current_sample_gui_index]=Entry(self.sample_label_pos_frame, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        # self.entries.append(self.sample_label_entries[self.current_sample_gui_index])
+        # self.sample_label_entries[self.current_sample_gui_index].pack(side=LEFT,padx=(0,10))
+        # 
+        # self.sample_pos_label=Label(self.sample_label_pos_frame, text='Position:', bg=self.bg,padx=self.padx,pady=self.pady)
+        # self.sample_pos_label.pack(side=LEFT)
+        # 
+        # self.pos_var=StringVar(self.master)
+        # self.pos_var.set('1')
+        # self.pos_menu = OptionMenu(self.sample_label_pos_frame,self.pos_var,' 1    ',' 2    ',' 3    ',' 4    ',' 5    ')
+        # self.pos_menu.configure(width=3,highlightbackground=self.highlightbackgroundcolor)
+        # self.pos_menu.pack()
+        # 
+        # self.add_sample_button=Button(self.samples_frame, text='Add Sample', command=self.add_sample,width=10, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        # self.tk_buttons.append(self.add_sample_button)
+        # self.add_sample_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
+        # self.add_sample_button.pack()
 
         
         # self.auto_check_frame=Frame(self.control_frame, bg=self.bg)
@@ -1191,9 +1228,9 @@ class Controller():
                 cmd=script.readline().strip('\n')
                 
                 continue
-        print('here is the queue I am setting up:')
-        for item in self.queue:
-            print(item)
+        # print('here is the queue I am setting up:')
+        # for item in self.queue:
+        #     print(item)
         self.queue.append({self.next_script_line:['end file']})
         self.next_in_queue()
 
@@ -1386,7 +1423,7 @@ class Controller():
                         pass
                    
             if self.labelfailsafe.get():
-                if self.label_entry.get()=='':
+                if self.sample_label_entries[self.current_sample_gui_index].get()=='':
                     label +='This spectrum has no label.\n\n'
 
             if label !='': #if we came up with errors
@@ -1733,9 +1770,9 @@ class Controller():
         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
         self.set_detector_geom()
         
-    def move_tray(self):
-        self.pi_commander.move_tray()
-        handler=MotionHandler(self,label='Moving sample tray...',timeout=30+BUFFER)
+    def move_tray(self, pos):
+        self.pi_commander.move_tray(pos)
+        handler=MotionHandler(self,label='Moving sample tray...',timeout=30+BUFFER, new_sample_loc=pos)
         
     def build_queue(self):
         self.queue=[]
@@ -1746,11 +1783,12 @@ class Controller():
                 self.queue.append({self.opt:[]})
                 self.queue.append({self.wr:[True,True]})
                 self.queue.append({self.take_spectrum:[True,True,False]})
-                self.queue.append({self.move_tray:[]})
-                self.queue.append({self.take_spectrum:[True,True,True]})
-                self.queue.append({self.delete_placeholder_spectrum:[]})
-                self.queue.append({self.take_spectrum:[True,True,False]})
-                self.queue.append({self.move_tray:[]})
+                for pos in self.taken_sample_positions:
+                    self.queue.append({self.move_tray:[pos]})
+                    self.queue.append({self.take_spectrum:[True,True,True]})
+                    self.queue.append({self.delete_placeholder_spectrum:[]})
+                    self.queue.append({self.take_spectrum:[True,True,False]})
+                self.queue.append({self.move_tray:['wr']})
                 self.queue.append({self.next_geom:[]})
                 
             #No update geometry call after last spectrum
@@ -1768,7 +1806,6 @@ class Controller():
             self.queue.insert(0,{self.move_detector:[]})
             
     def range_setup(self,override=False):
-        print('RANGE SETUP')
         self.active_incidence_entries=[]
         self.active_emission_entries=[]
         
@@ -1901,15 +1938,15 @@ class Controller():
     def wr(self, override=False, setup_complete=False):
         
         #Label this as a white reference for the log file
-        self.current_label=self.label_entry.get()
-        if self.label_entry.get()!='' and 'White reference' not in self.label_entry.get():
-            # self.label_entry.insert(0, 'White reference (')
-            # self.label_entry.insert('end',')')
-            newlabel='White reference: '+self.current_label
-            self.set_text(self.label_entry,newlabel)
-        elif self.label_entry.get()=='':
-            self.set_text(self.label_entry,'White reference')
-            #self.label_entry.insert(0,'White reference')
+        self.current_label=self.sample_label_entries[self.current_sample_gui_index].get()
+        if self.sample_label_entries[self.current_sample_gui_index].get()!='' and 'White reference' not in self.sample_label_entries[self.current_sample_gui_index].get():
+            # self.sample_label_entries[self.current_sample_gui_index].insert(0, 'White reference (')
+            # self.sample_label_entries[self.current_sample_gui_index].insert('end',')')
+            newlabel='White reference'#: '+self.current_label
+            self.set_text(self.sample_label_entries[self.current_sample_gui_index],newlabel)
+        elif self.sample_label_entries[self.current_sample_gui_index].get()=='':
+            self.set_text(self.sample_label_entries[self.current_sample_gui_index],'White reference')
+            #self.sample_label_entries[self.current_sample_gui_index].insert(0,'White reference')
             
         self.acquire(override=override, setup_complete=setup_complete,action=self.wr)
     
@@ -2397,7 +2434,93 @@ class Controller():
     #     self.spec_startnum_entry.delete(0,'end')
     #     self.spec_startnum_entry.insert(0,num)
     def add_sample(self):
-        pass
+        try:
+            self.add_sample_button.pack_forget()
+        except:
+            self.add_sample_button=Button(self.samples_frame, text='Add new', command=self.add_sample,width=10, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+            self.tk_buttons.append(self.add_sample_button)
+            self.add_sample_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
+            
+        self.sample_frames.append(Frame(self.samples_frame, bg=self.bg))
+        self.sample_frames[-1].pack(pady=(5,0))
+            
+        self.sample_label_frame=Frame(self.sample_frames[-1],bg=self.bg)
+        self.sample_label_frame.pack(fill=X)
+
+        
+        # self.sample_num_labels.append(Label(self.sample_label_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='                                              '))
+        # self.sample_num_labels[-1].pack(pady=(0,10),padx=(10,0), side=LEFT)
+        
+        self.sample_label_pos_frames.append(Frame(self.sample_frames[-1],bg=self.bg))
+        self.sample_label_pos_frames[-1].pack(pady=(0,10))
+        
+        self.sample_pos_vars.append(StringVar(self.master))
+        self.sample_pos_vars[-1].trace('w',self.set_taken_sample_positions)
+        for pos in self.available_sample_positions:
+            if pos in self.taken_sample_positions:
+                pass
+            else:
+                self.sample_pos_vars[-1].set(pos)
+                self.taken_sample_positions.append(pos)
+                break
+        self.pos_menu = OptionMenu(self.sample_label_pos_frames[-1],self.sample_pos_vars[-1],*self.available_sample_positions)#'Sample 1','Sample 2','Sample 3','Sample 4', 'Sample 5')
+        self.pos_menu.configure(width=8,highlightbackground=self.highlightbackgroundcolor)
+        self.pos_menu.pack(side=LEFT)
+        
+        self.sample_labels.append(Label(self.sample_label_pos_frames[-1],bg=self.bg,fg=self.textcolor,text='Label:',padx=self.padx,pady=self.pady))
+        self.sample_labels[-1].pack(side=LEFT, padx=(5,0))
+        
+        self.sample_label_entries.append(Entry(self.sample_label_pos_frames[-1], width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground))
+        self.entries.append(self.sample_label_entries[-1])
+        self.sample_label_entries[-1].pack(side=LEFT,padx=(0,10))
+        
+        # self.sample_pos_label=Label(self.sample_label_pos_frame, text='Position:', bg=self.bg,padx=self.padx,pady=self.pady)
+        # self.sample_pos_label.pack(side=LEFT)
+        
+        # self.pos_var=StringVar(self.master)
+        # self.pos_var.set('Sample 1')
+        # self.pos_menu = OptionMenu(self.sample_label_pos_frame,self.pos_var,'Sample 1',' 2    ',' 3    ',' 4    ',' 5    ')
+        # self.pos_menu.configure(width=3,highlightbackground=self.highlightbackgroundcolor)
+        # self.pos_menu.pack()
+          
+        self.sample_removal_buttons.append(Button(self.sample_label_pos_frames[-1], text='Remove', command=lambda x=len(self.sample_removal_buttons):self.remove_sample(x),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd))
+        self.sample_removal_buttons[-1].config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        if len(self.sample_label_entries)>1:
+            for button in self.sample_removal_buttons:
+                button.pack(side=LEFT,padx=(5,5))
+        
+        if len(self.sample_label_entries)>4:
+            self.add_sample_button.configure(state=DISABLED)
+        self.add_sample_button.pack(pady=(10,10))
+        
+        
+    def remove_sample(self,index):
+        self.sample_labels.pop(index)
+        self.sample_label_entries.pop(index)
+        self.sample_pos_vars.pop(index)
+        self.sample_label_pos_frames.pop(index)
+        self.sample_removal_buttons.pop(index)
+        self.sample_frames.pop(index).destroy()
+
+
+        for i, button in enumerate(self.sample_removal_buttons):
+            button.configure(command=lambda x=i:self.remove_sample(x))
+        if self.manual_automatic.get()==1:
+            self.add_sample_button.configure(state=NORMAL)
+        if len(self.sample_label_entries)==1:
+            self.sample_removal_buttons[0].pack_forget()
+        self.set_taken_sample_positions()
+            
+    def set_taken_sample_positions(self,arg1=None,arg2=None,arg3=None):
+        print(arg1)
+        print(arg2)
+        print(arg3)
+        self.taken_sample_positions=[]
+        for var in self.sample_pos_vars:
+            print(var.get())
+            self.taken_sample_positions.append(var.get())
+        
+
     def remove_i_e_pair(self,index):
         self.incidence_labels.pop(index)
         self.incidence_entries.pop(index)
@@ -2416,7 +2539,7 @@ class Controller():
             self.add_i_e_pair_button.configure(state=NORMAL)
         if len(self.incidence_entries)==1:
             self.i_e_removal_buttons[0].pack_forget()
-    
+            
     def add_i_e_pair(self):
         try:
             self.add_i_e_pair_button.pack_forget()
@@ -2427,28 +2550,25 @@ class Controller():
             
         self.i_e_pair_frames.append(Frame(self.individual_angles_frame, bg=self.bg))
         self.i_e_pair_frames[-1].pack(pady=(5,0))
-        self.incidence_labels.append(Label(self.i_e_pair_frames[-1],bg=self.bg,fg=self.textcolor,text='Incidence:'))
-        self.incidence_labels[-1].pack(side=LEFT, padx=(5,5),pady=(0,8))
+        self.incidence_labels.append(Label(self.i_e_pair_frames[-1],bg=self.bg,fg=self.textcolor,text='Incidence:',padx=self.padx,pady=self.pady))
+        self.incidence_labels[-1].pack(side=LEFT, padx=(5,0))
         
         self.incidence_entries.append(Entry(self.i_e_pair_frames[-1], width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground))
         self.entries.append(self.incidence_entries[-1])
-        self.incidence_entries[-1].pack(side=LEFT)
+        self.incidence_entries[-1].pack(side=LEFT,padx=(0,10))
         
-        if True:#len(self.emission_labels)==0:
-            self.emission_labels.append(Label(self.i_e_pair_frames[-1], padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Emission:'))
-        else:
-            self.emission_labels.append(Label(self.i_e_pair_frames[-1], padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='               '))
-        self.emission_labels[-1].pack(side=LEFT, padx=(10,0))
+        self.emission_labels.append(Label(self.i_e_pair_frames[-1], padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Emission:'))
+        self.emission_labels[-1].pack(side=LEFT)
             
         self.emission_entries.append(Entry(self.i_e_pair_frames[-1], width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground))
         self.entries.append(self.emission_entries[-1])
-        self.emission_entries[-1].pack(side=LEFT, padx=(0,20))
+        self.emission_entries[-1].pack(side=LEFT, padx=(0,10))
         
         self.i_e_removal_buttons.append(Button(self.i_e_pair_frames[-1], text='Remove', command=lambda x=len(self.i_e_removal_buttons):self.remove_i_e_pair(x),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd))
         self.i_e_removal_buttons[-1].config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         if len(self.incidence_entries)>1:
             for button in self.i_e_removal_buttons:
-                button.pack(side=LEFT,padx=(5,5))
+                button.pack(side=LEFT)
         
         if len(self.incidence_entries)>10:
             self.add_i_e_pair_button.configure(state=DISABLED)
@@ -2546,13 +2666,13 @@ class Controller():
         if force==0:
             self.range_frame.pack_forget()
             self.individual_angles_frame.pack()
-            self.geommenu.entryconfigure(1,label='X Individual')
+            self.geommenu.entryconfigure(0,label='X Individual')
             self.geommenu.entryconfigure(1,label='  Range (Automatic only)')
             self.individual_range.set(0)
         elif force==1:
             self.individual_angles_frame.pack_forget()
             self.range_frame.pack()
-            self.geommenu.entryconfigure(1,label='  Individual')
+            self.geommenu.entryconfigure(0,label='  Individual')
             self.geommenu.entryconfigure(1,label='X Range (Automatic only)')  
             self.individual_range.set(1)
             
@@ -2651,7 +2771,7 @@ class Controller():
             self.unfreeze()
             self.active_incidence_entries[0].delete(0,'end')
             self.active_emission_entries[0].delete(0,'end')
-            self.label_entry.delete(0,'end')
+            self.sample_label_entries[self.current_sample_gui_index].delete(0,'end')
             
     def next_in_queue(self):
         dict=self.queue[0]
@@ -3341,17 +3461,19 @@ class CommandHandler():
             #self.wait_dialog.set_buttons({'ok':{}})
             
     def success(self,close=True):
-        print()
-        print('here is the new queue:')
-        print()
-        for item in self.controller.queue:
-            print(item)
+        #print()
+        # print('here is the new queue:')
+        # print()
+        # for item in self.controller.queue:
+        #     print(item)
+        
+        # print()
+        # print('here is the new queue:')
+        # print()
+        # for item in self.controller.queue:
+        #     print(item)
+        
         self.controller.complete_queue_item()
-        print()
-        print('here is the new queue:')
-        print()
-        for item in self.controller.queue:
-            print(item)
         if self.cancel:
             self.interrupt('Canceled.')
         elif self.pause:
@@ -3483,10 +3605,18 @@ class WhiteReferenceHandler(CommandHandler):
             elif 'wrfailed' in self.listener.queue:
                 self.listener.queue.remove('wrfailed')
                 self.interrupt('Error: Failed to take white reference.',retry=True)
+                self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)  
+                  
+                self.controller.clear()
+                
                 return
                 
             elif 'wrfailedfileexists' in self.listener.queue:
                 self.listener.queue.remove('wrfailedfileexists')
+                
+                self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)   
+                 
+                self.controller.clear()
                 self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
                 buttons={
                     'yes':{
@@ -3583,9 +3713,12 @@ class CloseHandler(CommandHandler):
             self.controller.next_in_queue()
             
 class MotionHandler(CommandHandler):
-    def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}, timeout=60):
+    def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}, timeout=60, new_sample_loc='foo'):
         self.listener=controller.pi_listener
         super().__init__(controller, title, label,timeout=timeout)
+        self.new_sample_loc=new_sample_loc
+        print('waiting to move to')
+        print(new_sample_loc)
 
 
 
@@ -3615,7 +3748,27 @@ class MotionHandler(CommandHandler):
             self.controller.log('Goniometer moved to an incidence angle of '+self.controller.active_incidence_entries[0].get()+' degrees.')
             
         elif 'tray' in self.label:
-            self.controller.log('Sample tray moved.')
+            self.controller.log('Sample tray moved to '+self.new_sample_loc+' position.')
+            try:
+                self.controller.current_sample_index=self.controller.available_sample_positions.index(self.new_sample_loc)
+            except:
+                print('setting index to -1')
+                print(self.new_sample_loc)
+                self.controller.current_sample_index=-1
+            print('new non-gui index is '+str(self.controller.current_sample_index))
+            samples_in_gui_order=[]
+            for var in self.controller.sample_pos_vars:
+                samples_in_gui_order.append(var.get())
+
+            try:
+                i=samples_in_gui_order.index(self.new_sample_loc)
+                self.controller.current_sample_gui_index=i
+            except:
+                self.controller.current_sample_gui_index=0
+            self.controller.current_label=self.controller.sample_label_entries[self.controller.current_sample_gui_index].get()
+            print('I think the gui index is at '+str(self.controller.current_sample_gui_index))
+            print('I think the next label will be '+self.controller.current_label)
+
         else:
             self.controller.log('Something moved! Who knows what?')
         super(MotionHandler,self).success()
@@ -3802,31 +3955,30 @@ class SpectrumHandler(CommandHandler):
         while len(numstr)<NUMLEN:
             numstr='0'+numstr
             
-        if 'White reference' in self.controller.label_entry.get():
+        if 'White reference' in self.controller.sample_label_entries[self.controller.current_sample_gui_index].get():
             info_string='White reference saved.'
         else:
             info_string='Spectrum saved.'
 
-        info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.label_entry.get()+'\n'
+        info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.sample_label_entries[self.controller.current_sample_gui_index].get()+'\n'
 
         if 'garbage' in self.wait_dialog.label:
             pass
         else:
             self.controller.log(info_string,True)
             
-        if 'White reference' in self.controller.label_entry.get():
+        if 'White reference' in self.controller.sample_label_entries[self.controller.current_sample_gui_index].get():
             self.controller.unfreeze()
-            label=self.controller.label_entry.get()
+            label=self.controller.sample_label_entries[self.controller.current_sample_gui_index].get()
             label=label.replace('White reference:','')
             label=label.replace('White reference','')
-            self.controller.label_entry.delete(0,'end')
-            self.controller.label_entry.insert(0,label)
+            self.controller.sample_label_entries[self.controller.current_sample_gui_index].delete(0,'end')
+            self.controller.sample_label_entries[self.controller.current_sample_gui_index].insert(0,label)
             self.controller.freeze()
 
         #Clear out 'White reference' if that was put in earlier to use for this spectrum.
-        print('here is the current label (should not have wr)')
-        print(self.controller.current_label)
-        self.set_text(self.controller.label_entry,self.controller.current_label)    
+        print('PUTTING IN LAST CURRENT LABEL VAL')
+        self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)    
         self.controller.clear()
         # self.controller.plot_input_file=self.controller.spec_save_dir_entry.get()
         # self.controller.plot_title=self.controller.spec_basename
@@ -4626,9 +4778,12 @@ class PiCommander(Commander):
         self.send(filename)
         return filename
         
-    def move_tray(self):
+    def move_tray(self, pos):
+        positions={'wr':'wr','Sample 1':'one','Sample 2':'two','Sample 3':'three','Sample 4':'four','Sample 5':'five'}
         self.remove_from_listener_queue(['donemoving'])
-        filename=self.encrypt('movetray',[])
+        filename=self.encrypt('movetray',[positions[pos]])
+        print('printing filename')
+        print(filename)
         self.send(filename)
         
     # def get_current_geom(self):
@@ -4874,6 +5029,10 @@ class PrivateEntry():
         self.text=text
     def get(self):
         return self.text
+        
+class SampleFrame():
+    def __init__(self,controller):
+        self.position='Sample 1'
         
         
 
