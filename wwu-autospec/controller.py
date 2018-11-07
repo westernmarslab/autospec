@@ -418,7 +418,7 @@ class Controller():
         self.view_notebook.bind("<<NotebookTabChanged>>", lambda event: self.test_view.tab_switch(event))
         
         self.view_notebook.bind("<Button-1>", lambda event: self.maybe_close_tab(event))
-        self.view_notebook.bind('<Button-3>',lambda event: self.maybe_open_tab_menu(event))
+        self.view_notebook.bind('<Button-3>',lambda event: self.plot_right_click(event))
         self.view_notebook.bind('<Motion>',lambda event: self.mouseover_tab(event))
 
         #The plotter, surprisingly, plots things.
@@ -429,31 +429,41 @@ class Controller():
 
 
         #If the user has saved spectra with this program before, load in their previously used directories.
-        input_dir=''
-        output_dir=''
+        self.process_input_dir=''
+        self.process_output_dir=''
         try:
             with open(self.config_loc+'process_directories.txt','r') as process_config:
+                self.proc_local_remote=process_config.readline().strip('\n')
+                print('HERE IT IS '+self.proc_local_remote)
                 self.process_input_dir=process_config.readline().strip('\n')
                 self.process_output_dir=process_config.readline().strip('\n')
         except:
             with open(self.config_loc+'process_directories.txt','w+') as f:
+                f.write('remote')
                 f.write('C:\\Users\n')
                 f.write('C:\\Users\n')
+                self.proc_local_remote='remote'
+                self.proc_input_dir='C:\\Users'
+                self.proc_output_dir='C:\\Users'
                 
         try:
             with open(self.config_loc+'plot_config.txt','r') as plot_config:
-                self.plot_loc=plot_config.readline().strip('\n')
+                self.plot_local_remote=plot_config.readline().strip('\n')
                 self.plot_input_file=plot_config.readline().strip('\n')
                 self.plot_title=plot_config.readline().strip('\n')
                 self.plot_logfile=plot_config.readline().strip('\n')
         except:
-            self.plot_loc=''
-            self.plot_input_file=''
+            
+            with open(self.config_loc+'plot_config.txt','w+') as f:
+                f.write('remote')
+                f.write('C:\\Users\n')
+                f.write('C:\\Users\n')
+                
+            self.plot_local_check.select()
+            self.plot_local_remote='remote'
             self.plot_title=''
-            self.plot_logfile=''
-
-            input_dir='C:\\Users'
-            output_dir='C:\\Users'
+            self.plot_input_file='C:\\Users'
+            self.plot_logile='C:\\Users'
     
         try:
             with open(self.config_loc+'spec_save.txt','r') as spec_save_config:
@@ -802,11 +812,6 @@ class Controller():
         self.anglechangefailsafe=IntVar()
         self.anglechangefailsafe.set(1)
         
-        
-        # HOW CAN local_remote ALREADY HAVE A VALUE??
-        self.plot_local_remote='remote'
-        self.proc_local_remote='remote'
-        
         self.plot_remote=IntVar()
         self.plot_local=IntVar()
         if self.plot_local_remote=='remote':
@@ -855,12 +860,9 @@ class Controller():
         self.input_dir_var.trace('w', self.validate_input_dir)
          
         self.input_dir_entry=Entry(self.input_frame, width=50,bd=self.bd, textvariable=self.input_dir_var,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.input_dir_entry.insert(0, self.spec_save_dir_entry.get())
+        self.input_dir_entry.insert(0, self.process_input_dir)
         self.input_dir_entry.pack(side=RIGHT,padx=self.padx, pady=self.pady)
         
-
-
-#******************************************************
 
         self.proc_local_remote_frame=Frame(self.process_frame, bg=self.bg)
         self.proc_local_remote_frame.pack()
@@ -888,7 +890,7 @@ class Controller():
         self.process_output_browse_button.pack(side=RIGHT, padx=self.padx)
         
         self.output_dir_entry=Entry(self.process_output_frame, width=50,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.output_dir_entry.insert(0, self.spec_save_dir_entry.get())
+        self.output_dir_entry.insert(0, self.process_output_dir)
         self.output_dir_entry.pack(side=RIGHT,padx=self.padx,pady=self.pady)
 
 #*****************************************************
@@ -1074,15 +1076,21 @@ class Controller():
         #self.local=IntVar()
         self.plot_local_check=Checkbutton(self.plot_local_remote_frame, fg=self.textcolor,text=' Local',selectcolor=self.check_bg, bg=self.bg, pady=self.pady, variable=self.plot_local,highlightthickness=0, highlightbackground=self.bg,command=self.local_plot_cmd)
         self.plot_local_check.pack(side=LEFT,pady=(5,5),padx=(5,5))
-        if self.plot_local_remote=='local':
-            self.plot_local_check.select()
+
+
 
         
         #self.remote=IntVar()
         self.plot_remote_check=Checkbutton(self.plot_local_remote_frame, fg=self.textcolor,text=' Remote', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.plot_remote, command=self.remote_plot_cmd,selectcolor=self.check_bg)
         self.plot_remote_check.pack(side=LEFT, pady=(5,5),padx=(5,5))
+        
         if self.plot_local_remote=='remote':
+            print('when I show the frame I am getting remote')
             self.plot_remote_check.select()
+            self.plot_local_check.deselect()
+        if self.plot_local_remote=='local':
+            self.plot_local_check.select()
+            self.plot_remote_check.deselect()
         
 
         self.plot_file_frame=Frame(self.plot_frame, bg=self.bg)
@@ -2229,44 +2237,52 @@ class Controller():
         if output_file=='':
             dialog=ErrorDialog(self, label='Error: Enter an output file name')
             return
-            
+        
         if '.' not in output_file: 
             output_file=output_file+'.tsv'
-
-        if self.process_save_dir.get():
-            file=open(self.config_loc+'process_directories','w')
-            file.write(self.input_dir_entry.get()+'\n')
-            file.write(self.output_dir_entry.get()+'\n')
-            file.write(output_file+'\n')
-            self.plot_input_file=self.output_dir_entry.get()+'\\'+output_file
-            self.plot_title=output_file.strip('.tsv')
-            self.plot_local_remote='remote'
-            self.plot_remote.set(1)
         
+        
+
+            
+    
+        print(self.proc_local.get())
         if self.proc_local.get()==1:
             print('local')
+            self.plot_local_remote='local'
             self.spec_commander.process(self.input_dir_entry.get(),'spec_share_loc','proc_temp.tsv')
 
         else:
+            print('REMOTE!')
+            self.plot_local_remote='remote'
             self.spec_commander.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
             
+        if self.process_save_dir.get():
+            print('YAYAYAY!')
+            file=open(self.config_loc+'process_directories.txt','w')
+            file.write(self.plot_local_remote+'\n')
+            file.write(self.input_dir_entry.get()+'\n')
+            file.write(self.output_dir_entry.get()+'\n')
+            file.write(self.output_file_entry.get()+'\n')
+
+            #self.plot_local_remote='remote'
+            #self.plot_remote.set(1)
+            file.close()
+            
         temp_loc=self.spec_share_loc+'proc_temp.tsv'
-        print(temp_loc)
         self.queue.insert(0,{self.process_cmd:[]})
         self.queue.insert(1,{self.finish_process:[temp_loc]})
         process_handler=ProcessHandler(self)
         
+        
+        
     def finish_process(self, temp_loc):
-        print('hello!')
         self.complete_queue_item()
 
-        try:
-            destination=self.output_dir_entry.get()+'/'+self.output_file_entry.get()
-            print(temp_loc)
-            print(destination)
-            shutil.copy(temp_loc,destination)
-        except Exception as e:
-            print(e)
+        # try:
+        destination=self.output_dir_entry.get()+'/'+self.output_file_entry.get()
+        shutil.move(temp_loc,destination)
+        # except Exception as e:
+        #     print(e)
             
     def plot(self):
         filename=self.plot_input_dir_entry.get()
@@ -2276,16 +2292,18 @@ class Controller():
         
         if self.plot_remote.get():
             self.queue.insert(0,{self.plot:[]})
-            self.queue.insert(1,{self.actually_plot:[self.spec_share_loc+'temp.tsv']})
+            self.queue.insert(1,{self.actually_plot:[self.spec_share_loc+'plot_temp.tsv']})
             self.spec_commander.transfer_data(filename, 'spec_share_loc','plot_temp.tsv')
             data_handler=DataHandler(self, source=filename, temp_destination=self.spec_share_loc+'plot_temp.tsv', final_destination=self.spec_share_loc+'plot_temp.tsv')
+        else:
+            self.actually_plot(filename)
 
 
     def actually_plot(self, filename):
         print('I do not want a queue')
-        print(self.queue)
-        
-        self.complete_queue_item()
+        if len(self.queue)>0:
+            print('but I have one')
+            self.complete_queue_item()
         title=self.plot_title_entry.get()
         caption=''#self.plot_caption_entry.get()
         labels={}
@@ -2353,7 +2371,7 @@ class Controller():
                 self.plot_local_remote='local'
             
             with open(self.config_loc+'plot_config.txt','w') as plot_config:
-                plot_config.write(self.plot_loc+'\n')
+                plot_config.write(self.plot_local_remote+'\n')
                 plot_config.write(self.plot_input_file+'\n')
                 plot_config.write(self.plot_title+'\n')
                 plot_config.write(self.plot_logfile_entry.get())
@@ -2361,7 +2379,7 @@ class Controller():
             self.plot_top.destroy()
             
             if self.no_wr.get()==1:
-                print('plot!')
+                print('plot right here!')
                 self.plotter.plot_spectra(title,filename,caption,labels,exclude_wr=True)
             else:
                 self.plotter.plot_spectra(title,filename,caption,labels,exclude_wr=False)
@@ -2375,6 +2393,8 @@ class Controller():
             
             
         except Exception as e:
+            print(e)
+            raise e
             dialog=Dialog(self, 'Plotting Error', 'Error: Plotting failed. Does file exist?\nIf plotting a remote file, is the server accessible to the spectrometer computer?',{'ok':{}})
     
     
@@ -3057,7 +3077,7 @@ class Controller():
         self.pi_commander.move_detector(self.active_emission_entries[0].get())
         handler=CloseHandler(self)
         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
-    def maybe_open_tab_menu(self,event):
+    def plot_right_click(self,event):
         
         dist_to_edge=self.dist_to_edge(event)
         if dist_to_edge==None: #not on a tab
@@ -3366,7 +3386,6 @@ class Dialog:
 class WaitDialog(Dialog):
     def __init__(self, controller, title='Working...', label='Working...', buttons={}):
         super().__init__(controller, title, label,buttons,width=400, height=150, allow_exit=False)
-        print('waitdialog width')
 
         
         self.frame=Frame(self.top, bg=self.bg, width=200, height=30)
@@ -3711,7 +3730,6 @@ class DataHandler(CommandHandler):
         self.listener=controller.spec_listener
         super().__init__(controller, title, label, timeout=2*BUFFER)
         self.source=source
-        print(source)
         self.temp_destination=temp_destination
         self.final_destination=final_destination
         self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 119, 107, 69))
@@ -3721,36 +3739,21 @@ class DataHandler(CommandHandler):
             #self.spec_commander.get_data(filename)
             if 'datacopied' in self.listener.queue:
                 self.listener.queue.remove('datacopied')
-                # if self.source=='process':
-                #     filename=self.controller.spec_share_loc+'process_temp.tsv'
-                # elif self.source=='plot':
-                #     filename=self.controller.spec_share_loc+'plot_temp.tsv'
-                # else:
-                #     filename=self.controller.spec_share_loc+'temp.tsv'
-                # print('data copied, I think it is here:')
-                # print(filename)
-                # print('here is the souce')
-                # print(self.source)
-                # print('here is the destination')
-                # print(self.destination)
-                
-                try:
 
-                    shutil.copy(self.temp_destination, self.final_destination)
-                    self.success()
-                    return
-                    
-                except Exception as e:
-                    print(e)
-                    
-                    self.interrupt('Error transferring data',retry=True)
-                    #dialog=ErrorDialog(self.controller, title='Error transferring data',label='Error: Could not transfer data.\nDoes the file already exist?')
-                    return
-                break
-            # elif 'datareceived' in self.listener.queue:
-            #     self.listener.queue.remove('datareceived')
-            #     self.success()
-            #     break
+                if self.temp_destination!=None and self.final_destination!=None:
+                    try:
+    
+                        shutil.move(self.temp_destination, self.final_destination)
+                        #self.timeout('Error: Operation timed out while trying to transfer data.') #This is for testing
+                        self.success()
+                        return
+                        
+                    except Exception as e:
+                        print(e)
+                        
+                        self.interrupt('Error transferring data',retry=True)
+                        return
+
             elif 'datafailure' in self.listener.queue:
                 self.listener.queue.remove('datafailure')
                 self.interrupt('Error transferring data',retry=True)
@@ -3761,6 +3764,7 @@ class DataHandler(CommandHandler):
         self.timeout()
 
     def success(self):
+        print('yep I am here for some reason')
         self.controller.complete_queue_item()
         self.interrupt('Data transferred successfully.')
         if len(self.controller.queue)>0:
@@ -3771,6 +3775,10 @@ class ProcessHandler(CommandHandler):
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=60+BUFFER)
         
+        self.wait_dialog.set_buttons({})
+        self.wait_dialog.top.wm_geometry('376x119')
+         #Normally we have a pause and a cancel option if there are additional items in the queue, but it doesn't make much sense to cancel processing halfway through, so let's just not have the option.
+        
 
 
     def wait(self):
@@ -3779,7 +3787,15 @@ class ProcessHandler(CommandHandler):
 
                 self.listener.queue.remove('processsuccess')
                 self.controller.log('Files processed.\n\t'+self.controller.output_dir_entry.get()+'/'+self.controller.output_file_entry.get())
-                self.success()
+                if self.controller.proc_local_remote=='local': #Move on to finishing the process by transferring the data from temp to final destination
+                    try:
+                        self.controller.complete_queue_item()
+                        self.controller.next_in_queue()
+                        self.success()
+                    except:
+                        self.interrupt('Error: Could not transfer data to local folder.')
+                else: #if the final destination was remote then we're already done.
+                    self.success()
                 return
                 
             elif 'processerrorfileexists' in self.listener.queue:
@@ -3792,14 +3808,17 @@ class ProcessHandler(CommandHandler):
             elif 'processerrorwropt' in self.listener.queue:
 
                 self.listener.queue.remove('processerrorwropt')
-                self.interrupt('Error processing files.\nDid you optimize and white reference before collecting data?')
+                self.interrupt('Error processing files.\n\nDid you optimize and white reference before collecting data?')
+                self.wait_dialog.top.wm_geometry('376x140')
                 self.log('Error processing files')
                 return
                 
             elif 'processerror' in self.listener.queue:
 
                 self.listener.queue.remove('processerror')
-                self.interrupt('Error processing files.\nIs ViewSpecPro running?\nDo directories exist?')
+                self.wait_dialog.top.wm_geometry('376x140')
+                #self.wait_dialog.top.wm_geometry('420x130')
+                self.interrupt('Error processing files.\n\nIs ViewSpecPro running? Do directories exist?',retry=True)
                 self.controller.log('Error processing files')
                 return
                 
@@ -3809,10 +3828,13 @@ class ProcessHandler(CommandHandler):
         self.timeout()
         
     def success(self):
-        self.controller.complete_queue_item()
-        self.interrupt('Data transferred successfully.')
-        if len(self.controller.queue)>0:
-            self.controller.next_in_queue()
+        #self.controller.complete_queue_item()
+        self.interrupt('Data processed successfully')
+        self.wait_dialog.top.wm_geometry('376x119')
+        # if len(self.controller.queue)>0:
+        #     self.controller.next_in_queue()
+        while len(self.controller.queue)>0:
+            self.controller.complete_queue_item()
         
     
         
@@ -4070,24 +4092,31 @@ class SpectrumHandler(CommandHandler):
 
         
     def success(self):
+        self.allow_exit=True
+        
+        #Increment the spectrum number
         self.controller.spec_num+=1
         self.controller.spec_startnum_entry.delete(0,'end')
         spec_num_string=str(self.controller.spec_num)
         while len(spec_num_string)<NUMLEN:
             spec_num_string='0'+spec_num_string
         self.set_text(self.controller.spec_startnum_entry,spec_num_string)
-        self.allow_exit=True
+        
+        self.plot_input_dir=self.spec_save_dir_entry.get()
+        
+        #Use the last saved spectrum number for the log file.
         numstr=str(self.controller.spec_num-1)
         while len(numstr)<NUMLEN:
             numstr='0'+numstr
-            
+        
+        #Log whether it was a white reference or a regular spectrum that just got saved. We temporarily put 'White reference' into the sample label entry if it was a white reference.
         if 'White reference' in self.controller.sample_label_entries[self.controller.current_sample_gui_index].get():
             info_string='White reference saved.'
         else:
             info_string='Spectrum saved.'
 
         info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+self.controller.sample_label_entries[self.controller.current_sample_gui_index].get()+'\n'
-
+        #If it was a garbage spectrum, we don't need all of the information about it. When we delete it we will log that it happened.
         if 'garbage' in self.wait_dialog.label:
             pass
         else:
@@ -4105,8 +4134,6 @@ class SpectrumHandler(CommandHandler):
         #Clear out 'White reference' if that was put in earlier to use for this spectrum.
         self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)    
         self.controller.clear()
-        # self.controller.plot_input_file=self.controller.spec_save_dir_entry.get()
-        # self.controller.plot_title=self.controller.spec_basename
         
         super(SpectrumHandler, self).success()
         
@@ -4984,7 +5011,7 @@ class SpecCommander(Commander):
         
     def transfer_data(self,source, temp_destination_dir, temp_destination_file):
         self.remove_from_listener_queue(['datacopied','datafailure'])
-        filename=self.encrypt('transferdata',parameters=[source,destination_dir, destination_file])
+        filename=self.encrypt('transferdata',parameters=[source,temp_destination_dir, temp_destination_file])
         self.send(filename)
         return filename
     

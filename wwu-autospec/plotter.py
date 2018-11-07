@@ -26,50 +26,70 @@ class Plotter():
         plt.style.use(style)
         self.title_bases={}
         
+        self.tsv_titles=[]
+        self.tabs=[]
         
-    def embed_plot(self,title, sample=None):
-        if sample!=None:
-            self.figs[title]={}
-            self.plots[title]={}
-            self.canvases[title]={}
-        #top = tk.Toplevel(self.root)
-        #top.wm_title(title)
-        close_img=tk.PhotoImage("img_close", data='''
-                R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
-                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
-                5kEJADs=
-                ''')
-        top=Frame(self.notebook)
-        top.pack()
-        #self.notebook.add(top,text=title,image=close_img,compound=tk.RIGHT)
-        if title in self.title_bases:
-            base=self.title_bases[title]
-        else:
-            base=title
-        self.notebook.add(top,text=base+' '+sample+' x')
-        width=self.notebook.winfo_width()
-        height=self.notebook.winfo_height()
-        fig = mpl.figure.Figure(figsize=(width/self.dpi, height/self.dpi), dpi=self.dpi)
-        self.figs[title][sample]=fig
-        plot = fig.add_subplot(111)
-        canvas = FigureCanvasTkAgg(fig, master=top)
-        vbar=Scrollbar(top,orient=VERTICAL)
-        vbar.pack(side=RIGHT,fill=Y)
-        vbar.config(command=canvas.get_tk_widget().yview)
-        canvas.get_tk_widget().config(width=300,height=300)
-        canvas.get_tk_widget().config(yscrollcommand=vbar.set)
-        canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
+        self.samples={}
         
-        #canvas.get_tk_widget().pack()
-        canvas.draw()
-        self.plots[title][sample]=plot
-        self.canvases[title][sample]=canvas
-        
-        def on_closing():
-            # for i in self.plots:
-            #     del self.plots[i]
-            # #del self.plots[i]
-            top.destroy()
+    
+        # canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
+        # vbar=Scrollbar(top,orient=VERTICAL)
+        # vbar.pack(side=RIGHT,fill=Y)
+        # vbar.config(command=canvas.get_tk_widget().yview)
+        # canvas.get_tk_widget().config(width=300,height=300)
+        # canvas.get_tk_widget().config(yscrollcommand=vbar.set)
+        # canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
+        # 
+        # #canvas.get_tk_widget().pack()
+        # canvas.draw()
+    #Takes a title and a list of associated samples. This may be 1, some, or all of the samples associated with a given .tsv
+    # def add_tab(self,title, samples):
+    #    # if sample!=None:
+
+   #       #top = tk.Toplevel(self.root)
+    #     #top.wm_title(title)
+    #     # close_img=tk.PhotoImage("img_close", data='''
+    #     #         R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
+    #     #         d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
+    #     #         5kEJADs=
+    #     #         ''')
+    #     top=Frame(self.notebook)
+    #     top.pack()
+    #     #self.notebook.add(top,text=title,image=close_img,compound=tk.RIGHT)
+    #     # if title in self.title_bases:
+    #     #     base=self.title_bases[title]
+    #     # else:
+    #     #     base=title
+    #     # sample_string=' '.join(samples)
+    #         
+    #     #self.notebook.add(top,text=base+' '+sample_string+' x')
+    #     #self.update_tab_names()
+    #     width=self.notebook.winfo_width()
+    #     height=self.notebook.winfo_height()
+    #     
+    #     
+    #     fig = mpl.figure.Figure(figsize=(width/self.dpi, height/self.dpi), dpi=self.dpi)
+    #     self.figs[title][samples]=fig
+    #     plot = fig.add_subplot(111)
+    #     canvas = FigureCanvasTkAgg(fig, master=top)
+    #     canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
+    #     vbar=Scrollbar(top,orient=VERTICAL)
+    #     vbar.pack(side=RIGHT,fill=Y)
+    #     vbar.config(command=canvas.get_tk_widget().yview)
+    #     canvas.get_tk_widget().config(width=300,height=300)
+    #     canvas.get_tk_widget().config(yscrollcommand=vbar.set)
+    #     canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
+    #     
+    #     #canvas.get_tk_widget().pack()
+    #     canvas.draw()
+    #     self.plots[title][samples]=plot
+    #     self.canvases[title][samples]=canvas
+    #     
+    #     def on_closing():
+    #         # for i in self.plots:
+    #         #     del self.plots[i]
+    #         # #del self.plots[i]
+    #         top.destroy()
         #top.protocol("WM_DELETE_WINDOW", on_closing)
         
     # def plot_spectrum(self,i,e, data):
@@ -100,6 +120,18 @@ class Plotter():
     #     print(reflectance)
     #     return wavelengths, reflectance
     #     
+    def update_tab_names(self):
+        pass
+        # try:
+        #     print(self.notebook.tab(0))
+        #     print(dir(type(self.notebook.tab(0))))
+        # except:
+        #     print(self.notebook.tab(0).width)
+        
+    def open_right_click_menu(self,event):
+        print('hooray!')
+        print(event)
+        print(event.x)
 
     def plot_spectra(self, title, file, caption, loglabels,exclude_wr=True):
         if title=='':
@@ -111,118 +143,54 @@ class Plotter():
             while new in self.titles:
                 j+=1
                 new=title+' ('+str(j)+')'
-            base=title
             title=new
-            self.title_bases[title]=base
-            print('saving a base:')
-            print(base)
-        self.titles.append(title)
-        
+                
 
-        
-        #self.sample_labels[title]=[]
-        self.data[title]={}
-        sample_labels=[]
         try:
             wavelengths, reflectance, labels=self.load_data(file)
         except:
-            print('Error loading data!')
             raise(Exception('Error loading data!'))
             return
             
 
-        for i, label in enumerate(labels):
+        for i, spectrum_label in enumerate(labels):
+
             if i==0:
                 continue
-
-            if label in loglabels:
-                if loglabels[label]!='':
-                    labels[i]=loglabels[label]
-            label2=label[0:-3]
-            if label2 in loglabels:
-                if loglabels[label2]!='':
-                    labels[i]=loglabels[label2]
-            sample_label=labels[i].split(' (i=')[0]
-            if sample_label not in sample_labels:
-                sample_labels.append(sample_label)
-                self.data[title][sample_label]={}
-                self.data[title][sample_label]['labels']=[]
-                self.data[title][sample_label]['wavelengths']=wavelengths
-                self.data[title][sample_label]['reflectance']=[]
-            self.data[title][sample_label]['labels'].append(labels[i])
-            self.data[title][sample_label]['reflectance'].append(reflectance[i-1])
-
             
-                    
+            if spectrum_label in loglabels:
+                if loglabels[spectrum_label]!='':
+                    spectrum_label=loglabels[label]
+            #Sometimes the label in the file will have sco attached. Take off the sco and see if that is in the labels in the file.
+            spectrum_label_minus_sco=spectrum_label[0:-3]
+            if spectrum_label_minus_sco in loglabels:
+                if loglabels[spectrum_label_minus_sco]!='':
+                    spectrum_label=loglabels[spectrum_label_minus_sco]
 
-        #self.data[title]={'wavelengths':wavelengths,'reflectance':reflectance,'labels':labels}
-
-        if False:
-            self.data[title]={'wavelengths':wavelengths,'reflectance':reflectance,'labels':labels}
-            self.embed_plot(title)
-            self.draw_plot(title)
-            self.canvases[title].draw()
-        elif True:
-            for sample in self.data[title]:
-                self.embed_plot(title, sample)
-                self.draw_plot(title, sample)
-                self.canvases[title][sample].draw()
-                
-        #self.num=0
-        # light_colors=['red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple','magenta','red','orange','yellow','greenyellow','cyan','dodgerblue','purple']
-        # dark_colors=['mediumaquamarine','lemonchiffon','mediumpurple','lightcoral','skyblue','sandybrown','yellowgreen','pink','lightgray','mediumpurple']
-
-        
-    def draw_plot(self, title, sample=None, exclude_wr=True):
-        # if sample=='White reference':
-        #     return
-        if sample!=None:
-            labels=self.data[title][sample]['labels']
-            wavelengths=self.data[title][sample]['wavelengths']
-            reflectance=self.data[title][sample]['reflectance']
-            plot=self.plots[title][sample]
-        else:
-            labels=self.data[title]['labels']
-            wavelengths=self.data[title]['wavelengths']
-            reflectance=self.data[title]['reflectance']
-            plot=self.plots[title]
-        sample_names=[]
-        samples={}
-        colors=[]
-        colors.append(['#004d80','#006bb3','#008ae6','#33adff','#80ccff','#b3e0ff','#e6f5ff']) #blue
-        colors.append(['#145214','#1f7a1f','#2eb82e','#5cd65c','#99e699','#d6f5d6']) #green
-        colors.append(['#661400','#b32400','#ff3300','#ff704d','#ff9980','#ffd6cc']) #red
-        colors.append(['#330066','#5900b3','#8c1aff','#b366ff','#d9b3ff','#f2e6ff']) #purple
-        
-        #for i,spectrum in enumerate(reflectance):
-        for i in range(len(labels)):
-            label=labels[i]
-            sample_label=label.split(' (')[0]
-            if 'White reference' in label and exclude_wr and sample==None:
-                 continue
-            if sample_label not in sample_names:
-                num=len(sample_names)
-                sample_names.append(sample_label)
-                samples[sample_label]=Sample(colors[num%len(colors)])
-            color=samples[sample_label].next_color()
-            plot.plot(wavelengths, reflectance[i], label=label,color=color,linewidth=2)
-        if sample!=None:
-            if title in self.title_bases:
-                base=self.title_bases[title]
+            sample_label=spectrum_label.split(' (i=')[0]
+            
+            #If we don't have any data from this file yet, add it to the samples dictionary, and place the first sample inside.
+            if file not in self.samples:
+                self.samples[file]={}
+                self.samples[file][sample_label]=Sample(sample_label, file,title)
+            #If there is already data associated with this file, check if we've already got the sample in question there. If it doesn't exist, make it. If it does, just add this spectrum and label into its data dictionary.
             else:
-                base=title
-            plot.set_title(base+' '+sample, fontsize=24)
-        else:
-            plot.set_title(title, fontsize=24)
-            
-        plot.set_ylabel('Relative Reflectance',fontsize=18)
-        plot.set_xlabel('Wavelength (nm)',fontsize=18)
-        plot.tick_params(labelsize=14)
-        plot.legend()
-        
-        
-        #self.figs[title][sample].savefig(title)
-    
+                sample_exists=False 
+                for sample in self.samples[file]:
+                    if self.samples[file][sample].name==sample_label:
+                        sample_exists=True
+
+                if sample_exists==False:
+                    self.samples[file][sample_label]=Sample(sample_label, file,title)
+                    
+            self.samples[file][sample_label].add_spectrum(spectrum_label)
+            self.samples[file][sample_label].data[spectrum_label]['reflectance']=reflectance[i-1]
+            self.samples[file][sample_label].data[spectrum_label]['wavelengths']=wavelengths
+
+
+        for sample in self.samples[file]:
+            tab=Tab(self, [self.samples[file][sample]])
+
     def savefig(self,title, sample=None):
         self.draw_plot(title, 'v2.0')
         self.plots[title].savefig(title)
@@ -248,15 +216,158 @@ class Plotter():
         return wavelengths, reflectance, labels
         
 class Sample():
-    def __init__(self, colors):
+    def __init__(self, label, file, title):#colors):
+        #self.colors=colors
+        # self.index=-1
+        # self.__next_color=self.colors[0]
+        self.title=title
+        self.name=label
+        self.file=file
+        self.data={}
+        self.spectrum_labels=[]
+    
+    def add_spectrum(self,spectrum_label):
+        self.data[spectrum_label]={'reflectance':[],'wavelengths':[]}
+        self.spectrum_labels.append(spectrum_label)
+        
+    def set_colors(self, colors):
         self.colors=colors
         self.index=-1
-        self.__next_color=self.colors[0]
-    
+        #self.__next_color=self.colors[0]
+        
     def next_color(self):
         self.index+=1
         self.index=self.index%len(self.colors)
         return self.colors[self.index]
+        
+class Tab():
+    def __init__(self, plotter, samples):
+        self.plotter=plotter
+        self.samples=samples
+        
+        self.top=Frame(self.plotter.notebook)
+        self.top.pack()
+            
+        self.plotter.notebook.add(self.top,text='Hello!'+'x')
+        
+        width=self.plotter.notebook.winfo_width()
+        height=self.plotter.notebook.winfo_height()
+        
+        self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi)
+        #self.figs[title][samples]=fig
+        self.mpl_plot = self.fig.add_subplot(111)
+
+
+        
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.top)
+        self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
+        self.vbar=Scrollbar(self.top,orient=VERTICAL)
+        self.vbar.pack(side=RIGHT,fill=Y)
+        self.vbar.config(command=self.canvas.get_tk_widget().yview)
+        self.canvas.get_tk_widget().config(width=300,height=300)
+        self.canvas.get_tk_widget().config(yscrollcommand=self.vbar.set)
+        self.canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
+        
+        #canvas.get_tk_widget().pack()
+        
+        self.plot=Plot(self.plotter, self.mpl_plot, self.samples)
+        self.canvas.draw()
+        
+        # self.plots[title][samples]=plot
+        # self.canvases[title][samples]=canvas
+        # 
+        
+    
+        
+class Plot():
+    def __init__(self, plotter, mpl_plot, samples): #samples is a dictionary like this: {title_associated_with_a_file:[first_sample_to_plot_from_that_file,second_sample_to_plot_from_that_file],title_associated_with_a_different_file:[sample_to_plot_from_that_file]}
+        
+        self.plotter=plotter
+        self.samples=samples
+        # self.fig=fig
+        self.plot=mpl_plot#fig.add_subplot(111)
+        self.title='' #This will be the text to put on the notebook tab
+        self.colors=[]
+        self.colors.append(['#004d80','#006bb3','#008ae6','#33adff','#80ccff','#b3e0ff','#e6f5ff']) #blue
+        self.colors.append(['#145214','#1f7a1f','#2eb82e','#5cd65c','#99e699','#d6f5d6']) #green
+        self.colors.append(['#661400','#b32400','#ff3300','#ff704d','#ff9980','#ffd6cc']) #red
+        self.colors.append(['#330066','#5900b3','#8c1aff','#b366ff','#d9b3ff','#f2e6ff']) #purple
+        
+        
+        self.files=[]
+        for i, sample in enumerate(samples):
+            print(sample)
+            sample.set_colors(self.colors[i%len(self.colors)])
+            if sample.file not in self.files:
+                self.files.append(sample.file)
+                self.title=self.title+sample.file+' '+sample.name #The tab title will be a the title of each tsv followed by the associated samples being plotted.
+            else:
+                self.title=self.title.split(sample.file)[0] +sample.name+self.title.split(sample.file)[1]
+                #self.title=self.title+','+sample.name
+
+        
+        #If there is data from more than one data file, associate each sample name with that file. Otherwise, just use the sample name.
+
+        # if len(self.files)>1:
+        #     for sample in samples:
+        #         for i, label in sample.labels:
+        #             if sample.title not in sample.labels[i]:
+        #                 sample.extended_labels[i]=sample.title+' '+label
+        #                 sample.data[sample.extended_labels[i]]=sample.data[label]
+        #                 
+        #         sample.labels=sample.title+' '+sample.label
+        #         for sample in samples[tsv_title]:
+        #             label=tsv_title+' '+sample
+        #             self.labels.append(label)
+        #             self.data[label]=plotter.data[tsv_title][sample]
+        # else:
+        #     for tsv_title in samples:
+        #         for sample in samples[tsv_title]:
+        #             label=sample
+        #             self.labels.append(label)
+        #             self.data[label]=plotter.data[tsv_title][sample]
+
+        
+        self.draw()
+        
+        def on_closing():
+            # for i in self.plots:
+            #     del self.plots[i]
+            # #del self.plots[i]
+            top.destroy()
+    
+    def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
+
+        
+        for sample in self.samples:
+            for label in sample.spectrum_labels:
+
+                if 'White reference' in sample.name and exclude_wr and sample==None:
+                    continue
+                legend_label=label
+                if True:#len(self.files)>1:
+                    legend_label=sample.title+': '+label
+
+                color=sample.next_color()
+                self.plot.plot(sample.data[label]['wavelengths'], sample.data[label]['reflectance'], label=legend_label,color=color,linewidth=2)
+        # if sample!=None:
+        #     if title in self.title_bases:
+        #         base=self.title_bases[title]
+        #     else:
+        #         base=title
+        #     plot.set_title(base+' '+sample, fontsize=24)
+        # else:
+        #     plot.set_title(title, fontsize=24)
+            
+        self.plot.set_ylabel('Relative Reflectance',fontsize=18)
+        self.plot.set_xlabel('Wavelength (nm)',fontsize=18)
+        self.plot.tick_params(labelsize=14)
+        self.plot.legend()
+
+
+            
+            
+            
 
         
             
