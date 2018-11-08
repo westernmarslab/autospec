@@ -189,7 +189,7 @@ class Plotter():
 
 
         for sample in self.samples[file]:
-            tab=Tab(self, [self.samples[file][sample]])
+            tab=Tab(self, title,[self.samples[file][sample]])
 
     def savefig(self,title, sample=None):
         self.draw_plot(title, 'v2.0')
@@ -241,14 +241,15 @@ class Sample():
         return self.colors[self.index]
         
 class Tab():
-    def __init__(self, plotter, samples):
+    def __init__(self, plotter, title, samples):
         self.plotter=plotter
         self.samples=samples
+        self.title=title+ ': '+samples[0].name
         
         self.top=Frame(self.plotter.notebook)
         self.top.pack()
             
-        self.plotter.notebook.add(self.top,text='Hello!'+'x')
+        self.plotter.notebook.add(self.top,text=self.title+' x')
         
         width=self.plotter.notebook.winfo_width()
         height=self.plotter.notebook.winfo_height()
@@ -270,7 +271,7 @@ class Tab():
         
         #canvas.get_tk_widget().pack()
         
-        self.plot=Plot(self.plotter, self.mpl_plot, self.samples)
+        self.plot=Plot(self.plotter, self.mpl_plot, self.samples,self.title)
         self.canvas.draw()
         
         # self.plots[title][samples]=plot
@@ -280,7 +281,7 @@ class Tab():
     
         
 class Plot():
-    def __init__(self, plotter, mpl_plot, samples): #samples is a dictionary like this: {title_associated_with_a_file:[first_sample_to_plot_from_that_file,second_sample_to_plot_from_that_file],title_associated_with_a_different_file:[sample_to_plot_from_that_file]}
+    def __init__(self, plotter, mpl_plot, samples,title): #samples is a dictionary like this: {title_associated_with_a_file:[first_sample_to_plot_from_that_file,second_sample_to_plot_from_that_file],title_associated_with_a_different_file:[sample_to_plot_from_that_file]}
         
         self.plotter=plotter
         self.samples=samples
@@ -296,7 +297,6 @@ class Plot():
         
         self.files=[]
         for i, sample in enumerate(samples):
-            print(sample)
             sample.set_colors(self.colors[i%len(self.colors)])
             if sample.file not in self.files:
                 self.files.append(sample.file)
@@ -304,6 +304,8 @@ class Plot():
             else:
                 self.title=self.title.split(sample.file)[0] +sample.name+self.title.split(sample.file)[1]
                 #self.title=self.title+','+sample.name
+                
+        self.title=title
 
         
         #If there is data from more than one data file, associate each sample name with that file. Otherwise, just use the sample name.
@@ -357,7 +359,7 @@ class Plot():
         #         base=title
         #     plot.set_title(base+' '+sample, fontsize=24)
         # else:
-        #     plot.set_title(title, fontsize=24)
+        self.plot.set_title(self.title, fontsize=24)
             
         self.plot.set_ylabel('Relative Reflectance',fontsize=18)
         self.plot.set_xlabel('Wavelength (nm)',fontsize=18)

@@ -126,12 +126,14 @@ if computer=='old':
     NUMLEN=3
     #Time added to timeouts to account for time to read/write files
     BUFFER=15
+    PI_BUFFER=5
     server='melissa' #old computer
 elif computer=='new':
     #Number of digits in spectrum number for spec save config
     NUMLEN=5
     #Time added to timeouts to account for time to read/write files
     BUFFER=15
+    PI_BUFFER=5
     server='geol-chzc5q2' #new computer
 
 pi_server='hozapi'
@@ -1740,9 +1742,12 @@ class Controller():
         self.angles_change_time=time.time()
         self.i=int(self.active_incidence_entries[0].get())
 
-    def set_detector_geom(self):
+    def set_detector_geom(self,e=None):
         self.angles_change_time=time.time()
-        self.e=int(self.active_emission_entries[0].get())
+        if e==None:
+            self.e=int(self.active_emission_entries[0].get())
+        else:
+            self.e=e
 
         
     def set_text(self,widget, text):
@@ -1788,20 +1793,28 @@ class Controller():
         self.test_view.move_light(int(self.active_incidence_entries[0].get()))
         self.set_light_geom()
         
-    def move_detector(self):
+    def move_detector(self, e=None):
         print('moving detector')
         print(self.e)
-        print(self.active_emission_entries[0].get())
-        timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.e))*15+BUFFER
-        print('TIMEOUT = '+str(timeout))
-        self.pi_commander.move_detector(self.active_emission_entries[0].get())
-        handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
-        self.test_view.move_detector(int(self.active_emission_entries[0].get()))
-        self.set_detector_geom()
+        if e==None:
+            print(self.active_emission_entries[0].get())
+            timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.e))*15+BUFFER
+            print('TIMEOUT = '+str(timeout))
+            self.pi_commander.move_detector(self.active_emission_entries[0].get())
+            handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
+            self.test_view.move_detector(int(self.active_emission_entries[0].get()))
+            self.set_detector_geom()
+        else:
+            timeout=np.abs(int(e)-int(self.e))*15+BUFFER
+            print('TIMEOUT = '+str(timeout))
+            self.pi_commander.move_detector(e)
+            handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
+            self.test_view.move_detector(int(e))
+            self.set_detector_geom(e)
         
     def move_tray(self, pos):
         self.pi_commander.move_tray(pos)
-        handler=MotionHandler(self,label='Moving sample tray...',timeout=90+BUFFER, new_sample_loc=pos)
+        handler=MotionHandler(self,label='Moving sample tray...',timeout=30+BUFFER, new_sample_loc=pos)
         
     def build_queue(self):
         self.queue=[]
@@ -2197,6 +2210,52 @@ class Controller():
             self.check_logfile()
             self.log(info,write_to_file=True)
             wait_for_cmd=False
+            
+        elif 'move_tray(' in cmd: #TODO: Should check if we are in automatic mode
+            try:
+                pos=cmd.split('move_tray(')[1][:-1]
+                print(pos)
+                
+            except:
+                self.log('Error: could not parse command '+cmd)
+                return False
+            alternatives=['1','2','3','4','5'] #These aren't how sample positions are specified in available_sample_positions (which has Sample 1, etc) but we'll accept them.
+            if pos in alternatives:
+                pos=self.available_sample_positions[alternatives.index(pos)]
+            elif pos.lower()=='wr':
+                pos=pos.lower()
+            if pos in self.available_sample_positions or pos=='wr':
+                print('valid pos!')
+                print(pos)
+                if not self.script_running:
+                    self.queue=[]
+                self.queue.insert(0,{self.move_tray:[pos]})
+                self.move_tray(pos)
+            else:
+                self.log('Error: '+pos+' is an invalid tray position')
+                return False
+                
+        elif 'set_emission(' in cmd: #TODO: Should check if we are in automatic mode
+            try:
+                e=cmd.split('set_emission(')[1][:-1]
+                print(e)
+                
+            except:
+                self.log('Error: could not parse command '+cmd)
+                return False
+            valid_e=validate_int_input(e, -15, 50)
+            if valid_e:
+                print('valid e!')
+                print(e)
+                #self.active_emission_entries[0].delete(0,'end')
+                #self.active_emission_entries[0].insert(0,e)
+                if not self.script_running:
+                    self.queue=[]
+                self.queue.insert(0,{self.move_detector:[]})
+                self.move_detector(e)
+            else:
+                self.log('Error: '+e+' is an invalid emission_angle')
+                return False
 
             
                 
@@ -2521,9 +2580,6 @@ class Controller():
                 pass
             else:
                 self.sample_pos_vars[-1].set(pos)
-                #self.taken_sample_positions.append(pos)
-                print('here are sample poses:')
-                print(self.taken_sample_positions)
                 break
         self.pos_menu = OptionMenu(self.sample_label_pos_frames[-1],self.sample_pos_vars[-1],*self.available_sample_positions)#'Sample 1','Sample 2','Sample 3','Sample 4', 'Sample 5')
         self.pos_menu.configure(width=8,highlightbackground=self.highlightbackgroundcolor)
@@ -2637,7 +2693,7 @@ class Controller():
         
     def configure_pi(self):
         self.pi_commander.configure(str(self.i),str(self.e))
-        timeout_s=BUFFER
+        timeout_s=PI_BUFFER
         while timeout_s>0:
             if 'piconfigsuccess' in self.pi_listener.queue:
                 self.pi_listener.queue.remove('piconfigsuccess')
@@ -3669,6 +3725,7 @@ class WhiteReferenceHandler(CommandHandler):
     label='White referencing...'):
         timeout_s=int(controller.spec_config_count)/9+6+BUFFER
         self.listener=controller.spec_listener
+        self.first_try=True
         super().__init__(controller, title, label,timeout=timeout_s)
         
 
@@ -3692,10 +3749,16 @@ class WhiteReferenceHandler(CommandHandler):
                 return
             elif 'wrfailed' in self.listener.queue:
                 self.listener.queue.remove('wrfailed')
-                self.interrupt('Error: Failed to take white reference.',retry=True)
-                self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)  
-                  
-                self.controller.clear()
+                time.sleep(1)
+                if self.first_try==True:
+                    self.controller.log('Error: Failed to take white reference. Retrying.')
+                    self.first_try=False
+                    self.controller.next_in_queue:[]
+                else:
+                    self.interrupt('Error: Failed to take white reference.',retry=True)
+                    self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)  
+                    
+                    self.controller.clear()
                 
                 return
                 
@@ -3895,9 +3958,15 @@ class MotionHandler(CommandHandler):
         self.timeout()
     def success(self):
         if 'detector' in self.label:
-            self.controller.log('Goniometer moved to an emission angle of '+self.controller.active_emission_entries[0].get()+' degrees.')
+            try:
+                self.controller.log('Goniometer moved to an emission angle of '+self.controller.active_emission_entries[0].get()+' degrees.')
+            except:
+                self.controller.log('Goniometer detector moved')
         elif 'light' in self.label:
-            self.controller.log('Goniometer moved to an incidence angle of '+self.controller.active_incidence_entries[0].get()+' degrees.')
+            try:
+                self.controller.log('Goniometer moved to an incidence angle of '+self.controller.active_incidence_entries[0].get()+' degrees.')
+            except:
+                self.controller.log('Goniometer detector moved')
             
         elif 'tray' in self.label:
             self.controller.log('Sample tray moved to '+self.new_sample_loc+' position.')
@@ -4102,7 +4171,7 @@ class SpectrumHandler(CommandHandler):
             spec_num_string='0'+spec_num_string
         self.set_text(self.controller.spec_startnum_entry,spec_num_string)
         
-        self.plot_input_dir=self.spec_save_dir_entry.get()
+        self.controller.plot_input_dir=self.controller.spec_save_dir_entry.get()
         
         #Use the last saved spectrum number for the log file.
         numstr=str(self.controller.spec_num-1)
@@ -5152,8 +5221,8 @@ class SpecConnectionChecker(ConnectionChecker):
             dialog=ErrorDialog(controller=self.controller, title='Lost Connection',label='Error: Lost connection with spec compy.\n\nCheck that you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons,button_width=15)
         except:
             pass
+    #Bring this up if there is no connection with the spectrometer computer
     def no_dialog(self,buttons):
-        print('new dialog!')
         try:
             dialog=Dialog(controller=self.controller, title='Not Connected',label='Error: No connection with Spec Compy.\n\nCheck that you and the spectrometer computer are\nboth on the correct WiFi network and the\nSpecShare folder is mounted on your computer',buttons=buttons,button_width=15)
         except:
