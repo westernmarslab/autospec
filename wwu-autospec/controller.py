@@ -150,6 +150,8 @@ if opsys=='Linux':
     pi_share_loc='/run/user/1000/gvfs/smb-share:server='+pi_server+',share='+pi_share+'/'
     delimiter='/'
     spec_write_loc=spec_share_loc+'commands/from_control/'
+    spec_temp_loc=spec_share_loc+'temp/'
+    
     pi_write_loc=pi_share_loc+'commands/from_control/'
     spec_read_loc=spec_share_loc+'commands/from_spec/'
     pi_read_loc=pi_share_loc+'/commands/from_pi/'
@@ -160,17 +162,22 @@ elif opsys=='Windows':
     pi_share_loc='\\\\'+server.upper()+'\\'+pi_share+'\\'
     data_share_loc='\\\\'+server.upper()+'\\'+data_share+'\\'
     spec_write_loc=spec_share_loc+'commands\\from_control\\'
+    spec_temp_loc=spec_share_loc+'temp\\'
+    
     pi_write_loc=pi_share_loc+'commands\\from_control\\'
     spec_read_loc=spec_share_loc+'commands\\from_spec\\'
     pi_read_loc=pi_share_loc+'commands\\from_spec\\'
     config_loc=package_loc+'config\\'
     log_loc=package_loc+'log\\'
+    
 elif opsys=='Mac':
     spec_share_loc='/Volumes/'+spec_share_Mac+'/'
     pi_share_loc='/Volumes/'+pi_share_Mac+'/'
     data_share_loc='/Volumes/'+data_share_Mac+'/'
     delimiter='/'
     spec_write_loc=spec_share_loc+'commands/from_control/'
+    spec_temp_loc=spec_share_loc+'temp/'
+    
     pi_write_loc=pi_share_loc+'commands/from_control/'
     spec_read_loc=spec_share_loc+'commands/from_spec/'
     pi_read_loc=pi_share_loc+'commands/from_spec/'
@@ -178,6 +185,7 @@ elif opsys=='Mac':
     log_loc=package_loc+'log/'
     
 if not os.path.isdir(config_loc):
+    print('Attempting to make config directory:')
     print(config_loc)
     os.mkdir(config_loc)
 
@@ -202,20 +210,29 @@ def main_part_2():
 def main_part_3():
     #Clean out your read and write directories for commands. Prevents confusion based on past instances of the program.
     if not SPEC_OFFLINE:
-        print('emptying spec command folder...')
+        print('Emptying spec command folder...')
         delme=os.listdir(spec_write_loc)
-        print(str(len(delme))+' files to delete')
+        delme2=os.listdir(spec_read_loc)
+        print(str(len(delme)+len(delme2))+' files to delete')
         for file in delme:
             os.remove(spec_write_loc+file)
-        delme=os.listdir(spec_read_loc)
-        for file in delme:
+        for file in delme2:
             os.remove(spec_read_loc+file)
+
+        print('Emptying spec temporary data folder...')
+        delme=os.listdir(spec_temp_loc)
+        print(str(len(delme))+' files to delete')
+        for file in delme:
+            os.remove(spec_temp_loc+file)
+            
     if not PI_OFFLINE:
-        print('emptying pi command folder...')
+        print('Emptying pi command folder...')
         delme=os.listdir(pi_write_loc)
+        print(str(len(delme))+' files to delete')
         for file in delme:
             os.remove(pi_write_loc+file)
         delme=os.listdir(pi_read_loc)
+        print(str(len(delme))+' files to delete')
         for file in delme:
             os.remove(pi_read_loc+file)
     
@@ -226,10 +243,10 @@ def main_part_3():
 
     icon_loc=package_loc+'exception'#test_icon.xbm'
     
-    control=Controller(spec_listener, pi_listener,spec_share_loc, spec_read_loc,spec_write_loc, pi_write_loc, config_loc,data_share_loc,opsys, icon_loc)
+    control=Controller(spec_listener, pi_listener,spec_share_loc, spec_read_loc,spec_write_loc, spec_temp_loc, pi_write_loc, config_loc,data_share_loc,opsys, icon_loc)
 
 class Controller():
-    def __init__(self, spec_listener, pi_listener,spec_share_loc, spec_read_loc, spec_write_loc, pi_write_loc,config_loc, data_share_loc,opsys,icon):
+    def __init__(self, spec_listener, pi_listener,spec_share_loc, spec_read_loc, spec_write_loc,spec_temp_loc, pi_write_loc,config_loc, data_share_loc,opsys,icon):
         self.spec_listener=spec_listener
         self.spec_listener.set_controller(self)
         self.spec_listener.start()
@@ -242,6 +259,8 @@ class Controller():
         self.spec_read_loc=spec_read_loc
         self.spec_share_loc=spec_share_loc
         self.spec_write_loc=spec_write_loc
+        self.spec_temp_loc=spec_temp_loc
+        
         self.pi_write_loc=pi_write_loc
         self.spec_commander=SpecCommander(self.spec_write_loc,self.spec_listener)
         self.pi_commander=PiCommander(self.pi_write_loc,self.pi_listener)
@@ -278,7 +297,7 @@ class Controller():
         self.i_interval=None
         
         self.min_e=-30
-        self.max_e=60
+        self.max_e=90
         self.e=None
         self.final_e=None
         self.e_interval=None
@@ -436,7 +455,6 @@ class Controller():
         try:
             with open(self.config_loc+'process_directories.txt','r') as process_config:
                 self.proc_local_remote=process_config.readline().strip('\n')
-                print('HERE IT IS '+self.proc_local_remote)
                 self.process_input_dir=process_config.readline().strip('\n')
                 self.process_output_dir=process_config.readline().strip('\n')
         except:
@@ -453,7 +471,7 @@ class Controller():
                 self.plot_local_remote=plot_config.readline().strip('\n')
                 self.plot_input_file=plot_config.readline().strip('\n')
                 self.plot_title=plot_config.readline().strip('\n')
-                self.plot_logfile=plot_config.readline().strip('\n')
+                self.proc_logfile=plot_config.readline().strip('\n')
         except:
             
             with open(self.config_loc+'plot_config.txt','w+') as f:
@@ -536,9 +554,9 @@ class Controller():
         self.spec_startnum_entry.pack(side=RIGHT, pady=self.pady)      
         
 
-            
+        #Make the frame and widgets for choosing a log file. This is no longer used - instead, a log file is automatically generated in the data directory.
         self.log_frame=Frame(self.control_frame, bg=self.bg,highlightthickness=1)
-        self.log_frame.pack(fill=BOTH,expand=True)
+        #self.log_frame.pack(fill=BOTH,expand=True)
         self.logfile_label=Label(self.log_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Log file:')
         self.logfile_label.pack(padx=self.padx,pady=(10,0))
         self.logfile_entry_frame=Frame(self.log_frame, bg=self.bg)
@@ -1087,7 +1105,6 @@ class Controller():
         self.plot_remote_check.pack(side=LEFT, pady=(5,5),padx=(5,5))
         
         if self.plot_local_remote=='remote':
-            print('when I show the frame I am getting remote')
             self.plot_remote_check.select()
             self.plot_local_check.deselect()
         if self.plot_local_remote=='local':
@@ -1110,19 +1127,19 @@ class Controller():
 
         
 
-                
+        #Originally, sample labels were loaded when the user plotted. This doens't happen anymore (sample labels are added during processing), so this code is useless.
         self.load_labels_frame=Frame(self.plot_frame, bg=self.bg)
         self.load_labels_frame.pack()
         self.load_labels=IntVar()
         self.load_labels_check=Checkbutton(self.load_labels_frame, selectcolor=self.check_bg,fg=self.textcolor,text='Load labels from log file', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.load_labels, command=self.load_labels_cmd)
-        self.load_labels_check.pack(pady=(5,5))
+        #self.load_labels_check.pack(pady=(5,5))
         
-        self.plot_logfile_frame=Frame(self.plot_frame, bg=self.bg)
-        self.plot_logfile_frame.pack()
-        self.select_plot_logfile_button=Button(self.plot_logfile_frame, fg=self.textcolor,text='Browse',command=self.chooseplotlogfile, height=1,bg=self.buttonbackgroundcolor)
-        self.select_plot_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor)
-        self.plot_logfile_entry=Entry(self.plot_logfile_frame, width=50,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.plot_logfile_entry.insert(0,self.plot_logfile)
+        self.proc_logfile_frame=Frame(self.plot_frame, bg=self.bg)
+        self.proc_logfile_frame.pack()
+        self.select_proc_logfile_button=Button(self.proc_logfile_frame, fg=self.textcolor,text='Browse',command=self.chooseplotlogfile, height=1,bg=self.buttonbackgroundcolor)
+        self.select_proc_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor)
+        self.proc_logfile_entry=Entry(self.proc_logfile_frame, width=50,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.proc_logfile_entry.insert(0,self.proc_logfile)
         
         self.no_wr=IntVar()
         self.no_wr_check=Checkbutton(self.plot_frame,selectcolor=self.check_bg, fg=self.textcolor,text='Exclude white references', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.no_wr, command=self.no_wr_cmd)
@@ -1148,7 +1165,6 @@ class Controller():
         self.plot_top.destroy()
         
     def move_test(self):
-        print(self.next_pos)
         self.test_view.move_light(self.next_pos)
         if self.next_pos<80:
             self.next_pos+=10
@@ -1222,23 +1238,26 @@ class Controller():
         pass
         
     def load_labels_cmd(self):
+        pass
         if self.load_labels.get():
-            self.select_plot_logfile_button.pack(side=RIGHT,padx=(5,2), pady=(0,0))
-            self.plot_logfile_entry.pack(side=RIGHT)
+            self.select_proc_logfile_button.pack(side=RIGHT,padx=(5,2), pady=(0,0))
+            self.proc_logfile_entry.pack(side=RIGHT)
 
-            if self.plot_logfile_entry.get()=='':
+            if self.proc_logfile_entry.get()=='':
                 try:
-                    self.plot_logfile_entry.insert(0,self.log_filename)
+                    print('here is the log I am putting in!')
+                    print(self.log_filename)
+                    self.proc_logfile_entry.insert(0,self.log_filename)
                 except:
                     print('no log file')
         else:
-            self.plot_logfile_entry.pack_forget()
-            self.select_plot_logfile_button.pack_forget()
+            self.proc_logfile_entry.pack_forget()
+            self.select_proc_logfile_button.pack_forget()
 
     def chooseplotlogfile(self):
         filename = askopenfilename(initialdir=log_loc,title='Select log file to load labels from')
-        self.plot_logfile_entry.delete(0,'end')
-        self.plot_logfile_entry.insert(0, filename)  
+        self.proc_logfile_entry.delete(0,'end')
+        self.proc_logfile_entry.insert(0, filename)  
         
               
     def chooselogfile(self):
@@ -1292,7 +1311,7 @@ class Controller():
         if log is None: # asksaveasfile returns `None` if dialog closed with "cancel".
             return
         self.log_filename=log.name
-        log.write(str(datetime.datetime.now())+'\n')
+        log.write('#AutoSpec log initialized on '+str(datetime.datetime.now())+'\n')
         self.logfile_entry.delete(0,'end')
         self.logfile_entry.insert(0, self.log_filename)
         
@@ -1304,8 +1323,6 @@ class Controller():
         MM_TO_IN = 1/25.4
         pxw = self.master.winfo_screenwidth()
         inw = self.master.winfo_screenmmwidth() * MM_TO_IN
-        print('dpi:')
-        print(pxw/inw)
         return pxw/inw
 
         
@@ -1412,8 +1429,7 @@ class Controller():
                     valid_i=validate_int_input(incidence,self.min_i,self.max_i)
                     valid_e=validate_int_input(emission,self.min_e,self.max_e)
                     valid_separation=self.validate_distance(incidence,emission)
-                    # if not valid_i and not valid_e:
-                    #     label+='The emission ('+str(self.min_e)+'to '+str(self.max_e)+') and incidence ('+str(self.min_i)+'to '+str(self.max_i)+') angles are invalid.\n\n'
+
                     if not valid_i:
                         label+='The incidence angle is invalid (Min:'+str(self.min_i)+', Max:'+str(self.max_i)+').\n\n'
                     if not valid_e:
@@ -1456,7 +1472,7 @@ class Controller():
                    
             if self.labelfailsafe.get():
                 if self.sample_label_entries[self.current_sample_gui_index].get()=='':
-                    label +='This spectrum has no label.\n\n'
+                    label +='This sample has no label.\n\n'
 
             if label !='': #if we came up with errors
                 title='Warning!'
@@ -1687,7 +1703,6 @@ class Controller():
             #If input isn't valid and the user asks to continue, take_spectrum will be called again with override set to True
             valid_input=False
             if action==self.take_spectrum:
-                print('yep this worked')
                 valid_input=self.check_optional_input(action,[True,False,garbage])
             else:
                 valid_input=self.check_optional_input(action,[True,False])
@@ -1717,10 +1732,13 @@ class Controller():
             while len(startnum_str)<NUMLEN:
                 startnum_str='0'+startnum_str
             
-            self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str)
+            
             if not garbage:
+                self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str, self.sample_label_entries[self.current_sample_gui_index].get(),self.i, self.e)
                 handler=SpectrumHandler(self)
+                
             else:
+                self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str, 'GARBAGE',self.i, self.e)
                 handler=SpectrumHandler(self,title='Collecting garbage...',label='Collecting garbage spectrum...')
                 
 
@@ -2028,11 +2046,17 @@ class Controller():
             return
         
         elif status=='timeout':
+            print('right right here')
             if not self.text_only:
-                dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer computer\nand the spectrometer is connected.')
+                buttons={
+                    'cancel':{},
+                    'retry':{self.next_in_queue:[]}
+                }
+                dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer\n computer and the spectrometer is connected.', buttons=buttons)
+                for button in dialog.tk_buttons:
+                    button.config(width=15)
             else:
                 self.log('Error: Operation timed out while trying to set save configuration')
-            
             return
 
         self.spec_commander.check_writeable(self.spec_save_dir_entry.get())
@@ -2050,7 +2074,7 @@ class Controller():
             t=t-INTERVAL
         print('done')
         if t<=0:
-            dialog=ErrorDialog(self,label='TIMEOUT')
+            dialog=ErrorDialog(self,label='Error: Operation timed out.')
             return
         
         
@@ -2225,8 +2249,7 @@ class Controller():
             elif pos.lower()=='wr':
                 pos=pos.lower()
             if pos in self.available_sample_positions or pos=='wr':
-                print('valid pos!')
-                print(pos)
+
                 if not self.script_running:
                     self.queue=[]
                 self.queue.insert(0,{self.move_tray:[pos]})
@@ -2243,18 +2266,18 @@ class Controller():
             except:
                 self.log('Error: could not parse command '+cmd)
                 return False
-            valid_e=validate_int_input(e, -15, 50)
+            valid_e=validate_int_input(e, self.min_e, self.max_e)
             if valid_e:
-                print('valid e!')
-                print(e)
-                #self.active_emission_entries[0].delete(0,'end')
-                #self.active_emission_entries[0].insert(0,e)
+                if np.abs(int(e)-int(self.i))<15:
+                    self.log('Error: Because of geometric constraints on the instrument, the emission angle must be at least 15 degrees greater than the incidence angle.')
+                    return False
+
                 if not self.script_running:
                     self.queue=[]
                 self.queue.insert(0,{self.move_detector:[]})
                 self.move_detector(e)
             else:
-                self.log('Error: '+e+' is an invalid emission_angle')
+                self.log('Error: '+e+' is an invalid emission angle.')
                 return False
 
             
@@ -2304,44 +2327,142 @@ class Controller():
 
             
     
-        print(self.proc_local.get())
         if self.proc_local.get()==1:
-            print('local')
             self.plot_local_remote='local'
-            self.spec_commander.process(self.input_dir_entry.get(),'spec_share_loc','proc_temp.tsv')
+            self.spec_commander.process(self.input_dir_entry.get(),'spec_share_loc','proc_temp.tsv',self.spec_temp_loc+'proc_temp_log.txt')
 
         else:
-            print('REMOTE!')
             self.plot_local_remote='remote'
             self.spec_commander.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
             
         if self.process_save_dir.get():
-            print('YAYAYAY!')
             file=open(self.config_loc+'process_directories.txt','w')
             file.write(self.plot_local_remote+'\n')
             file.write(self.input_dir_entry.get()+'\n')
             file.write(self.output_dir_entry.get()+'\n')
             file.write(self.output_file_entry.get()+'\n')
-
-            #self.plot_local_remote='remote'
-            #self.plot_remote.set(1)
             file.close()
             
-        temp_loc=self.spec_share_loc+'proc_temp.tsv'
         self.queue.insert(0,{self.process_cmd:[]})
-        self.queue.insert(1,{self.finish_process:[temp_loc]})
+        self.queue.insert(1,{self.finish_process:[]})
         process_handler=ProcessHandler(self)
         
         
         
-    def finish_process(self, temp_loc):
+    def finish_process(self):
         self.complete_queue_item()
 
-        # try:
-        destination=self.output_dir_entry.get()+'/'+self.output_file_entry.get()
-        shutil.move(temp_loc,destination)
-        # except Exception as e:
-        #     print(e)
+        
+        #Based on the log file, replace headers with sample labels and geometries.
+        # datafile=self.spec_temp_loc+'proc_temp.tsv'
+        # logfile=spec_temp_loc+'proc_temp_log.txt'
+        # 
+        # labels={}
+        # nextfile=None
+        # nextnote=None
+        # 
+        # if os.path.exists(logfile):
+        #     with open(logfile) as log:
+        #         line=log.readline()
+        #         while line!='':
+        #             while 'i: ' not in line and line!='':
+        #                 line=log.readline()
+        #             if 'i:' in line:
+        #                 try:
+        #                     nextnote=' (i='+line.split('i: ')[-1].strip('\n')
+        #                 except:
+        #                     nextnote=' (i=?'
+        #             while 'e: ' not in line and line!='':
+        #                 line=log.readline()
+        #             if 'e:' in line:
+        #                 try:
+        #                     nextnote=nextnote+' e='+line.split('e: ')[-1].strip('\n')+')'
+        #                 except:
+        #                     nextnote=nextnote+' e=?)'
+        #             while 'filename' not in line and line!='':
+        #                 line=log.readline()
+        #             if 'filename' in line:
+        #                 if '\\' in line:
+        #                     line=line.split('\\')
+        #                 else:
+        #                     line=line.split('/')
+        #                 nextfile=line[-1].strip('\n')
+        #                 nextfile=nextfile.split('.')
+        #                 nextfile=nextfile[0]+nextfile[1]
+        #                     
+        #             while 'Label' not in line and line!='':
+        #                 line=log.readline()
+        #             if 'Label' in line:
+        #                 nextnote=line.split('Label: ')[-1].strip('\n')+nextnote
+        #                 
+        #             if nextfile != None and nextnote != None:
+        #                 nextnote=nextnote.strip('\n')
+        #                 labels[nextfile]=nextnote
+        #     
+        #                 nextfile=None
+        #                 nextnote=None
+        #             line=log.readline()
+        #         if len(labels)==0:
+        #             self.controller.log('Warning: Data was processed successfully, but no sample labels were found in log '+logfile+'.')
+        #         else:
+        #             data_lines=[]
+        #             with open(datafile,'r') as data:
+        #                 line=data.readline().strip('\n')
+        #                 print(line)
+        #                 data_lines.append(line)
+        #                 while line!='':
+        #                     line=data.readline().strip('\n')
+        #                     data_lines.append(line)
+        #             
+        #             datafiles=data_lines[0].split('\t')[1:] #The first header is 'Wavelengths', the rest are file names
+        #                 
+        #             spectrum_labels=[]
+        #             unknown_num=0 #This is the number of files in the datafile headers that aren't listed in the log file.
+        #             for i, filename in enumerate(datafiles):
+        #                 label_found=False
+        #                 filename=filename.replace('.','')
+        #                 spectrum_label=filename
+        #                 if filename in labels:
+        #                     label_found=True
+        #                     if labels[filename]!='':
+        #                         spectrum_label=labels[filename]
+        #                         
+        #                 #Sometimes the label in the file will have sco attached. Take off the sco and see if that is in the labels in the file.
+        #                 filename_minus_sco=filename[0:-3]
+        #                 if filename_minus_sco in labels:
+        #                     label_found=True
+        #                     if labels[filename_minus_sco]!='':
+        #                         spectrum_label=labels[filename_minus_sco]
+        #                         
+        #                 if label_found==False:
+        #                     unknown_num+=1
+        #                 spectrum_labels.append(spectrum_label)
+        #             
+        #             if unknown_num==1:
+        #                 self.log('Warning: Data was processed successfully, but 1 spectral data file was not recorded in '+logfile+'.')
+        #                 
+        #             if unknown_num>1:
+        #                 self.log('Warning: Data was processed successfully, but '+str(unknown_num)+' spectral data files were not recorded in '+logfile+'.')
+        #                 
+        #             
+        #             header_line=data_lines[0].split('\t')[0] #This will just be 'Wavelengths'
+        #             for i, label in enumerate(spectrum_labels):
+        #                 header_line=header_line+'\t'+label
+        #             
+        #             data_lines[0]=header_line
+        #             
+        #             with open(datafile,'w') as data:
+        #                 for line in data_lines:
+        #                     data.write(line+'\n')
+        # else:
+        #     self.log('Warning: Data was processed successfully, but no log was found, so sample labels were not loaded.')
+        
+        
+        
+                
+        final_destination=self.output_dir_entry.get()+'/'+self.output_file_entry.get()
+        shutil.move(datafile,final_destination)
+
             
     def plot(self):
         filename=self.plot_input_dir_entry.get()
@@ -2370,7 +2491,7 @@ class Controller():
         nextnote=None
         try:
             if self.load_labels.get():
-                with open(self.plot_logfile_entry.get()) as log:
+                with open(self.proc_logfile_entry.get()) as log:
                     line=log.readline()
                     while line!='':
                         while 'i: ' not in line and line!='':
@@ -2402,14 +2523,10 @@ class Controller():
                             line=log.readline()
                         if 'Label' in line:
                             nextnote=line.split('Label: ')[-1].strip('\n')+nextnote
-                        # print('here is what controller found:')
-                        # print(nextfile)
-                        # print(nextnote)
                             
                         if nextfile != None and nextnote != None:
                             nextnote=nextnote.strip('\n')
                             labels[nextfile]=nextnote
-                           # print(nextnote)
 
                             nextfile=None
                             nextnote=None
@@ -2418,7 +2535,7 @@ class Controller():
                     
         except Exception as e:
             raise e
-            dialog=ErrorDialog(self, label='Error! File not found or cannot be parsed: '+self.plot_logfile_entry.get())
+            dialog=ErrorDialog(self, label='Error! File not found or cannot be parsed: '+self.proc_logfile_entry.get())
             
                     
         try:
@@ -2433,15 +2550,17 @@ class Controller():
                 plot_config.write(self.plot_local_remote+'\n')
                 plot_config.write(self.plot_input_file+'\n')
                 plot_config.write(self.plot_title+'\n')
-                plot_config.write(self.plot_logfile_entry.get())
+                plot_config.write(self.proc_logfile_entry.get())
 
             self.plot_top.destroy()
             
             if self.no_wr.get()==1:
                 print('plot right here!')
-                self.plotter.plot_spectra(title,filename,caption,labels,exclude_wr=True)
+                print('yay plotting')
+                self.plotter.plot_spectra(title,filename,caption,exclude_wr=True)
             else:
-                self.plotter.plot_spectra(title,filename,caption,labels,exclude_wr=False)
+                print('yay plotting')
+                self.plotter.plot_spectra(title,filename,caption,exclude_wr=False)
             self.test_view.flip()
     
             last=len(self.view_notebook.tabs())-1
@@ -2633,8 +2752,6 @@ class Controller():
         self.taken_sample_positions=[]
         for var in self.sample_pos_vars:
             self.taken_sample_positions.append(var.get())
-        print('here are taken positions:')
-        print(self.taken_sample_positions)
         
         
 
@@ -2692,6 +2809,7 @@ class Controller():
         self.add_i_e_pair_button.pack(pady=(10,10))
         
     def configure_pi(self):
+        print('self.i:'+str(self.i))
         self.pi_commander.configure(str(self.i),str(self.e))
         timeout_s=PI_BUFFER
         while timeout_s>0:
@@ -3040,7 +3158,8 @@ class Controller():
 
         self.console_log.insert(END,info_string+'\n')
         self.console_log.see(END)
-        if write_to_file:
+        #if write_to_file:
+        if False: #Used to write to a local log file, but now we only write to a log file in the raw spectral data directory.
             info_string=str(info_string_copy)
             space=str(80)
             if '\n' in info_string:
@@ -3053,6 +3172,7 @@ class Controller():
                 
             if info_string[-2:-1]!='\n':
                 info_string+='\n'
+
             with open(self.log_filename,'a') as log:
                 log.write(info_string)
                 log.write('\n')
@@ -3597,6 +3717,7 @@ class CommandHandler():
             if self.controller.take_spectrum in self.controller.queue[0]:
                 garbage=self.controller.queue[0][self.controller.take_spectrum][2]
                 self.controller.queue[0]={self.controller.take_spectrum:[True,True,garbage]}
+                
             elif self.controller.wr in self.controller.queue[0]:
                 self.controller.queue[0]={self.controller.wr:[True,True]}
             self.controller.next_in_queue()
@@ -3605,17 +3726,6 @@ class CommandHandler():
             #self.wait_dialog.set_buttons({'ok':{}})
             
     def success(self,close=True):
-        #print()
-        # print('here is the new queue:')
-        # print()
-        # for item in self.controller.queue:
-        #     print(item)
-        
-        # print()
-        # print('here is the new queue:')
-        # print()
-        # for item in self.controller.queue:
-        #     print(item)
         
         self.controller.complete_queue_item()
         if self.cancel:
@@ -3744,16 +3854,22 @@ class WhiteReferenceHandler(CommandHandler):
                 return
             elif 'noconfig' in self.listener.queue:
                 self.listener.queue.remove('noconfig')
+                #If the next thing we're going to do is take a spectrum then set override to True - we will already have checked in with the user about those things when we first decided to take a spectrum.
+                if self.controller.wr in self.controller.queue[0]:
+                    print('setting override to true')
+                    self.controller.queue[0][self.controller.wr][0]=True
+                else:
+                    for item in self.controller.queue:
+                        print(item)
                 self.controller.queue.insert(0,{self.controller.set_save_config:[]})
                 self.controller.set_save_config()
                 return
             elif 'wrfailed' in self.listener.queue:
                 self.listener.queue.remove('wrfailed')
-                time.sleep(1)
                 if self.first_try==True:
                     self.controller.log('Error: Failed to take white reference. Retrying.')
                     self.first_try=False
-                    self.controller.next_in_queue:[]
+                    self.controller.next_in_queue()
                 else:
                     self.interrupt('Error: Failed to take white reference.',retry=True)
                     self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)  
@@ -3781,6 +3897,10 @@ class WhiteReferenceHandler(CommandHandler):
                 return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
+        #Before timing out, set override to True so that if the user decides to retry they aren't reminded about optimizing, etc again.
+        if self.controller.wr in self.controller.queue[0]:
+            print('setting override to true')
+            self.controller.queue[0][self.controller.wr][0]=True
         self.timeout()
                 
     def success(self):
@@ -3855,8 +3975,10 @@ class ProcessHandler(CommandHandler):
                         self.controller.complete_queue_item()
                         self.controller.next_in_queue()
                         self.success()
-                    except:
+                    except Exception as e:
+                        print(e)
                         self.interrupt('Error: Could not transfer data to local folder.')
+                        os.remove(self.controller.spec_temp_loc+'proc_temp.tsv')
                 else: #if the final destination was remote then we're already done.
                     self.success()
                 return
@@ -3898,6 +4020,7 @@ class ProcessHandler(CommandHandler):
         #     self.controller.next_in_queue()
         while len(self.controller.queue)>0:
             self.controller.complete_queue_item()
+        self.controller.process_top.destroy()
         
     
         
@@ -3988,6 +4111,7 @@ class MotionHandler(CommandHandler):
 
         else:
             self.controller.log('Something moved! Who knows what?')
+        #self.controller.unfreeze()
         super(MotionHandler,self).success()
         
         
@@ -4075,23 +4199,31 @@ class SaveConfigHandler(CommandHandler):
         
         self.allow_exit=True
         self.controller.log('Save configuration set.\n\tDirectory: '+self.controller.spec_save_dir_entry.get()+'\n\tBasename: '+self.controller.spec_basename_entry.get()+'\n\tStart number: '+self.controller.spec_startnum_entry.get(),write_to_file=True)
-        print('write to file')
         
         if self.keep_around:
             dialog=WaitDialog(self.controller, title='Warning: Untracked Files',buttons={'ok':[]})
             dialog.top.geometry('400x300')
-            dialog.interrupt('Save configuration was set successfully,\nbut there are untracked files in the\ndata directory. Do these belong here?')
+            dialog.interrupt('There are untracked files in the\ndata directory. Do these belong here?\n\nIf the directory already contains an AutoSpec\nlog file, metadata will be appended to that file.')
             
-            self.controller.log('Untracked files in data directory:\n'+'\n\t'.join(self.unexpected_files))
+
+            
+            self.controller.log('Untracked files in data directory:\n\t'+'\n\t'.join(self.unexpected_files))
             
             listbox=ScrollableListbox(dialog.top,self.wait_dialog.bg,self.wait_dialog.entry_background, self.wait_dialog.listboxhighlightcolor,)
             for file in self.unexpected_files:
                 listbox.insert(END,file)
                 
             listbox.config(height=1)
+            
+            # self.use_existing_logfile=IntVar()
+            # self.use_existing_logfile_check=Checkbutton(dialog.top, fg=self.controller.textcolor,text=' Append to existing log file', bg=self.controller.bg, pady=self.controller.pady,highlightthickness=0, variable=self.use_existing_logfile, selectcolor=self.controller.check_bg)
+            # self.use_existing_logfile_check.pack(pady=(0,5))
+            # self.use_existing_logfile_check.select()
 
         super(SaveConfigHandler, self).success()
-        
+        #self.dialog.set_buttons({'ok':{self.test:[]}})
+    def test(self):
+        print('HOORAY!')
 
                 
             
@@ -4101,16 +4233,11 @@ class SpectrumHandler(CommandHandler):
         timeout=int(controller.spec_config_count)/9+BUFFER
         self.listener=controller.spec_listener
         super().__init__(controller, title, label, timeout=timeout)
-        # try:
-        #     self.timeout_s=self.controller.temp_timeout
-        # except:
-        #     self.controller.temp_timeout=50
-        #     self.timeout_s=0
+
         
 
         
     def wait(self):
-        #old_files=list(self.controller.listener.saved_files)
         while self.timeout_s>0:
                 
 
@@ -4122,6 +4249,13 @@ class SpectrumHandler(CommandHandler):
 
             elif 'noconfig' in self.listener.queue:
                 self.listener.queue.remove('noconfig')
+                #If the next thing we're going to do is take a spectrum then set override to True - we will already have checked in with the user about those things when we first decided to take a spectrum.
+                if self.controller.take_spectrum in self.controller.queue[0]:
+                    print('setting override to true')
+                    self.controller.queue[0][self.controller.take_spectrum][0]=True
+                else:
+                    for item in self.controller.queue:
+                        print(item)
                 self.controller.queue.insert(0,{self.controller.set_save_config:[]})
                 self.controller.set_save_config()#self.controller.take_spectrum, [True])
                 return
@@ -4390,6 +4524,7 @@ class RemoteFileExplorer(Dialog):
             dialog=ErrorDialog(self.controller,label='Error: Permission denied for\n'+newparent)
             return
         elif status=='timeout':
+            print('right here!')
             dialog=ErrorDialog(self.controller, label='Error: Operation timed out.\nCheck that the automation script is running on the spectrometer computer.')
             self.cancel()
             
@@ -4421,10 +4556,13 @@ class RemoteFileExplorer(Dialog):
 
         if self.directories_only:
             if len(index)>0 and self.path_entry.get()==self.current_parent:
-    
+                self.controller.unfreeze()
+                self.target.delete(0,'end')
                 self.target.insert(0,self.current_parent+'\\'+self.listbox.get(index[0]))
                 self.close()
             elif self.path_entry.get()==self.current_parent:
+                self.controller.unfreeze()
+                self.target.delete(0,'end')
                 self.target.insert(0,self.current_parent)
                 self.close()
             else:
@@ -4439,11 +4577,14 @@ class RemoteFileExplorer(Dialog):
                     }
                 }
                 self.expand(newparent=self.path_entry.get(), buttons=buttons, destroy=True)
-                print(self.current_parent)
+                self.controller.unfreeze()
+                self.target.delete(0,'end')
                 self.target.insert(0,self.current_parent)
+
         else:
             if len(self.listbox.curselection())>0 and self.path_entry.get()==self.current_parent and  self.listbox.itemcget(index[0], 'foreground')=='darkblue':
-    
+                self.controller.unfreeze()
+                self.target.delete(0,'end')
                 self.target.insert(0,self.current_parent+'\\'+self.listbox.get(index[0]))
                 self.close()
     
@@ -4467,12 +4608,10 @@ class RemoteDirectoryWorker():
                 contents=[]
                 with open(self.read_command_loc+cmdfilename,'r') as f:
                     next=f.readline().strip('\n')
-                    print(next)
                     while next!='':
                         contents.append(next)
                         next=f.readline().strip('\n')
                 self.listener.queue.remove(cmdfilename)
-                print('done!')
                 return contents
                 
             elif 'listdirfailed' in self.listener.queue:
@@ -4489,8 +4628,6 @@ class RemoteDirectoryWorker():
             
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL 
-        print('rats timed out')
-        print('returning timeout')
         return 'timeout'
         
         
@@ -5005,19 +5142,18 @@ class PiCommander(Commander):
         filename=self.encrypt('movetray',[positions[pos]])
         self.send(filename)
         
-    # def get_current_geom(self):
-    #     self.remove_from_listener_queue
-    #     filename=self.encrypt('getcurrentgeom',[])
-    #     self.send(filename)
     
 
 class SpecCommander(Commander):
     def __init__(self,write_command_loc,listener):
         super().__init__(write_command_loc,listener)
     
-    def take_spectrum(self, path, basename, num):
+    def take_spectrum(self, path, basename, num, label, i, e):
         self.remove_from_listener_queue(['nonumspectra','noconfig','savedfile','failedtosavefile','savespecfailedfileexists'])
-        filename=self.encrypt('spectrum',[path,basename,num])
+
+        if i==None:i=''
+        if e==None:e=''
+        filename=self.encrypt('spectrum',[path,basename,num, label, i, e])
         self.send(filename)
         return filename
         
@@ -5053,10 +5189,8 @@ class SpecCommander(Commander):
         return filename
 
     def list_contents(self,parent):
-        print('removing from queue')
         self.remove_from_listener_queue(['listdirfailedpermission','listfilesfailed','listdirfailed'])
         filename=self.encrypt('listcontents',parameters=[parent])
-        print('sending')
         self.send(filename)
         return filename
         
@@ -5090,11 +5224,24 @@ class SpecCommander(Commander):
     #     self.send(filename)
     #     return filename
         
-    def process(self,input_dir, output_dir, output_file):
-        self.remove_from_listener_queue(['processsuccess','processerrorfileexists','processerrorwropt','processerror'])
-        filename=self.encrypt('process',[input_dir,output_dir,output_file])
+    def process(self,input_dir, output_dir, output_file, log_file):
+        self.remove_from_listener_queue(['processsuccess','processerrorfileexists','processerrorwropt','processerror','processsuccess1unknownsample','processsuccessunknownsamples'])
+        filename=self.encrypt('process',[input_dir,output_dir,output_file,'None'])
         self.send(filename)
         return filename
+        
+    # def log_spectrum(self, numspectra, i, e, filename, label):
+    #     self.remove_from_listener_queue(['logsuccess','logfailure'])
+    #     filename=self.encrypt('logspec',[numspectra, i, e, filename, label])
+    #     self.send(filename)
+    #     return filename
+    # 
+    # def log_opt(self, numspectra):
+    #     self.remove_from_listener_queue(['logsuccess','logfailure'])
+    #     filename=self.encrypt('logopt',[numspectra])
+    #     self.send(filename)
+    #     return filename
+
 
         
 class ConnectionChecker():
@@ -5149,7 +5296,6 @@ class ConnectionChecker():
     
     def check_connection(self,firstconnection, attempt=0):
         if self.get_offline():
-            print('offline hooray!')
             self.func()
             return True
         if self.busy:

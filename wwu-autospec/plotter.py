@@ -30,96 +30,7 @@ class Plotter():
         self.tabs=[]
         
         self.samples={}
-        
     
-        # canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
-        # vbar=Scrollbar(top,orient=VERTICAL)
-        # vbar.pack(side=RIGHT,fill=Y)
-        # vbar.config(command=canvas.get_tk_widget().yview)
-        # canvas.get_tk_widget().config(width=300,height=300)
-        # canvas.get_tk_widget().config(yscrollcommand=vbar.set)
-        # canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
-        # 
-        # #canvas.get_tk_widget().pack()
-        # canvas.draw()
-    #Takes a title and a list of associated samples. This may be 1, some, or all of the samples associated with a given .tsv
-    # def add_tab(self,title, samples):
-    #    # if sample!=None:
-
-   #       #top = tk.Toplevel(self.root)
-    #     #top.wm_title(title)
-    #     # close_img=tk.PhotoImage("img_close", data='''
-    #     #         R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
-    #     #         d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
-    #     #         5kEJADs=
-    #     #         ''')
-    #     top=Frame(self.notebook)
-    #     top.pack()
-    #     #self.notebook.add(top,text=title,image=close_img,compound=tk.RIGHT)
-    #     # if title in self.title_bases:
-    #     #     base=self.title_bases[title]
-    #     # else:
-    #     #     base=title
-    #     # sample_string=' '.join(samples)
-    #         
-    #     #self.notebook.add(top,text=base+' '+sample_string+' x')
-    #     #self.update_tab_names()
-    #     width=self.notebook.winfo_width()
-    #     height=self.notebook.winfo_height()
-    #     
-    #     
-    #     fig = mpl.figure.Figure(figsize=(width/self.dpi, height/self.dpi), dpi=self.dpi)
-    #     self.figs[title][samples]=fig
-    #     plot = fig.add_subplot(111)
-    #     canvas = FigureCanvasTkAgg(fig, master=top)
-    #     canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
-    #     vbar=Scrollbar(top,orient=VERTICAL)
-    #     vbar.pack(side=RIGHT,fill=Y)
-    #     vbar.config(command=canvas.get_tk_widget().yview)
-    #     canvas.get_tk_widget().config(width=300,height=300)
-    #     canvas.get_tk_widget().config(yscrollcommand=vbar.set)
-    #     canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
-    #     
-    #     #canvas.get_tk_widget().pack()
-    #     canvas.draw()
-    #     self.plots[title][samples]=plot
-    #     self.canvases[title][samples]=canvas
-    #     
-    #     def on_closing():
-    #         # for i in self.plots:
-    #         #     del self.plots[i]
-    #         # #del self.plots[i]
-    #         top.destroy()
-        #top.protocol("WM_DELETE_WINDOW", on_closing)
-        
-    # def plot_spectrum(self,i,e, data):
-
-    #       #If we've never plotted spectra at this incidence angle, make a whole new plot.
-    #     if i not in self.plots:
-    #         self.embed_plot('Incidence='+str(i))
-    #     #Next, plot data onto the appropriate plot.
-    #     self.plots[i].plot(data[0],data[1])
-    #     self.canvases[i].draw()
-        
-    # def load_data(self, file):
-    #     print('loading data')
-    #     data = np.genfromtxt(file, skip_header=1, dtype=float,delimiter='\t')
-    #     wavelengths=[]
-    #     #reflectance=[[],[]]
-    #     reflectance=[]
-    #     for i, d in enumerate(data):
-    #         if i==0: wavelengths=np.array(d) #the first column in my .tsv (now first row) was wavelength in nm
-    #         else: #the other columns are all reflectance values
-    #             d=np.array(d)
-    #             reflectance.append(d)
-    #             #d2=d/np.max(d) #d2 is normalized reflectance
-    #             #reflectance[0].append(d)
-    #             #reflectance[1].append(d2)
-    #     print('returning data')
-    #     print(wavelengths)
-    #     print(reflectance)
-    #     return wavelengths, reflectance
-    #     
     def update_tab_names(self):
         pass
         # try:
@@ -133,7 +44,7 @@ class Plotter():
         print(event)
         print(event.x)
 
-    def plot_spectra(self, title, file, caption, loglabels,exclude_wr=True):
+    def plot_spectra(self, title, file, caption, exclude_wr=True):
         if title=='':
             title='Plot '+str(self.num+1)
             self.num+=1
@@ -152,22 +63,16 @@ class Plotter():
             raise(Exception('Error loading data!'))
             return
             
+        for i, label in enumerate(labels):
+            print(label)
+            print(reflectance[i])
+        print()
+        print()
+            
 
         for i, spectrum_label in enumerate(labels):
-
-            if i==0:
-                continue
             
-            if spectrum_label in loglabels:
-                if loglabels[spectrum_label]!='':
-                    spectrum_label=loglabels[label]
-            #Sometimes the label in the file will have sco attached. Take off the sco and see if that is in the labels in the file.
-            spectrum_label_minus_sco=spectrum_label[0:-3]
-            if spectrum_label_minus_sco in loglabels:
-                if loglabels[spectrum_label_minus_sco]!='':
-                    spectrum_label=loglabels[spectrum_label_minus_sco]
-
-            sample_label=spectrum_label.split(' (i=')[0]
+            sample_label=spectrum_label.split('(i')[0]
             
             #If we don't have any data from this file yet, add it to the samples dictionary, and place the first sample inside.
             if file not in self.samples:
@@ -184,7 +89,7 @@ class Plotter():
                     self.samples[file][sample_label]=Sample(sample_label, file,title)
                     
             self.samples[file][sample_label].add_spectrum(spectrum_label)
-            self.samples[file][sample_label].data[spectrum_label]['reflectance']=reflectance[i-1]
+            self.samples[file][sample_label].data[spectrum_label]['reflectance']=reflectance[i]
             self.samples[file][sample_label].data[spectrum_label]['wavelengths']=wavelengths
 
 
@@ -199,9 +104,11 @@ class Plotter():
         
     def load_data(self, file):
 
-        data = np.genfromtxt(file, names=True, dtype=float,delimiter='\t')
+        data = np.genfromtxt(file, names=True, dtype=None,delimiter='\t',deletechars='')
 
-        labels=list(data.dtype.names)
+        labels=list(data.dtype.names)[1:] #the first label is wavelengths
+        for i in range(len(labels)):
+            labels[i]=labels[i].replace('_(i=',' (i=').replace('_e=',' e=')
         data=zip(*data)
         wavelengths=[]
         reflectance=[]
@@ -213,6 +120,7 @@ class Plotter():
                 #d2=d/np.max(d) #d2 is normalized reflectance
                 #reflectance[0].append(d)
                 #reflectance[1].append(d2)
+
         return wavelengths, reflectance, labels
         
 class Sample():

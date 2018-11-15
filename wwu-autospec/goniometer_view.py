@@ -52,7 +52,6 @@ class TestView():
         
     def tab_switch(self,event):
         
-        print(self.double_embed.winfo_id())
         self.master.update()
         os.environ['SDL_WINDOWID'] = str(self.double_embed.winfo_id())
         if self.controller.opsys=='Windows':
