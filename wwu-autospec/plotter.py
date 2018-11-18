@@ -11,33 +11,22 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class Plotter():
-    def __init__(self, notebook,dpi, style):
-
-        self.plots={}
-        self.figs={}
-        self.canvases={}
-        self.data={}
-        self.sample_labels={}
+    def __init__(self, controller,dpi, style):
+        
         self.num=0
-        self.notebook=notebook
+        self.controller=controller
+        self.notebook=self.controller.view_notebook
         self.dpi=dpi
         self.titles=[]
         self.style=style
         plt.style.use(style)
-        self.title_bases={}
         
-        self.tsv_titles=[]
         self.tabs=[]
-        
         self.samples={}
+        self.sample_objects=[]
     
     def update_tab_names(self):
         pass
-        # try:
-        #     print(self.notebook.tab(0))
-        #     print(dir(type(self.notebook.tab(0))))
-        # except:
-        #     print(self.notebook.tab(0).width)
         
     def open_right_click_menu(self,event):
         print('hooray!')
@@ -55,6 +44,7 @@ class Plotter():
                 j+=1
                 new=title+' ('+str(j)+')'
             title=new
+        self.titles.append(title)
                 
 
         try:
@@ -62,12 +52,6 @@ class Plotter():
         except:
             raise(Exception('Error loading data!'))
             return
-            
-        for i, label in enumerate(labels):
-            print(label)
-            print(reflectance[i])
-        print()
-        print()
             
 
         for i, spectrum_label in enumerate(labels):
@@ -77,7 +61,9 @@ class Plotter():
             #If we don't have any data from this file yet, add it to the samples dictionary, and place the first sample inside.
             if file not in self.samples:
                 self.samples[file]={}
-                self.samples[file][sample_label]=Sample(sample_label, file,title)
+                new=Sample(sample_label, file,title)
+                self.samples[file][sample_label]=new
+                self.sample_objects.append(new)
             #If there is already data associated with this file, check if we've already got the sample in question there. If it doesn't exist, make it. If it does, just add this spectrum and label into its data dictionary.
             else:
                 sample_exists=False 
@@ -86,20 +72,34 @@ class Plotter():
                         sample_exists=True
 
                 if sample_exists==False:
-                    self.samples[file][sample_label]=Sample(sample_label, file,title)
-                    
-            self.samples[file][sample_label].add_spectrum(spectrum_label)
-            self.samples[file][sample_label].data[spectrum_label]['reflectance']=reflectance[i]
-            self.samples[file][sample_label].data[spectrum_label]['wavelengths']=wavelengths
-
+                    new=Sample(sample_label, file,title)
+                    self.samples[file][sample_label]=new
+                    self.sample_objects.append(new)
+            if spectrum_label not in self.samples[file][sample_label].spectrum_labels: #This should do better and actually check that all the data is an exact duplicate, but that seems hard. Just don't label things exactly the same and save them in the same file with the same viewing geometry.
+                self.samples[file][sample_label].add_spectrum(spectrum_label)
+                self.samples[file][sample_label].data[spectrum_label]['reflectance']=reflectance[i]
+                self.samples[file][sample_label].data[spectrum_label]['wavelengths']=wavelengths
+            # else:
+            #     existing_r= self.samples[file][sample_label].data[spectrum_label]['reflectance']
+            #     existing_w=self.samples[file][sample_label].data[spectrum_label['wavelengths']
+            #     if reflectance[i]!=existing_r or wavelengths!=existing_w: #If we have the sample sample and same geometry but different data, add it as a second spectrum.
+            #         i=1
+            #         new_label=spectrum_label+'('+i+')'
+            #         while new_label in self.samples[file][sample_label].spectrum_labels:
+            #             i=i+1
+            #             new_label=spectrum_label+'('+i+')'
+            #         self.samples[file][sample_label].add_spectrum(spectrum_label)
+            #         self.samples[file][sample_label].data[spectrum_label]['reflectance']=reflectance[i]
+            #         self.samples[file][sample_label].data[spectrum_label]['wavelengths']=wavelengths
+                        
 
         for sample in self.samples[file]:
             tab=Tab(self, title,[self.samples[file][sample]])
 
-    def savefig(self,title, sample=None):
-        self.draw_plot(title, 'v2.0')
-        self.plots[title].savefig(title)
-        self.draw_plot(self.style)
+    # def savefig(self,title, sample=None):
+    #     self.draw_plot(title, 'v2.0')
+    #     self.plots[title].savefig(title)
+    #     self.draw_plot(self.style)
         
         
     def load_data(self, file):
@@ -157,7 +157,7 @@ class Tab():
         self.top=Frame(self.plotter.notebook)
         self.top.pack()
             
-        self.plotter.notebook.add(self.top,text=self.title+' x')
+        self.plotter.notebook.add(self.top,text=self.title+' X')
         
         width=self.plotter.notebook.winfo_width()
         height=self.plotter.notebook.winfo_height()
@@ -170,6 +170,7 @@ class Tab():
         
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.top)
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
+        self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
         self.vbar=Scrollbar(self.top,orient=VERTICAL)
         self.vbar.pack(side=RIGHT,fill=Y)
         self.vbar.config(command=self.canvas.get_tk_widget().yview)
@@ -182,14 +183,66 @@ class Tab():
         self.plot=Plot(self.plotter, self.mpl_plot, self.samples,self.title)
         self.canvas.draw()
         
-        # self.plots[title][samples]=plot
-        # self.canvases[title][samples]=canvas
-        # 
+        self.popup_menu = Menu(self.top, tearoff=0)
+        self.popup_menu.add_command(label="Close tab",
+                                    command=self.close)
+        self.popup_menu.add_command(label="Add/remove samples",
+                                    command=self.ask_which_samples)
+
+    def close_right_click_menu(self, event):
+        self.popup_menu.unpost()
+    def close(self):
+        print('close!')
+    
+    #We want to pass a list of existing samples and a list of possible samples.
+    def ask_which_samples(self):
+
+        
+        #Sample options will be the list of strings to put in the listbox. It may include the sample title, depending on whether there is more than one title.
+        self.sample_options_dict={}
+        self.sample_options_list=[]
+        existing_indices=[]
+        
+        #Each file got a title assigned to it when loaded, so each group of samples from a file will have a title associated with them. 
+        #If there are multiple possible titles, list that in the listbox along with the sample name.
+        if len(self.plotter.titles)>1:
+            for i, sample in enumerate(self.plotter.sample_objects):
+                for plotted_sample in self.samples:
+                    if sample==plotted_sample:
+                        existing_indices.append(i)
+                self.sample_options_dict[sample.title+': '+sample.name]=sample
+                self.sample_options_list.append(sample.title+': '+sample.name)
+        #Otherwise, the user knows what the title is (there is only one)
+        else:
+            for i, sample in enumerate(self.plotter.sample_objects):
+                for plotted_sample in self.samples:
+                    if sample==plotted_sample:
+                        existing_indices.append(i)
+                self.sample_options_dict[sample.name]=sample
+                self.sample_options_list.append(sample.name)
+        
+        #We tell the controller which samples are already plotted so it can initiate the listbox with those samples highlighted.
+        self.plotter.controller.ask_plot_samples(self,existing_indices, self.sample_options_list)#existing_samples, new_samples)
+    
+    def set_samples(self, listbox_labels):
+        #we made a dict mapping sample labels for a listbox to available samples to plot. This was passed back when the user clicked ok. Reset this tab's samples to be those ones, then replot.
+        self.samples=[]
+        for label in listbox_labels:
+            self.samples.append(self.sample_options_dict[label])
+        self.plotter.notebook.forget(self.plotter.notebook.select())
+        self.__init__(self.plotter,self.title,self.samples)
+
+    def open_right_click_menu(self, event):
+        self.popup_menu.post(event.x_root+10, event.y_root+1)
+        self.popup_menu.grab_release()
+    
+    def close(self):
+        self.top
         
     
         
 class Plot():
-    def __init__(self, plotter, mpl_plot, samples,title): #samples is a dictionary like this: {title_associated_with_a_file:[first_sample_to_plot_from_that_file,second_sample_to_plot_from_that_file],title_associated_with_a_different_file:[sample_to_plot_from_that_file]}
+    def __init__(self, plotter, mpl_plot, samples,title):
         
         self.plotter=plotter
         self.samples=samples
@@ -210,7 +263,8 @@ class Plot():
                 self.files.append(sample.file)
                 self.title=self.title+sample.file+' '+sample.name #The tab title will be a the title of each tsv followed by the associated samples being plotted.
             else:
-                self.title=self.title.split(sample.file)[0] +sample.name+self.title.split(sample.file)[1]
+                self.title='test'
+                #self.title=self.title.split(sample.file)[0] +sample.name+self.title.split(sample.file)[1]
                 #self.title=self.title+','+sample.name
                 
         self.title=title
@@ -244,6 +298,7 @@ class Plot():
             # for i in self.plots:
             #     del self.plots[i]
             # #del self.plots[i]
+            print('close plot!')
             top.destroy()
     
     def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
@@ -252,11 +307,13 @@ class Plot():
         for sample in self.samples:
             for label in sample.spectrum_labels:
 
-                if 'White reference' in sample.name and exclude_wr and sample==None:
-                    continue
+                # if 'White reference' in sample.name and exclude_wr and sample==None:
+                #     continue
                 legend_label=label
-                if True:#len(self.files)>1:
-                    legend_label=sample.title+': '+label
+                if len(self.samples)==1:
+                    legend_label=legend_label.replace(sample.name,'').strip(')').strip('(')
+                if len(self.files)>1:
+                    legend_label=sample.title+': '+legend_label
 
                 color=sample.next_color()
                 self.plot.plot(sample.data[label]['wavelengths'], sample.data[label]['reflectance'], label=legend_label,color=color,linewidth=2)

@@ -1,4 +1,9 @@
-import pygame
+
+#I don't want pygame to print a welcome message when it loads.
+import contextlib
+with contextlib.redirect_stdout(None):
+    import pygame
+
 import threading
 from threading import Lock
 import time
