@@ -4,7 +4,6 @@
 dev=True
 test=True
 online=False
-computer='new'
 
 import os
 import sys
@@ -45,8 +44,8 @@ from tkinter.filedialog import *
 import http.client as httplib
 import shutil
 
-#Which computer are you using? This should probably be new. I don't know why you would use the old one.
-computer='new'
+#Which computer are you using? This should probably be desktop, but could be 'new' for the new lappy or 'old' for the ancient laptop.
+computer='desktop'
 
 #Figure out where this file is hanging out and tell python to look there for custom modules. This will depend on what operating system you are using.
 
@@ -73,7 +72,7 @@ if opsys=='Windows':
     except:
         print('Developer mode!')
         dev=True
-        package_loc='C:\\Users\\hozak\\Python\\autospectroscopy\\'
+        package_loc='C:\\Users\\hozak\\Python\\wwu-autospec\\wwu-autospec\\'
 
 elif opsys=='Linux':
     #If I am running this script from my IDE, __file__ is not defined. In that case, I'll get an exception, and I'll go with my own hard-coded file location instead.
@@ -96,7 +95,7 @@ elif opsys=='Mac':
         print('Developer mode!')
         dev=True
         package_loc='/home/khoza/Python/WWU-AutoSpec/wwu-autospec/'
-    
+
 sys.path.append(package_loc)
 
 #import goniometer_model
@@ -135,6 +134,14 @@ elif computer=='new':
     BUFFER=15
     PI_BUFFER=5
     server='geol-chzc5q2' #new computer
+    
+elif computer=='desktop':
+    #Number of digits in spectrum number for spec save config
+    NUMLEN=5
+    #Time added to timeouts to account for time to read/write files
+    BUFFER=15
+    PI_BUFFER=5
+    server='marsinsight' #new computer
 
 pi_server='hozapi'
 spec_share='specshare'
@@ -159,14 +166,15 @@ if opsys=='Linux':
     log_loc=package_loc+'log/'
 elif opsys=='Windows':
     spec_share_loc='\\\\'+server.upper()+'\\'+spec_share+'\\'
-    pi_share_loc='\\\\'+server.upper()+'\\'+pi_share+'\\'
+    pi_share_loc='\\\\'+pi_server.upper()+'\\'+pi_share.upper()+'\\'
+
     data_share_loc='\\\\'+server.upper()+'\\'+data_share+'\\'
     spec_write_loc=spec_share_loc+'commands\\from_control\\'
     spec_temp_loc=spec_share_loc+'temp\\'
     
     pi_write_loc=pi_share_loc+'commands\\from_control\\'
     spec_read_loc=spec_share_loc+'commands\\from_spec\\'
-    pi_read_loc=pi_share_loc+'commands\\from_spec\\'
+    pi_read_loc=pi_share_loc+'commands\\from_pi\\'
     config_loc=package_loc+'config\\'
     log_loc=package_loc+'log\\'
     
@@ -480,7 +488,7 @@ class Controller():
                 f.write('C:\\Users\n')
                 f.write('C:\\Users\n')
                 
-            self.plot_local_check.select()
+            #self.plot_local_check.select()
             self.plot_local_remote='remote'
             self.plot_title=''
             self.plot_input_file='C:\\Users'
@@ -666,7 +674,7 @@ class Controller():
         self.viewing_geom_frame.pack(fill=BOTH,expand=True)     
 
         self.viewing_geom_options_label=Label(self.viewing_geom_frame,text='Viewing geometry:', fg=self.textcolor, bg=self.bg)
-        self.viewing_geom_options_label.pack(pady=(15,10))
+        self.viewing_geom_options_label.pack(pady=(5,0))
         
         self.individual_angles_frame=Frame(self.viewing_geom_frame, bg=self.bg,highlightbackground=self.border_color)
         self.individual_angles_frame.pack()
@@ -858,6 +866,8 @@ class Controller():
         else:
             self.proc_local.set(1)
             self.proc_remote.set(0)
+            
+        self.set_manual_automatic(force=1)
 
 
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -1211,6 +1221,8 @@ class Controller():
             self.proc_remote_check.select()
         else:
             self.proc_remote_check.deselect()
+            self.proc_local_remote='local'
+            self.output_dir_entry.delete(0,'end')
             
     def remote_process_cmd(self):
         if self.proc_local.get() and not self.proc_remote.get():
@@ -1219,8 +1231,11 @@ class Controller():
             return
         elif not self.proc_local.get():
             self.proc_local_check.select()
+
         else:
             self.proc_local_check.deselect()
+            self.proc_local_remote='remote'
+            self.output_dir_entry.delete(0,'end')
 
         
     def local_plot_cmd(self):
@@ -1288,8 +1303,7 @@ class Controller():
                 dir='/'.join(script_file.split('/')[0:-1])
             else:
                 dir='\\'.join(script_file.split('\\')[0:-1])
-                print('dir')
-            print(dir)
+
             self.script_loc=dir
             script_config.write(dir)
             
@@ -1593,13 +1607,16 @@ class Controller():
             dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return 
             
-        if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
-            self.queue.insert(0, {self.opt:[]})
-            self.configure_instrument()
-            return
+        # if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
+        #     self.queue.insert(0,{self.configure_instrument:[]})
+        #     self.configure_instrument()
+        #     return
             
-        self.spec_commander.optimize()
-        handler=OptHandler(self)
+        ready=self.setup({self.opt:[]}) #Since we want to make sure optimization times are logged in the current folder, we do all the setup checks before optimizing even though no data gets saved.
+        
+        if ready:
+            self.spec_commander.optimize()
+            handler=OptHandler(self)
 
     def test(self,arg=False):
         print(arg)
@@ -1644,6 +1661,9 @@ class Controller():
                 if not valid_i or not valid_e:
                     dialog=ErrorDialog(self,label='Error: Invalid viewing geometry:\n\nincidence = '+str(i)+'\nemission = '+str(e),width=300, height=130)
                     return False
+                elif int(i)>int(e)-15:
+                    dialog=ErrorDialog(self,label='Error: Due to geometric constraints on the goniometer,\nincidence must be at least 15 degrees less than emission.',width=300, height=130)
+                    return False
         return True
         
             
@@ -1659,6 +1679,7 @@ class Controller():
                 self.set_geom()
             except:
                 return
+                
     #Check that all input is valid, the save configuration is set, and the instrument is configured.
     #This gets called once when the user clicks something, but not for subsequent actions.
     def setup(self, nextaction):
@@ -1673,7 +1694,7 @@ class Controller():
         #Requested save config is guaranteed to be valid because of input checks above.
         save_config_status=self.check_save_config()
         if self.check_save_config()=='not_set':
-            print('going to set save config')
+            print('SAVECONFIG')
             print(nextaction)
             self.complete_queue_item()
             self.queue.insert(0,nextaction)
@@ -1684,6 +1705,7 @@ class Controller():
         #Requested instrument config is guaranteed to be valid because of input checks above.
         new_spec_config_count=int(self.instrument_config_entry.get())
         if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
+            print('SPEC_CONFIG')
             self.complete_queue_item()
             self.queue.insert(0,nextaction)
             self.queue.insert(0,{self.configure_instrument:[]})
@@ -1721,6 +1743,7 @@ class Controller():
                 
         if not override:
             ok=self.check_mandatory_input()
+            print('hooray checking!')
             if not ok:
                 return
             
@@ -1758,7 +1781,13 @@ class Controller():
             
             
             if not garbage:
-                self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str, self.sample_label_entries[self.current_sample_gui_index].get(),self.i, self.e)
+                label=''
+                if self.white_referencing:
+                    label='White Reference'
+                else:
+                    label=self.sample_label_entries[self.current_sample_gui_index].get()
+                    
+                self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str,label ,self.i, self.e)
                 handler=SpectrumHandler(self)
                 
             else:
@@ -1780,17 +1809,24 @@ class Controller():
         self.i=int(self.active_incidence_entries[0].get())
         self.e=int(self.active_emission_entries[0].get())
         
-    def set_light_geom(self):
+    def set_light_geom(self, i=None, type='angle'):
         self.angles_change_time=time.time()
-        self.i=int(self.active_incidence_entries[0].get())
+        if i==None:
+            self.i=int(self.active_incidence_entries[0].get())
+        else:
+            #If we are using set_incidence(steps=...) from the commandline, don't change i.
+            if type=='angle':
+                self.i=i
+            else:
+                pass
 
-    def set_detector_geom(self,e=None, type='emission'):
+    def set_detector_geom(self,e=None, type='angle'):
         self.angles_change_time=time.time()
         if e==None:
             self.e=int(self.active_emission_entries[0].get())
         else:
             #If we are using set_emission(steps=...) from the commandline, don't change e.
-            if type=='emission':
+            if type=='angle':
                 self.e=e
             else:
                 pass
@@ -1818,7 +1854,8 @@ class Controller():
 
         self.complete_queue_item()
         #Update goniometer position. Don't run the arms into each other.
-        if next_e>self.e:
+        if int(next_e)<int(self.e):
+            print('small emission, move light first!')
             self.queue.insert(0,{self.move_light:[]})
             self.queue.insert(0,{self.move_detector:[]})
 
@@ -1828,30 +1865,39 @@ class Controller():
 
         self.next_in_queue()
                    
-        
-    def move_light(self):
-        timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i))*15+BUFFER
-        self.pi_commander.move_light(self.active_incidence_entries[0].get())
-        handler=MotionHandler(self,label='Moving light source...',timeout=timeout)
-        self.test_view.move_light(int(self.active_incidence_entries[0].get()))
-        self.set_light_geom()
+    #Move light will either read i from the GUI (default, i=None), or if this is a text command then i will be passed as a parameter.
+    #When from the commandline, i may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'.
+    def move_light(self, i=None, type='angle'):
+        if i==None:
+            timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i))*5+BUFFER
+            self.pi_commander.move_light(self.active_incidence_entries[0].get(),type)
+            handler=MotionHandler(self,label='Moving light...',timeout=timeout)
+            if type=='angle':
+                self.test_view.move_light(int(self.active_incidence_entries[0].get()))
+            self.set_light_geom()
+        else:
+            timeout=np.abs(int(i)-int(self.i))*5+BUFFER
+            self.pi_commander.move_light(i,type)
+            handler=MotionHandler(self,label='Moving light...',timeout=timeout)
+            if type=='angle':
+                self.test_view.move_light(int(i))
+            self.set_light_geom(i,type)
+            
     #Move detector will either read e from the GUI (default), or if this is a text command then e will be passed as a parameter.
-    #When from the commandline, e may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'. This was post hoc, could be better.
-    def move_detector(self, e=None, type='emission'):
+    #When from the commandline, e may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'. 
+    def move_detector(self, e=None, type='angle'):
         if e==None:
             timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.e))*5+BUFFER
             self.pi_commander.move_detector(self.active_emission_entries[0].get(),type)
             handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
-            if type=='emission':
+            if type=='angle':
                 self.test_view.move_detector(int(self.active_emission_entries[0].get()))
             self.set_detector_geom()
         else:
-            print('e not none')
-            print(type)
             timeout=np.abs(int(e)-int(self.e))*5+BUFFER
             self.pi_commander.move_detector(e,type)
             handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
-            if type=='emission':
+            if type=='angle':
                 self.test_view.move_detector(int(e))
             self.set_detector_geom(e,type)
         
@@ -1883,10 +1929,11 @@ class Controller():
         next_i=int(self.active_incidence_entries[0].get())
         next_e=int(self.active_emission_entries[0].get())
         
-        if next_e>int(self.e):
+        if next_e<int(self.e):
             self.queue.insert(0,{self.move_detector:[]})
             self.queue.insert(0,{self.move_light:[]})
         else:
+            print('light first!')
             self.queue.insert(0,{self.move_light:[]})
             self.queue.insert(0,{self.move_detector:[]})
             
@@ -2074,9 +2121,20 @@ class Controller():
                     'cancel':{},
                     'retry':{self.next_in_queue:[]}
                 }
-                dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer\n computer and the spectrometer is connected.', buttons=buttons)
-                for button in dialog.tk_buttons:
-                    button.config(width=15)
+                if self.wait_dialog!=None:
+                    self.wait_dialog.interrupt('Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer\n computer and the spectrometer is connected.')
+                    self.wait_dialog.set_buttons(buttons)#, buttons=buttons)
+                    self.wait_dialog.top.geometry('376x175')
+                    for button in self.wait_dialog.tk_buttons:
+                        button.config(width=15)
+                else:
+                    dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer\n computer and the spectrometer is connected.',buttons=buttons)
+                    dialog.top.geometry('376x145')
+                    for button in dialog.tk_buttons:
+                        button.config(width=15)
+                
+                
+                
             else:
                 self.log('Error: Operation timed out while trying to set save configuration')
             return
@@ -2324,7 +2382,7 @@ class Controller():
                 print('yep here!')
                 try:
                     steps=int(param.split('=')[-1])
-                    valid_steps=validate_int_input(steps,-100,100)
+                    valid_steps=validate_int_input(steps,-1000,1000)
 
                 except:
                     self.log('Error: could not parse command '+cmd)
@@ -2336,13 +2394,13 @@ class Controller():
                     self.queue.insert(0,{self.move_detector:[steps,'steps']})
                     self.move_detector(steps,'steps')
                 else:
-                    self.log('Error: '+str(steps) +' is not a valid number of steps. Enter an integer from -300 to 300.')
+                    self.log('Error: '+str(steps) +' is not a valid number of steps. Enter an integer from -1000 to 1000.')
                     return False  
             else:
                 e=param
                 valid_e=validate_int_input(e, self.min_e, self.max_e)
                 if valid_e:
-                    if np.abs(int(e)-int(self.i))<15:
+                    if int(e)<int(self.i)+15:
                         self.log('Error: Because of geometric constraints on the instrument, the emission angle must be at least 15 degrees greater than the incidence angle.')
                         return False
     
@@ -2352,6 +2410,50 @@ class Controller():
                     self.move_detector(e)
                 else:
                     self.log('Error: '+e+' is an invalid emission angle.')
+                    return False
+                    
+                
+        elif 'set_incidence(' in cmd: 
+            if self.manual_automatic.get()==0:
+                self.log('Error: Not in automatic mode')
+                return False
+            try:
+                param=cmd.split('set_incidence(')[1][:-1]
+                
+            except:
+                self.log('Error: could not parse command '+cmd)
+                return False
+                
+            if 'steps' in param:
+                try:
+                    steps=int(param.split('=')[-1])
+                    valid_steps=validate_int_input(steps,-1000,1000)
+
+                except:
+                    self.log('Error: could not parse command '+cmd)
+                    return False
+                if valid_steps:
+                    if not self.script_running:
+                        self.queue=[]
+                    self.queue.insert(0,{self.move_light:[steps,'steps']})
+                    self.move_light(steps,'steps')
+                else:
+                    self.log('Error: '+str(steps) +' is not a valid number of steps. Enter an integer from -1000 to 1000.')
+                    return False  
+            else:
+                i=param
+                valid_i=validate_int_input(i, self.min_i, self.max_i)
+                if valid_i:
+                    if int(i)>int(self.e)-15:
+                        self.log('Error: Because of geometric constraints on the instrument, the emission angle must be at least 15 degrees greater than the incidence angle.')
+                        return False
+    
+                    if not self.script_running:
+                        self.queue=[]
+                    self.queue.insert(0,{self.move_light:[i]})
+                    self.move_light(i)
+                else:
+                    self.log('Error: '+i+' is an invalid incidence angle.')
                     return False
 
         elif cmd=='end file':
@@ -2409,7 +2511,7 @@ class Controller():
     
         if self.proc_local.get()==1:
             self.plot_local_remote='local'
-            self.spec_commander.process(self.input_dir_entry.get(),'spec_share_loc','proc_temp.tsv',self.spec_temp_loc+'proc_temp_log.txt')
+            self.spec_commander.process(self.input_dir_entry.get(),'spec_share_loc','proc_temp.tsv')
 
         else:
             self.plot_local_remote='remote'
@@ -2431,9 +2533,31 @@ class Controller():
         
     def finish_process(self):
         self.complete_queue_item()
+        
+        #We're going to transfer the data file and log file to the final destination. To transfer the log file, first decide on a name to call it. This will be based on the dat file name. E.g. foo.tsv would have foo_log.txt associated with it.
+        final_data_destination=self.output_file_entry.get()
+        if '.' not in final_data_destination:
+            final_data_destination=final_data_destination+'.tsv'
+        data_base='.'.join(final_data_destination.split('.')[0:-1])
+        log_base=''
 
-        final_destination=self.output_dir_entry.get()+'/'+self.output_file_entry.get()
-        shutil.move(self.spec_temp_loc+'proc_temp.tsv',final_destination)
+            
+        if self.opsys=='Linux' or self.opsys=='Mac':
+            final_data_destination=self.output_dir_entry.get()+'/'+final_data_destination
+            log_base=self.output_dir_entry.get()+'/'+data_base+'_log'
+        else:
+            final_data_destination=self.output_dir_entry.get()+'\\'+final_data_destination
+            log_base=self.output_dir_entry.get()+'\\'+data_base+'_log'
+
+            
+        final_log_destination=log_base
+        i=1
+        while os.path.isfile(final_log_destination+'.txt'):
+            final_log_destination=log_base+'_'+str(i)
+            i+=1
+        final_log_destination+='.txt'
+        shutil.move(self.spec_temp_loc+'proc_temp.tsv',final_data_destination)
+        shutil.move(self.spec_temp_loc+'proc_temp_log.txt',final_log_destination)
         
     #This gets called when the user clicks 'Overlay samples' from the right-click menu on a plot.
     #Pops up a scrollable listbox with sample options.
@@ -2881,7 +3005,7 @@ class Controller():
                 self.geommenu.entryconfigure(1,state=NORMAL, label='  Range (Automatic only)')
                 #self.queue.append({self.set_manual_automatic:[True]})
             else:
-                dialog=IntInputDialog(self,title='Setup Required',label='Setup required: Unknown goniometer state.\n\nPlease enter the current viewing geometry and tray position.\n',values={'Incidence':[self.i,self.min_i,self.max_i],'Emission':[self.e,self.min_e,self.max_e],'Tray position':[self.sample_tray_pos,0,self.num_samples]},buttons={'ok':{self.next_in_queue:[]},'cancel':{self.set_manual_automatic:[override,0]}})
+                dialog=IntInputDialog(self,title='Setup Required',label='Setup required: Unknown goniometer state.\n\nPlease enter the current viewing geometry and tray position,\nor click \'Cancel\' to use the goniometer in manual mode.',values={'Incidence':[self.i,self.min_i,self.max_i],'Emission':[self.e,self.min_e,self.max_e],'Tray position':[self.sample_tray_pos,0,self.num_samples]},buttons={'ok':{self.next_in_queue:[]},'cancel':{self.set_manual_automatic:[override,0]}})
             menu.entryconfigure(0,label='  Manual')
             menu.entryconfigure(1,label='X Automatic')
             self.geommenu.entryconfigure(1,state=NORMAL, label='  Range (Automatic only)')
@@ -3615,7 +3739,7 @@ class CommandHandler():
             }
             self.wait_dialog.set_buttons(buttons)
         else:
-            self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 119, 107, 69))
+            self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 130, 107, 69))
 
         
 
@@ -3681,7 +3805,7 @@ class CommandHandler():
 
     def pause(self):
         self.pause=True
-        self.wait_dialog.label='Pausing...'
+        self.wait_dialog.label='Pausing after command completes...'
     
     def cancel(self):
         self.cancel=True
@@ -3730,7 +3854,11 @@ class CommandHandler():
             #self.wait_dialog.set_buttons({'ok':{}})
             
     def success(self,close=True):
-        self.controller.complete_queue_item()
+        try:
+            self.controller.complete_queue_item()
+        except Exception as e:
+            print(e)
+            print('canceled by user?')
 
         if self.cancel:
             self.interrupt('Canceled.')
@@ -3811,7 +3939,12 @@ class OptHandler(CommandHandler):
                 self.listener.queue.remove('nonumspectra')
                 self.controller.queue.insert(0,{self.controller.configure_instrument:[]})
                 self.controller.configure_instrument()
-                #self.finish()
+                return
+                
+            elif 'noconfig' in self.listener.queue:
+                self.listener.queue.remove('noconfig')
+                self.controller.queue.insert(0,{self.controller.set_save_config:[]})
+                self.controller.set_save_config()
                 return
                 
             if 'optsuccess' in self.listener.queue:
@@ -3821,7 +3954,7 @@ class OptHandler(CommandHandler):
             elif 'optfailure' in self.listener.queue:
                 self.listener.queue.remove('optfailure')
                 self.interrupt('Error: There was a problem with\noptimizing the instrument.',retry=True)
-
+                self.wait_dialog.top.geometry('376x150')
                 self.controller.log('Error: There was a problem with optimizing the instrument.')
                 return
             time.sleep(INTERVAL)
@@ -3838,11 +3971,12 @@ class OptHandler(CommandHandler):
 class WhiteReferenceHandler(CommandHandler):
     def __init__(self, controller, title='White referencing...',
     label='White referencing...'):
-        self.controller.white_referencing=True
+        
         timeout_s=int(controller.spec_config_count)/9+6+BUFFER
         self.listener=controller.spec_listener
         self.first_try=True
         super().__init__(controller, title, label,timeout=timeout_s)
+        self.controller.white_referencing=True
         
 
         
@@ -3900,12 +4034,12 @@ class WhiteReferenceHandler(CommandHandler):
                 }
                     
                 self.wait_dialog.set_buttons(buttons,button_width=20)
+                self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 150, 107, 69))
                 return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
         #Before timing out, set override to True so that if the user decides to retry they aren't reminded about optimizing, etc again.
         if self.controller.wr in self.controller.queue[0]:
-            print('setting override to true')
             self.controller.queue[0][self.controller.wr][0]=True
         self.timeout()
                 
@@ -3921,7 +4055,7 @@ class DataHandler(CommandHandler):
         self.source=source
         self.temp_destination=temp_destination
         self.final_destination=final_destination
-        self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 119, 107, 69))
+        self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 130, 107, 69))
         
     def wait(self):
         while self.timeout_s>0:
@@ -3965,7 +4099,7 @@ class ProcessHandler(CommandHandler):
         super().__init__(controller, title, label,timeout=60+BUFFER)
         
         self.wait_dialog.set_buttons({})
-        self.wait_dialog.top.wm_geometry('376x119')
+        self.wait_dialog.top.wm_geometry('376x130')
          #Normally we have a pause and a cancel option if there are additional items in the queue, but it doesn't make much sense to cancel processing halfway through, so let's just not have the option.
         
 
@@ -3982,10 +4116,14 @@ class ProcessHandler(CommandHandler):
                         self.controller.next_in_queue()
                         self.success()
                     except Exception as e:
-                        print('2')
                         print(e)
                         self.interrupt('Error: Could not transfer data to local folder.')
-                        os.remove(self.controller.spec_temp_loc+'proc_temp.tsv')
+                        #Leave the temp data directory clean
+                        try:
+                            os.remove(self.controller.spec_temp_loc+'proc_temp.tsv')
+                            os.remove(self.controller.spec_temp_loc+'proc_temp_log.txt')
+                        except:
+                            pass
                 else: #if the final destination was remote then we're already done.
                     self.success()
                 return
@@ -4001,15 +4139,14 @@ class ProcessHandler(CommandHandler):
 
                 self.listener.queue.remove('processerrorwropt')
                 self.interrupt('Error processing files.\n\nDid you optimize and white reference before collecting data?')
-                self.wait_dialog.top.wm_geometry('376x140')
+                self.wait_dialog.top.wm_geometry('376x150')
                 self.log('Error processing files')
                 return
                 
             elif 'processerror' in self.listener.queue:
 
                 self.listener.queue.remove('processerror')
-                self.wait_dialog.top.wm_geometry('376x140')
-                #self.wait_dialog.top.wm_geometry('420x130')
+                self.wait_dialog.top.wm_geometry('376x150')
                 self.interrupt('Error processing files.\n\nIs ViewSpecPro running? Do directories exist?',retry=True)
                 self.controller.log('Error processing files')
                 return
@@ -4022,7 +4159,7 @@ class ProcessHandler(CommandHandler):
     def success(self):
         #self.controller.complete_queue_item()
         self.interrupt('Data processed successfully')
-        self.wait_dialog.top.wm_geometry('376x119')
+        self.wait_dialog.top.wm_geometry('376x130')
         # if len(self.controller.queue)>0:
         #     self.controller.next_in_queue()
         while len(self.controller.queue)>0:
@@ -4091,12 +4228,12 @@ class MotionHandler(CommandHandler):
             try:
                 self.controller.log('Goniometer moved to an emission angle of '+str(self.controller.e)+' degrees.')
             except:
-                self.controller.log('Goniometer detector moved')
+                self.controller.log('Detector moved')
         elif 'light' in self.label:
             try:
                 self.controller.log('Goniometer moved to an incidence angle of '+self.controller.active_incidence_entries[0].get()+' degrees.')
             except:
-                self.controller.log('Goniometer detector moved')
+                self.controller.log('Light source moved')
             
         elif 'tray' in self.label:
             self.controller.log('Sample tray moved to '+str(self.new_sample_loc)+' position.')
@@ -4170,6 +4307,7 @@ class SaveConfigHandler(CommandHandler):
                 }
                     
                 self.wait_dialog.set_buttons(buttons,button_width=20)
+                self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 150, 107, 69))
                 return
 
             elif 'saveconfigfailed' in self.listener.queue:
@@ -4281,7 +4419,7 @@ class SpectrumHandler(CommandHandler):
             elif 'savespecfailedfileexists' in self.listener.queue:
                 self.listener.queue.remove('savespecfailedfileexists')
                 self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
-                self.wait_dialog.top.wm_geometry('420x130')
+                self.wait_dialog.top.wm_geometry('420x145')
                 
                 buttons={
                     'yes':{
@@ -4461,6 +4599,8 @@ class RemoteFileExplorer(Dialog):
 
     def mkdir(self, newdir):
         status=self.remote_directory_worker.mkdir(newdir)
+        print('Make dir status:')
+        print(status)
 
         if status=='mkdirsuccess':
             self.expand(None,'\\'.join(newdir.split('\\')[0:-1]))
@@ -4485,6 +4625,11 @@ class RemoteFileExplorer(Dialog):
         
     
     def expand(self, source=None, newparent=None, buttons=None,select=None, timeout=5,destroy=False):
+        print('EXPAND')
+        print('current:')
+        print(self.current_parent)
+        print('new:')
+        print(newparent)
         global CMDNUM
         if newparent==None:
             index=self.listbox.curselection()[0]
@@ -4501,8 +4646,10 @@ class RemoteFileExplorer(Dialog):
         #Send a command to the spec compy asking it for directory contents
         if self.directories_only==True:
             status=self.remote_directory_worker.get_contents(newparent)
+            print('status 1')
         else:
             status=self.remote_directory_worker.get_contents(newparent)
+            print('status 2')
         
         #if we succeeded, the status will be a list of the contents of the directory
         if type(status)==list:
@@ -4514,7 +4661,7 @@ class RemoteFileExplorer(Dialog):
                     self.listbox.itemconfig(END, fg='darkblue')
                 else:
                     self.listbox.insert(END,dir)
-
+            print('SETTING! 1')
             self.current_parent=newparent
             
             self.path_entry.delete(0,'end')
@@ -4528,10 +4675,15 @@ class RemoteFileExplorer(Dialog):
                 
         elif status=='listdirfailed':
             if self.current_parent==None:
-                self.current_parent='\\'.join(newparent.split('\\')[:-1])
-                if self.current_parent=='':
-                    self.current_parent='C:\\Users'
+                print('setting to RiceData')
+                self.current_parent='R:\\RiceData'
+                # self.current_parent='\\'.join(newparent.split('\\')[:-1])
+                # if self.current_parent=='':
+                #     self.current_parent='C:\\Users'
             if buttons==None:
+                print('setting buttons')
+                print('here is the new parent')
+                print(newparent)
                 buttons={
                     'yes':{
                         self.mkdir:[newparent]
@@ -4541,6 +4693,7 @@ class RemoteFileExplorer(Dialog):
                     }
                 }
             dialog=ErrorDialog(self.controller,title='Error',label=newparent+'\ndoes not exist. Do you want to create this directory?',buttons=buttons)
+            return
         elif status=='listdirfailedpermission':
             dialog=ErrorDialog(self.controller,label='Error: Permission denied for\n'+newparent)
             return
@@ -4620,11 +4773,13 @@ class RemoteDirectoryWorker():
     def reset_timeout(self):
         self.timeout_s=BUFFER
     def wait_for_contents(self,cmdfilename):
+        print('Wait!')
         #Wait to hear what the listener finds
         self.reset_timeout()
         while self.timeout_s>0:
             #print('looking for '+cmdfilename)
             #If we get a file back with a list of the contents, replace the old listbox contents with new ones.
+            #The cmdfilename should be e.g. listdir&R=+RiceData+Kathleen+spectral_data
             if cmdfilename in self.listener.queue:
                 contents=[]
                 with open(self.read_command_loc+cmdfilename,'r') as f:
@@ -4654,12 +4809,15 @@ class RemoteDirectoryWorker():
         
     #Assume parent has already been validated, but don't assume it exists
     def get_dirs(self,parent):
-        print(parent)
+        
         cmdfilename=self.spec_commander.listdir(parent)
-        #print(cmdfilename)
-        #print('getting status')
+        # #Remove the cmd number from this filename (it gets stripped out in the control computer before the return file is sent, so we shouldn't have it included in what we look for in wait_for_contents)
+        # cmdfilename_parts=cmdfilename.split('&')
+        # while cmdfilename_parts[0][-1] in '0123456789':
+        #     cmdfilename_parts[0]=cmdfilename_parts[0][0:-1]
+        # cmdfilename=cmdfilename_parts[0]+'&'+cmdfilename_parts[1]
+        print(cmdfilename)
         status=self.wait_for_contents(cmdfilename)
-        print(status)
         return status
         
     def get_contents(self,parent):
@@ -4902,7 +5060,12 @@ class SpecListener(Listener):
                             else:
                                 self.queue.append('listdirfailed')
                         else:
+                            #RemoteDirectoryWorker in wait_for_contents is waiting for a file that contains a list of the contents of a given folder on the spec compy. This file will have an encrypted version of the parent directory's path in its title e.g. listdir&R=+RiceData+Kathleen+spectral_data
+                            print('read form quee')
+                            print(cmdfile)
+                            print('DONE')
                             self.queue.append(cmdfile)  
+
                     elif 'wrfailedfileexists' in cmd:
                         self.queue.append('wrfailedfileexists')
                     elif 'wrfailed' in cmd:
@@ -5112,16 +5275,22 @@ class PiCommander(Commander):
         self.send(filename)
         return filename
         
-    def move_light(self, incidence):
+    #We may specify either an emission angle to move to, or a number of steps to move
+    def move_light(self, num,type='angle'):
         self.remove_from_listener_queue(['donemoving','nopiconfig'])
-        filename=self.encrypt('movelight',[incidence])
+        if type=='angle':
+            incidence=num
+            filename=self.encrypt('movelight',[incidence])
+        else:
+            steps=num
+            filename=self.encrypt('movelight',[steps,'steps'])
         self.send(filename)
         return filename
     
     #We may specify either an emission angle to move to, or a number of steps to move
-    def move_detector(self, num,type='emission'):
+    def move_detector(self, num,type='angle'):
         self.remove_from_listener_queue(['donemoving','nopiconfig'])
-        if type=='emission':
+        if type=='angle':
             emission=num
             filename=self.encrypt('movedetector',[emission])
         else:
@@ -5224,9 +5393,9 @@ class SpecCommander(Commander):
     #     self.send(filename)
     #     return filename
         
-    def process(self,input_dir, output_dir, output_file, log_file):
+    def process(self,input_dir, output_dir, output_file):
         self.remove_from_listener_queue(['processsuccess','processerrorfileexists','processerrorwropt','processerror','processsuccess1unknownsample','processsuccessunknownsamples'])
-        filename=self.encrypt('process',[input_dir,output_dir,output_file,'None'])
+        filename=self.encrypt('process',[input_dir,output_dir,output_file])
         self.send(filename)
         return filename
         
@@ -5307,8 +5476,7 @@ class ConnectionChecker():
         if self.have_internet()==False:
             connected=False
         else: 
-            connected=os.path.isdir(self.dir)
-                
+            connected=os.path.isdir(self.dir)                
         if connected==False:
             #For some reason reconnecting only seems to work on the second attempt. This seems like a pretty poor way to handle that, but I just call check_connection twice if it fails the first time.
             if attempt>0 and firstconnection==True:
