@@ -5152,7 +5152,10 @@ class SpecListener(Listener):
                         self.queue.append('yeswriteable')
                         
                     elif 'lostconnection' in cmd:
-                        os.remove(self.read_command_loc+cmdfile)
+                        try:
+                            os.remove(self.read_command_loc+cmdfile)
+                        except:
+                            print('could not remove lostcon')
                         self.cmdfiles.remove(cmdfile)
                         if self.alert_lostconnection:
                             print('Spec read command: lostconnection')
