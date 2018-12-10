@@ -78,8 +78,8 @@ class TestView():
         if self.width-120<self.height:
             self.char_len=self.width-120
         try:
-            i_str='i='+str(self.theta_l)
-            e_str='e='+str(self.theta_d)
+            i_str='i='+str(int(self.theta_l))
+            e_str='e='+str(int(self.theta_d))
             largeText = pygame.font.Font('freesansbold.ttf',int(self.char_len/18))
             i_text=largeText.render(i_str, True, pygame.Color(self.controller.textcolor))
             e_text=largeText.render(e_str, True, pygame.Color(self.controller.textcolor))
@@ -135,6 +135,7 @@ class TestView():
         pygame.draw.circle(self.screen, (0,0,0), pivot, back_radius)
         pygame.draw.rect(self.screen, pygame.Color(self.controller.bg),(pivot[0]-back_radius,pivot[1]+int(self.char_len/10-5),2*back_radius,2*back_radius))
         pygame.draw.rect(self.screen, (0,0,0),(pivot[0]-back_radius,pivot[1],2*back_radius,int(self.char_len/6.5)))
+        
         #draw border around bottom part of goniometer
         pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]-back_radius-1,pivot[1]),(pivot[0]-back_radius-1,pivot[1]+int(self.char_len/6.5)))
         pygame.draw.line(self.screen,pygame.Color('darkgray'),(pivot[0]+back_radius,pivot[1]),(pivot[0]+back_radius,pivot[1]+int(self.char_len/6.5)))
@@ -173,17 +174,23 @@ class TestView():
         #     pygame.draw.circle(self.screen, (0,0,0), (200,200),i)
         #     pygame.display.flip()
         
-    def move_light(self, theta):
+    def move_light(self, theta, config=False):
         while np.abs(theta-self.theta_l)>0:
-            self.theta_l=self.theta_l+np.sign(theta-self.theta_l)
-            time.sleep(0.1)
+            self.theta_l=self.theta_l+0.5*np.sign(theta-self.theta_l)
+            if not config:
+                time.sleep(0.1)
+            else:
+                time.sleep(.005)
             self.draw_circle(self.width,self.height)
             self.flip()
             
-    def move_detector(self, theta):
+    def move_detector(self, theta,config=False):
         while np.abs(theta-self.theta_d)>0:
-            self.theta_d=self.theta_d+np.sign(theta-self.theta_d)
-            time.sleep(0.1)
+            self.theta_d=self.theta_d+0.5*np.sign(theta-self.theta_d)
+            if not config:
+                time.sleep(0.1)
+            else:
+                time.sleep(.005)
             self.draw_circle(self.width,self.height)
             self.flip()
                 

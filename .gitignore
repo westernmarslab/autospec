@@ -2,3 +2,7 @@ config/
 config/
 __pycache__/
 not__init__.py
+dist/
+build/
+delme/
+WWU_AutoSpec.egg-info/
