@@ -19,7 +19,7 @@ class Plotter():
         self.dpi=dpi
         self.titles=[]
         self.style=style
-        plt.style.use(style)
+        #plt.style.use(style)
         
         self.tabs=[]
         self.samples={}
