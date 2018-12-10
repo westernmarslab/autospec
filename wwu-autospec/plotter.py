@@ -24,6 +24,14 @@ class Plotter():
         self.tabs=[]
         self.samples={}
         self.sample_objects=[]
+        
+        self.notebook.bind('<Button-1>',lambda event: self.notebook_click(event))
+        self.notebook.bind('<Motion>',lambda event: self.mouseover_tab(event))
+        self.menus=[]
+        
+    def notebook_click(self, event):
+        self.close_right_click_menus(event)
+        self.maybe_close_tab(event)
     
     def update_tab_names(self):
         pass
@@ -56,7 +64,7 @@ class Plotter():
 
         for i, spectrum_label in enumerate(labels):
             
-            sample_label=spectrum_label.split('(i')[0]
+            sample_label=spectrum_label.split(' (i')[0]
             
             #If we don't have any data from this file yet, add it to the samples dictionary, and place the first sample inside.
             if file not in self.samples:
@@ -123,6 +131,58 @@ class Plotter():
 
         return wavelengths, reflectance, labels
         
+    def maybe_close_tab(self,event):
+        dist_to_edge=self.dist_to_edge(event)
+        if dist_to_edge==None: #not on a tab
+            return
+        
+        if dist_to_edge<18:
+            index = self.notebook.index("@%d,%d" % (event.x, event.y))
+            if index!=0:
+                self.notebook.forget(index)
+                self.notebook.event_generate("<<NotebookTabClosed>>")
+                
+    #This capitalizes Xs for closing tabs when you hover over them.
+    def mouseover_tab(self,event):
+        dist_to_edge=self.dist_to_edge(event)
+        if dist_to_edge==None or dist_to_edge>17: #not on an X, or not on a tab at all.
+            for i, tab in enumerate(self.notebook.tabs()):
+                if i==0:
+                    continue #Don't change text on Goniometer view tab
+                text=self.notebook.tab(tab, option='text')
+                self.notebook.tab(tab, text=text[0:-1]+'x')
+
+        else:
+            tab=self.notebook.tab("@%d,%d" % (event.x, event.y))
+            text=tab['text'][:-1]
+
+            if 'Goniometer' in text:
+                return
+            else:
+                self.notebook.tab("@%d,%d" % (event.x, event.y),text=text+'X')
+                
+    def close_right_click_menus(self,event):
+        for menu in self.menus:
+            menu.unpost()
+            
+    def dist_to_edge(self,event):
+        id_str='@'+str(event.x)+','+str(event.y) #This is the id for the tab that was just clicked on.
+        try:
+            tab0=self.notebook.tab(id_str)
+            tab=self.notebook.tab(id_str)
+        #There might not actually be any tab here at all.
+        except:
+            return None
+        dist_to_edge=0
+        while tab==tab0: #While not leaving the current tab, walk pixel by pixel toward the tab edge to count how far it is.
+            dist_to_edge+=1
+            id_str='@'+str(event.x+dist_to_edge)+','+str(event.y)
+            try:
+                tab=self.notebook.tab(id_str)
+            except: #If this didn't work, we were off the right edge of any tabs.
+                break
+            
+        return(dist_to_edge)
 class Sample():
     def __init__(self, label, file, title):#colors):
         #self.colors=colors
@@ -149,28 +209,42 @@ class Sample():
         return self.colors[self.index]
         
 class Tab():
-    def __init__(self, plotter, title, samples):
+    #Title override is true if the title of this individual tab is set manually by user.
+    #If it is False, then the tab and plot title will be a combo of the file title plus the sample that is plotted.
+    def __init__(self, plotter, title, samples, tab_index=None,title_override=False):
         self.plotter=plotter
         self.samples=samples
-        self.title=title+ ': '+samples[0].name
+        if title_override==False:
+            self.title=title+ ': '+samples[0].name
+        else:
+            self.title=title
         
         self.top=Frame(self.plotter.notebook)
+        #self.top.bind("<Visibility>", self.on_visibility)
         self.top.pack()
-            
-        self.plotter.notebook.add(self.top,text=self.title+' X')
         
+        #If this is being created from the File -> Plot option, just put the tab at the end.
+        if tab_index==None:
+            self.plotter.notebook.add(self.top,text=self.title+' x')
+        #If this is being called after the user did Right click -> choose samples to plot, put it at the same index as before.
+        else:
+            self.plotter.notebook.add(self.top,text=self.title+' x')
+            self.plotter.notebook.insert(tab_index, self.plotter.notebook.tabs()[-1])
+            self.plotter.notebook.select(self.plotter.notebook.tabs()[tab_index])
+            
         width=self.plotter.notebook.winfo_width()
         height=self.plotter.notebook.winfo_height()
-        
         self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi)
         #self.figs[title][samples]=fig
-        self.mpl_plot = self.fig.add_subplot(111)
+        #We're making a second small subplot area to the right to accommodate big legends.
+
 
 
         
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.top)
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
         self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
+        
         self.vbar=Scrollbar(self.top,orient=VERTICAL)
         self.vbar.pack(side=RIGHT,fill=Y)
         self.vbar.config(command=self.canvas.get_tk_widget().yview)
@@ -180,28 +254,37 @@ class Tab():
         
         #canvas.get_tk_widget().pack()
         
-        self.plot=Plot(self.plotter, self.mpl_plot, self.samples,self.title)
+        self.plot=Plot(self.plotter, self.fig, self.samples,self.title)
         self.canvas.draw()
         
         self.popup_menu = Menu(self.top, tearoff=0)
+        self.popup_menu.add_command(label="Edit plot",
+                                    command=self.ask_which_samples)
+        self.popup_menu.add_command(label="Open analysis tools",
+                                    command=self.open_analysis_tools)
         self.popup_menu.add_command(label="Close tab",
                                     command=self.close)
-        self.popup_menu.add_command(label="Add/remove samples",
-                                    command=self.ask_which_samples)
+        self.plotter.menus.append(self.popup_menu)
+        
+
+    def on_visibility(self, event):
+        self.close_right_click_menu(event)
+        
 
     def close_right_click_menu(self, event):
         self.popup_menu.unpost()
-    def close(self):
-        print('close!')
-    
-    #We want to pass a list of existing samples and a list of possible samples.
-    def ask_which_samples(self):
-
         
+    def open_analysis_tools(self):
+        #Build up lists of strings telling available samples, which of those samples a currently plotted, and a dictionary mapping those strings to the sample options.
+        self.build_sample_lists()
+        print('Analyze!')
+        #self.plotter.controller.open_data_analysis_tools(self,self.existing_indices,self.sample_options_list)
+        
+    def build_sample_lists()
         #Sample options will be the list of strings to put in the listbox. It may include the sample title, depending on whether there is more than one title.
         self.sample_options_dict={}
         self.sample_options_list=[]
-        existing_indices=[]
+        self.existing_indices=[]
         
         #Each file got a title assigned to it when loaded, so each group of samples from a file will have a title associated with them. 
         #If there are multiple possible titles, list that in the listbox along with the sample name.
@@ -209,7 +292,7 @@ class Tab():
             for i, sample in enumerate(self.plotter.sample_objects):
                 for plotted_sample in self.samples:
                     if sample==plotted_sample:
-                        existing_indices.append(i)
+                        self.existing_indices.append(i)
                 self.sample_options_dict[sample.title+': '+sample.name]=sample
                 self.sample_options_list.append(sample.title+': '+sample.name)
         #Otherwise, the user knows what the title is (there is only one)
@@ -217,37 +300,49 @@ class Tab():
             for i, sample in enumerate(self.plotter.sample_objects):
                 for plotted_sample in self.samples:
                     if sample==plotted_sample:
-                        existing_indices.append(i)
+                        self.existing_indices.append(i)
                 self.sample_options_dict[sample.name]=sample
                 self.sample_options_list.append(sample.name)
         
-        #We tell the controller which samples are already plotted so it can initiate the listbox with those samples highlighted.
-        self.plotter.controller.ask_plot_samples(self,existing_indices, self.sample_options_list)#existing_samples, new_samples)
+        return self.sample_options
     
-    def set_samples(self, listbox_labels):
+    #We want to pass a list of existing samples and a list of possible samples.
+    def ask_which_samples(self):
+        
+        #Build up lists of strings telling available samples, which of those samples a currently plotted, and a dictionary mapping those strings to the sample options.
+        self.build_sample_lists()
+        #We tell the controller which samples are already plotted so it can initiate the listbox with those samples highlighted.
+        self.plotter.controller.ask_plot_samples(self,self.existing_indices, self.sample_options_list)#existing_samples, new_samples)
+    
+    def set_samples(self, listbox_labels, title):
         #we made a dict mapping sample labels for a listbox to available samples to plot. This was passed back when the user clicked ok. Reset this tab's samples to be those ones, then replot.
         self.samples=[]
+        if title=='':
+            title=', '.join(listbox_labels)
         for label in listbox_labels:
             self.samples.append(self.sample_options_dict[label])
+            
+        tab_index=self.plotter.notebook.index(self.plotter.notebook.select())
         self.plotter.notebook.forget(self.plotter.notebook.select())
-        self.__init__(self.plotter,self.title,self.samples)
+        self.__init__(self.plotter,title,self.samples, tab_index=tab_index,title_override=True)
 
     def open_right_click_menu(self, event):
         self.popup_menu.post(event.x_root+10, event.y_root+1)
         self.popup_menu.grab_release()
+        #self.popup_menu.attributes('-topmost', 0)
     
     def close(self):
-        self.top
+        tabid=self.plotter.notebook.select()
+        self.plotter.notebook.forget(tabid)
         
     
         
 class Plot():
-    def __init__(self, plotter, mpl_plot, samples,title):
+    def __init__(self, plotter, fig, samples,title):
         
         self.plotter=plotter
         self.samples=samples
         # self.fig=fig
-        self.plot=mpl_plot#fig.add_subplot(111)
         self.title='' #This will be the text to put on the notebook tab
         self.colors=[]
         self.colors.append(['#004d80','#006bb3','#008ae6','#33adff','#80ccff','#b3e0ff','#e6f5ff']) #blue
@@ -257,17 +352,43 @@ class Plot():
         
         
         self.files=[]
+        self.num_spectra=0 #This is the total number of spectra we're plotting. We want to get a count so we know where to put the legend (on top or to the right).
         for i, sample in enumerate(samples):
             sample.set_colors(self.colors[i%len(self.colors)])
             if sample.file not in self.files:
                 self.files.append(sample.file)
-                self.title=self.title+sample.file+' '+sample.name #The tab title will be a the title of each tsv followed by the associated samples being plotted.
+                #self.title=self.title+sample.file+' '+sample.name #The tab title will be a the title of each tsv followed by the associated samples being plotted.
             else:
                 self.title='test'
+            self.num_spectra+=len(sample.spectrum_labels)
                 #self.title=self.title.split(sample.file)[0] +sample.name+self.title.split(sample.file)[1]
                 #self.title=self.title+','+sample.name
+            
                 
         self.title=title
+        print('plotting '+str(self.num_spectra)+' spectra.')
+        
+        self.max_legend_label_len=0 #This will tell us how much space to give the legend.
+        #The whole point in this is to figure out how much space the legend might need. We do the whole thing again in a moment, which dumb.
+        for sample in self.samples:
+            for label in sample.spectrum_labels:
+
+                legend_label=label
+                if len(self.samples)==1:
+                    legend_label=legend_label.replace(sample.name,'').replace('(i=','i=').strip('(')
+
+                if len(self.files)>1:
+                    legend_label=sample.title+': '+legend_label
+                    
+                if len(legend_label)>self.max_legend_label_len:
+                    self.max_legend_label_len=len(legend_label)
+                    
+        self.legend_anchor=1.05+self.max_legend_label_len/97
+        plot_width=215 #very vague character approximation of plot width
+        ratio=int(plot_width/self.max_legend_label_len)
+        print(ratio)
+        gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
+        self.plot = fig.add_subplot(gs[0])
 
         
         #If there is data from more than one data file, associate each sample name with that file. Otherwise, just use the sample name.
@@ -304,19 +425,26 @@ class Plot():
     def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
 
         
+        
         for sample in self.samples:
+            lines=[]
             for label in sample.spectrum_labels:
 
                 # if 'White reference' in sample.name and exclude_wr and sample==None:
                 #     continue
                 legend_label=label
                 if len(self.samples)==1:
-                    legend_label=legend_label.replace(sample.name,'').strip(')').strip('(')
+                    legend_label=legend_label.replace(sample.name,'').replace('(i=','i=').strip('(')
+
                 if len(self.files)>1:
                     legend_label=sample.title+': '+legend_label
 
                 color=sample.next_color()
-                self.plot.plot(sample.data[label]['wavelengths'], sample.data[label]['reflectance'], label=legend_label,color=color,linewidth=2)
+                lines.append(self.plot.plot(sample.data[label]['wavelengths'], sample.data[label]['reflectance'], label=legend_label,color=color,linewidth=2))
+                
+            # Create a legend for this sample
+            #legend = plt.legend(bbox_to_anchor=(self.legend_anchor, 1),handles=lines[0], loc=1)
+            #ax = plt.gca().add_artist(legend)
         # if sample!=None:
         #     if title in self.title_bases:
         #         base=self.title_bases[title]
@@ -329,7 +457,8 @@ class Plot():
         self.plot.set_ylabel('Relative Reflectance',fontsize=18)
         self.plot.set_xlabel('Wavelength (nm)',fontsize=18)
         self.plot.tick_params(labelsize=14)
-        self.plot.legend()
+        
+        self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
 
 
             

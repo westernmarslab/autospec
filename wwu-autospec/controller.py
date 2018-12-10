@@ -313,6 +313,7 @@ class Controller():
         
         self.script_running=False
         self.white_referencing=False
+        self.overwrite_all=False #User can say yes to all for overwriting files.
         
         
         #These will get set via user input.
@@ -387,6 +388,7 @@ class Controller():
         filemenu.add_command(label="Load script", command=self.load_script)
         filemenu.add_command(label="Process and export data", command=self.show_process_frame)
         filemenu.add_command(label="Plot processed data", command=self.show_plot_frame)
+        filemenu.add_command(label='Clear plotted data cache',command=self.reset_plot_data)
 
         filemenu.add_separator()
         filemenu.add_command(label="Exit", command=self.on_closing)
@@ -439,9 +441,9 @@ class Controller():
 
         self.view_notebook.bind("<<NotebookTabChanged>>", lambda event: self.test_view.tab_switch(event))
         
-        self.view_notebook.bind("<Button-1>", lambda event: self.maybe_close_tab(event))
+        #self.view_notebook.bind("<Button-1>", lambda event: self.maybe_close_tab(event))
         self.view_notebook.bind('<Button-3>',lambda event: self.plot_right_click(event))
-        self.view_notebook.bind('<Motion>',lambda event: self.mouseover_tab(event))
+
 
         #The plotter, surprisingly, plots things.
         self.plotter=Plotter(self,self.get_dpi(),[ self.config_loc+'color_config.mplstyle',self.config_loc+'size_config.mplstyle'])
@@ -747,7 +749,7 @@ class Controller():
         
         self.add_sample()
 
-        self.gen_frame=Frame(self.control_frame, bg=self.bg,highlightthickness=1)
+        self.gen_frame=Frame(self.control_frame, bg=self.bg,highlightthickness=1,pady=10)
         self.gen_frame.pack(fill=BOTH,expand=True)
         
         self.action_button_frame=Frame(self.gen_frame, bg=self.bg)
@@ -1280,8 +1282,6 @@ class Controller():
         self.script_failed=False
         script_file = askopenfilename(initialdir=self.script_loc,title='Select script')
         self.queue=[]
-        print('script file:')
-        print(script_file)
         with open(self.config_loc+'script_config.txt','w') as script_config:
             dir=''
             if self.opsys=='Linux' or self.opsys=='Mac':
@@ -1311,6 +1311,7 @@ class Controller():
     def next_script_line(self,cmd):
         print('********************')
         print(cmd)
+        self.script_running=True
         if cmd=='end file':
             self.log('Script complete')
             self.script_running=False
@@ -1398,8 +1399,8 @@ class Controller():
         #     file.write(self.spec_startnum_entry.get()+'\n')
              
     #If the user has failsafes activated, check that requirements are met. Always require a valid number of spectra.
-    def check_optional_input(self, func, args=[]):
-            label=''
+    def check_optional_input(self, func, args=[],warnings=''):
+            label=warnings
             now=int(time.time())
             incidence=self.incidence_entries[0].get()
             emission=self.emission_entries[0].get()
@@ -1673,8 +1674,6 @@ class Controller():
         #Requested save config is guaranteed to be valid because of input checks above.
         save_config_status=self.check_save_config()
         if self.check_save_config()=='not_set':
-            print('going to set save config')
-            print(nextaction)
             self.complete_queue_item()
             self.queue.insert(0,nextaction)
             self.queue.insert(0,{self.set_save_config:[]})
@@ -1710,7 +1709,7 @@ class Controller():
             self.active_i_e_pair_frames=list(self.i_e_pair_frames)
             
 
-
+        range_warnings=''
         if action==None: #If this was called by the user clicking acquire. otherwise, it will be take_spectrum or wr?
             action=self.acquire
             self.queue.append({self.acquire:[]})
@@ -1718,6 +1717,10 @@ class Controller():
                 valid_range=self.range_setup(override)
                 if not valid_range:
                     return
+                elif type(valid_range)==str: #If there was a warning associated with the input check for the range setup e.g. interval specified as zero, then we'll log this as a warning for the user coming up.
+                    print(valid_range)
+                    range_warnings=valid_range
+                
                 
         if not override:
             ok=self.check_mandatory_input()
@@ -1727,9 +1730,9 @@ class Controller():
             #If input isn't valid and the user asks to continue, take_spectrum will be called again with override set to True
             valid_input=False
             if action==self.take_spectrum:
-                valid_input=self.check_optional_input(action,[True,False,garbage])
+                valid_input=self.check_optional_input(action,[True,False,garbage],range_warnings)
             else:
-                valid_input=self.check_optional_input(action,[True,False])
+                valid_input=self.check_optional_input(action,[True,False],range_warnings)
             if not valid_input:
                 return         
                 
@@ -1758,7 +1761,12 @@ class Controller():
             
             
             if not garbage:
-                self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str, self.sample_label_entries[self.current_sample_gui_index].get(),self.i, self.e)
+                if not self.white_referencing:
+                    label=self.sample_label_entries[self.current_sample_gui_index].get()
+                else:
+                    label='White reference'
+                    
+                self.spec_commander.take_spectrum(self.spec_save_path, self.spec_basename, startnum_str,label ,self.i, self.e)
                 handler=SpectrumHandler(self)
                 
             else:
@@ -1871,7 +1879,7 @@ class Controller():
                 for pos in self.taken_sample_positions:
                     self.queue.append({self.move_tray:[pos]})
                     self.queue.append({self.take_spectrum:[True,True,True]})
-                    self.queue.append({self.delete_placeholder_spectrum:[]})
+                    #self.queue.append({self.delete_placeholder_spectrum:[]}) Deleting the garbage ones happens automatically in the SpectrumHandler success method.
                     self.queue.append({self.take_spectrum:[True,True,False]})
                 self.queue.append({self.move_tray:['wr']})
                 self.queue.append({self.next_geom:[]})
@@ -1891,6 +1899,7 @@ class Controller():
             self.queue.insert(0,{self.move_detector:[]})
             
     def range_setup(self,override=False):
+
         self.active_incidence_entries=[]
         self.active_emission_entries=[]
         
@@ -1923,8 +1932,8 @@ class Controller():
                 if first_i==final_i:
                     incidences=[first_i]
                 else:
-                    incidences=[first_i]
-                    incidence_warn_str='Incidence interval = 0. Only using first given incidence value.\n'
+                    incidences=[first_i,final_i]
+                    incidence_warn_str='Incidence interval = 0. Using first and last given incidence values.\n'
             elif final_i>first_i:
                 incidences=np.arange(first_i,final_i,i_interval)
                 incidences=list(incidences)
@@ -1933,7 +1942,6 @@ class Controller():
                 incidences=np.arange(first_i,final_i,-1*i_interval)
                 incidences=list(incidences)
                 incidences.append(final_i)
-
 
         emission_err_str=''
         emission_warn_str=''
@@ -1964,8 +1972,8 @@ class Controller():
                 if first_e==final_e:
                     emissions=[first_e]
                 else:
-                    emissions=[first_e]
-                    emission_warn_str='Emission interval = 0. Only using first given emission value.'
+                    emissions=[first_e,final_e]
+                    emission_warn_str='Emission interval = 0. Using first and last given emission values.'
             elif final_e>first_e:
                 emissions=np.arange(first_e,final_e,e_interval)
                 emissions=list(emissions)
@@ -1979,9 +1987,7 @@ class Controller():
         if err_str!='Error: ':
             dialog=ErrorDialog(self,title='Error',label=err_str)
             return False
-        warning_str='Warning: '+incidence_warn_str+emission_warn_str
-        if warning_str!='Warning: ' and override==False:
-            dialog=ErrorDialog(self,title='Warning',label=warning_str)
+        warning_str=incidence_warn_str+emission_warn_str
         
         for i in incidences:
             for e in emissions:
@@ -1991,7 +1997,10 @@ class Controller():
                     self.active_incidence_entries.append(i_entry)
                     self.active_emission_entries.append(e_entry)
                 
-        return True
+        if warning_string=='':
+            return True
+        else:
+            return warning_string
         
         
         
@@ -2051,6 +2060,7 @@ class Controller():
                 dialog=ErrorDialog(self,title='Error',label='Could not create directory:\n\n'+dir+'\n\nFile exists.')
             elif status=='mkdirfailed':
                 dialog=ErrorDialog(self,title='Error',label='Could not create directory:\n\n'+dir)
+                
         status=self.remote_directory_worker.get_dirs(self.spec_save_dir_entry.get())
 
 
@@ -2060,9 +2070,10 @@ class Controller():
                     inner_mkdir:[self.spec_save_dir_entry.get()]
                 },
                 'no':{
+                    self.reset:[]
                 }
             }
-            dialog=ErrorDialog(self,title='Directory does not exist',label=self.spec_save_dir_entry.get()+'\ndoes not exist. Do you want to create this directory?',buttons=buttons)
+            dialog=ErrorDialog(self,title='Directory does not exist',label=self.spec_save_dir_entry.get()+'\n\ndoes not exist. Do you want to create this directory?',buttons=buttons)
             return
         elif status=='listdirfailedpermission':
             dialog=ErrorDialog(self,label='Error: Permission denied for\n'+self.spec_save_dir_entry.get())
@@ -2123,7 +2134,13 @@ class Controller():
                 next=self.user_cmds[self.user_cmd_index]
                 self.console_entry.delete(0,'end')
                 self.console_entry.insert(0,next)
-                
+    
+    def reset(self):
+        self.queue=[]
+        self.overwrite_all=False
+        self.script_running=False
+        self.script_failed=False
+        self.white_referencing=False
     def execute_cmd(self,event):
         if self.script_running:
             self.complete_queue_item()
@@ -2190,7 +2207,7 @@ class Controller():
                     self.incidence_entries[0].insert(0,params[0])
                     self.emission_entries[0].delete(0,'end')
                     self.emission_entries[0].insert(0,params[1])
-                    self.configure_pi()
+                    self.configure_pi(params[0],params[1],params[2])
                     # if self.script_running:
                     #     self.complete_queue_item()
                     # if len(self.queue)>0 and self.script_running:
@@ -2389,30 +2406,171 @@ class Controller():
             return
         # self.model.move_light(i)
         # self.model.move_detector(e)
+    
         
+
+    def check_local_folder(self,dir, next_action):
+        def try_mk_dir(dir, next_action):
+            try:
+                os.makedirs(dir)
+                next_action()
+            except Exception as e:
+                dialog=ErrorDialog(self, title='Cannot create directory',label='Cannot create directory:\n\n'+dir)
+            return False
+        exists=os.path.exists(dir)
+        if exists:
+            #If the file exists, try creating and deleting a new file there to make sure we have permission.
+            try:
+                if self.opsys=='Linux' or self.opsys=='Mac':
+                    if dir[-1]!='/':
+                        dir+='/'
+                else:
+                    if dir[-1]!='\\':
+                        dir+='\\'
+                
+                existing=os.listdir(dir)
+                i=0
+                delme='delme'+str(i)
+                while delme in existing:
+                    
+                    i+=1
+                    delme='delme'+str(i)
+                    print(dir+delme)
+                    
+                os.mkdir(dir+delme)
+                os.rmdir(dir+delme)
+                return True
+                
+            except:
+                dialog=ErrorDialog(self,title='Error: Cannot write',label='Error: Cannot write to specified directory.\n\n'+dir)
+                return False
+        else:
+            buttons={
+                'yes':{
+                    try_mk_dir:[dir,next_action]
+                },
+                'no':{
+                }
+            }
+            dialog=ErrorDialog(self,title='Directory does not exist',label=dir+'\n\ndoes not exist. Do you want to create this directory?',buttons=buttons)
+        return exists
+        
+    #Checks if the given directory exists and is writeable. If not writeable, gives user option to create.
+    def check_remote_folder(self,dir,next_action):
+    
+        def inner_mkdir(dir,next_action):
+            status=self.remote_directory_worker.mkdir(dir)
+            if status=='mkdirsuccess':
+                next_action()
+            elif status=='mkdirfailedfileexists':
+                dialog=ErrorDialog(self,title='Error',label='Could not create directory:\n\n'+dir+'\n\nFile exists.')
+            elif status=='mkdirfailed':
+                dialog=ErrorDialog(self,title='Error',label='Could not create directory:\n\n'+dir)
+                
+        status=self.remote_directory_worker.get_dirs(self.spec_save_dir_entry.get())
+
+        if status=='listdirfailed':
+            buttons={
+                'yes':{
+                    inner_mkdir:[dir,next_action]
+                },
+                'no':{
+                }
+            }
+            dialog=ErrorDialog(self,title='Directory does not exist',label=dir+'\ndoes not exist. Do you want to create this directory?',buttons=buttons)
+            return False
+        elif status=='listdirfailedpermission':
+            dialog=ErrorDialog(self,label='Error: Permission denied for\n'+dir)
+            return False
+        
+        elif status=='timeout':
+            if not self.text_only:
+                buttons={
+                    'cancel':{},
+                    'retry':{self.next_in_queue:[]}
+                }
+                dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer\n computer and the spectrometer is connected.', buttons=buttons)
+                for button in dialog.tk_buttons:
+                    button.config(width=15)
+            else:
+                self.log('Error: Operation timed out.')
+            return False
+            
+        self.spec_commander.check_writeable(dir)
+        t=3*BUFFER
+        while t>0:
+            if 'yeswriteable' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('yeswriteable')
+                return True
+            elif 'notwriteable' in self.spec_listener.queue:
+                self.spec_listener.queue.remove('notwriteable')
+                dialog=ErrorDialog(self, label='Error: Permission denied.\nCannot write to specified directory.')
+                return False
+            time.sleep(INTERVAL)
+            t=t-INTERVAL
+        if t<=0:
+            dialog=ErrorDialog(self,label='Error: Operation timed out.')
+            return False
+            
+            
+    def check_local_file(self,directory,file,next_action):
+        def remove_retry(file,next_action):
+            try:
+                os.remove(file)
+                next_action()
+            except:
+                dialog=ErrorDialog(self,title='Error overwriting file',label='Error: Could not delete file.\n\n'+file)
+                
+        
+        if self.opsys=='Linux' or self.opsys=='Mac':
+            if directory[-1]!='/':
+                directory+='/'
+        else:
+            if directory[-1]!='\\':
+                directory+='\\'
+                
+        full_output_path=directory+file
+        if os.path.exists(full_output_path):
+            buttons={
+                'yes':{
+                    remove_retry:[full_output_path,next_action]
+                    },
+                'no':{
+                }
+            }
+            dialog=Dialog(self,title='Error: File Exists',label='Error: Specified output file already exists.\n\n'+full_output_path+'\n\nDo you want to overwrite this data?',buttons=buttons)
+            return False
+        else:
+            return True
         
     def process_cmd(self):
+
+        
         output_file=self.output_file_entry.get()
-        print('here is the output file')
-        print(output_file)
+
         if output_file=='':
             dialog=ErrorDialog(self, label='Error: Enter an output file name')
             return
         
         if '.' not in output_file: 
-            print('adding .tsv')
             output_file=output_file+'.tsv'
         
-        
-
+        full_output_path=output_file
             
     
         if self.proc_local.get()==1:
             self.plot_local_remote='local'
+            check=self.check_local_file(self.output_dir_entry.get(),output_file,self.process_cmd)
+            if not check: return #If the file exists, controller.check_local_file_exists gives the user the option to overwrite, in which case process_cmd gets called again.
+            check=self.check_local_folder(self.output_dir_entry.get(),self.process_cmd)
+            if not check: return #Same deal for the folder (except existing is good).
             self.spec_commander.process(self.input_dir_entry.get(),'spec_share_loc','proc_temp.tsv',self.spec_temp_loc+'proc_temp_log.txt')
 
         else:
             self.plot_local_remote='remote'
+            check=self.check_remote_folder(self.output_dir_entry.get(),self.process_cmd)
+            if not check:
+                return
             self.spec_commander.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
             
         if self.process_save_dir.get():
@@ -2420,32 +2578,45 @@ class Controller():
             file.write(self.plot_local_remote+'\n')
             file.write(self.input_dir_entry.get()+'\n')
             file.write(self.output_dir_entry.get()+'\n')
-            file.write(self.output_file_entry.get()+'\n')
+            file.write(output_file+'\n')
             file.close()
             
         self.queue.insert(0,{self.process_cmd:[]})
-        self.queue.insert(1,{self.finish_process:[]})
+        self.queue.insert(1,{self.finish_process:[output_file]})
         process_handler=ProcessHandler(self)
         
         
         
-    def finish_process(self):
+    def finish_process(self,output_file):
         self.complete_queue_item()
-
-        final_destination=self.output_dir_entry.get()+'/'+self.output_file_entry.get()
+        final_destination=self.output_dir_entry.get()+'/'+output_file
         shutil.move(self.spec_temp_loc+'proc_temp.tsv',final_destination)
+        existing=os.listdir(self.output_dir_entry.get())
+        base='.'.join(output_file.split['.'][0:-1])
+        logfile=base+'_log.txt'
+        i=0
+        while logfile in existing:
+            logfile=base+'_log_'+str(i)+'.txt'
+            i+=1
+            
+        final_destination=self.output_dir_entry.get()+'/'+logfile
+        shutil.move(self.spec_temp_loc+'proc_temp_log.tsv',final_destination)
         
     #This gets called when the user clicks 'Overlay samples' from the right-click menu on a plot.
     #Pops up a scrollable listbox with sample options.
     def ask_plot_samples(self, tab, existing_sample_indices, sample_options):
         buttons={
             'ok':{
-                #Sorry, this is a pretty confusing lambda. It just sends a list of the currently selected samples back to the tab.
-                lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection()))):[]
+                #Sorry, this is a pretty confusing lambda. It just sends a list of the currently selected samples back to the tab along with the new title.
+                lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection())),self.new_plot_title_entry.get()):[]
                 }
             }
         dialog=Dialog(self,'Select Samples to Plot','\nSelect the sample(s) to show on this tab.\n',buttons=buttons)
         self.plot_samples_listbox=ScrollableListbox(dialog.top,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
+        self.new_plot_title_label=Label(dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Plot title:')
+        self.new_plot_title_label.pack()
+        self.new_plot_title_entry=Entry(dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.new_plot_title_entry.pack()
 
         sample_files=[]
         for option in sample_options:
@@ -2454,7 +2625,11 @@ class Controller():
         for i in existing_sample_indices:
             self.plot_samples_listbox.select_set(i)
         self.plot_samples_listbox.config(height=8)
-            
+    def reset_plot_data(self):
+        self.plotter=Plotter(self,self.get_dpi(),[ self.config_loc+'color_config.mplstyle',self.config_loc+'size_config.mplstyle'])
+        for i, tab in enumerate(self.view_notebook.tabs()):
+            if i==0: continue
+            else: self.view_notebook.forget(tab)
     def plot(self):
         filename=self.plot_input_dir_entry.get()
         # filename=filename.replace('C:\\SpecShare',self.spec_share_loc)
@@ -2467,12 +2642,20 @@ class Controller():
             self.spec_commander.transfer_data(filename, 'spec_share_loc','plot_temp.tsv')
             data_handler=DataHandler(self, source=filename, temp_destination=self.spec_share_loc+'plot_temp.tsv', final_destination=self.spec_share_loc+'plot_temp.tsv')
         else:
-            self.actually_plot(filename)
+            if os.path.exists(filename):
+                self.actually_plot(filename)
+            else:
+
+                dialog=ErrorDialog(self,title='Error: File not found',label='Error: File not found.\n\n'+filename+'\n\ndoes not exist.')
+                return False
+            
 
 
     def actually_plot(self, filename):
         if len(self.queue)>0:
             print('why is there a queue here?')
+            for item in self.queue:
+                print(item)
             self.complete_queue_item()
         title=self.plot_title_entry.get()
         caption=''#self.plot_caption_entry.get()
@@ -2795,9 +2978,11 @@ class Controller():
             self.add_i_e_pair_button.configure(state=DISABLED)
         self.add_i_e_pair_button.pack(pady=(10,10))
         
-    def configure_pi(self):
-        print('CONFIG PI!!!!!!!!!!!')
-        self.pi_commander.configure(str(self.i),str(self.e))
+    def configure_pi(self,i=None, e=None, pos=None):
+        if i==None or e==None or pos==None:
+            self.pi_commander.configure(str(self.i),str(self.e),self.sample_tray_pos)
+        else:
+            self.pi_commander.configure(str(i),str(e),pos)
         timeout_s=PI_BUFFER
         while timeout_s>0:
             if 'piconfigsuccess' in self.pi_listener.queue:
@@ -2812,16 +2997,27 @@ class Controller():
             time.sleep(INTERVAL)
             timeout_s-=INTERVAL
         if timeout_s<=0:
-            dialog=ErrorDialog(self,label='Error: Failed to configure Raspberry Pi.\nCheck connections and/or restart scripts.')
+            if self.wait_dialog==None:
+                dialog=ErrorDialog(self,label='Error: Failed to configure Raspberry Pi.\nCheck connections and/or restart scripts.')
+                self.complete_queue_item()
+            else:
+                if i==None or e==None:
+                    self.queue[0]={self.configure_pi:[self.i,self.e,self.sample_tray_pos]} 
+                else:
+                    self.queue[0]={self.configure_pi:[i,e,pos]} 
+                self.complete_queue_item()#This means no retry option, makes previous line meaningless.
+                #self.wait_dialog.timeout(dialog_string='Error: Failed to configure Raspberry Pi.\nCheck connections and/or restart scripts.',log_string='Error: Failed to configure Raspberry Pi.')
+                self.wait_dialog.interrupt('Error: Failed to configure Raspberry Pi.\nCheck connections and/or restart scripts.')
+                
             self.i=None
             self.e=None
             #Maybe this is right?
             self.set_manual_automatic(force=0)
-            self.complete_queue_item()
+            
             return
         else:
-            self.test_view.move_light(int(self.i))
-            self.test_view.move_detector(int(self.e))
+            self.test_view.move_light(int(self.i),config=True)
+            self.test_view.move_detector(int(self.e),config=True)
             self.complete_queue_item()
             if len(self.queue)>0:
                 self.next_in_queue()
@@ -2920,6 +3116,9 @@ class Controller():
     #         self.range_frame.pack()
     #         self.geommenu.entryconfigure(1,label='  Individual')
     #         self.geommenu.entryconfigure(1,label='X Range (Automatic only)')
+    
+    def set_overwrite_all(self, val):
+        self.overwrite_all=val
     
     def validate_input_dir(self,*args):
         pos=self.input_dir_entry.index(INSERT)
@@ -3045,29 +3244,29 @@ class Controller():
     def complete_queue_item(self):
         self.queue.pop(0)
 
-    def delete_placeholder_spectrum(self):
-        lastnumstr=str(int(self.spec_startnum_entry.get())-1)
-        while len(lastnumstr)<NUMLEN:
-            lastnumstr='0'+lastnumstr
-            
-        self.spec_commander.delete_spec(self.spec_save_dir_entry.get(),self.spec_basename_entry.get(),lastnumstr)
-        
-        t=BUFFER
-        while t>0:
-            if 'rmsuccess' in self.spec_listener.queue:
-                self.spec_listener.queue.remove('rmsuccess')
-                self.log('\nSaved and deleted a garbage spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd).')
-                break
-            elif 'rmfailure' in self.spec_listener.queue:
-                self.spec_listener.queue.remove('rmfailure')
-                self.log('\nError: Failed to remove placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd. This data is likely garbage. ')
-                break
-            t=t-INTERVAL
-            time.sleep(INTERVAL)
-        if t<=0:
-            self.log('\nError: Operation timed out removing placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd). This data is likely garbage.')
-        self.complete_queue_item()
-        self.next_in_queue()
+    # def delete_placeholder_spectrum(self):
+        # lastnumstr=str(int(self.spec_startnum_entry.get())-1)
+        # while len(lastnumstr)<NUMLEN:
+        #     lastnumstr='0'+lastnumstr
+        #     
+        # self.spec_commander.delete_spec(self.spec_save_dir_entry.get(),self.spec_basename_entry.get(),lastnumstr)
+        # 
+        # t=BUFFER
+        # while t>0:
+        #     if 'rmsuccess' in self.spec_listener.queue:
+        #         self.spec_listener.queue.remove('rmsuccess')
+        #         self.log('\nSaved and deleted a garbage spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd).')
+        #         break
+        #     elif 'rmfailure' in self.spec_listener.queue:
+        #         self.spec_listener.queue.remove('rmfailure')
+        #         self.log('\nError: Failed to remove placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd. This data is likely garbage. ')
+        #         break
+        #     t=t-INTERVAL
+        #     time.sleep(INTERVAL)
+        # if t<=0:
+        #     self.log('\nError: Operation timed out removing placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd). This data is likely garbage.')
+        # self.complete_queue_item()
+        # self.next_in_queue()
         
                         
     def rm_current(self):
@@ -3247,7 +3446,7 @@ class Controller():
         handler=CloseHandler(self)
         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
     def plot_right_click(self,event):
-        
+        return
         dist_to_edge=self.dist_to_edge(event)
         if dist_to_edge==None: #not on a tab
             return
@@ -3260,65 +3459,30 @@ class Controller():
                 self.view_notebook.forget(index)
                 self.view_notebook.event_generate("<<NotebookTabClosed>>")
         
-    def maybe_close_tab(self,event):
-        dist_to_edge=self.dist_to_edge(event)
-        if dist_to_edge==None: #not on a tab
-            return
-        
-        if dist_to_edge<18:
-            index = self.view_notebook.index("@%d,%d" % (event.x, event.y))
-            if index!=0:
-                self.view_notebook.forget(index)
-                self.view_notebook.event_generate("<<NotebookTabClosed>>")
-    def mouseover_tab(self,event):
-        pass
-    #This used to make the x become capitalized when it was hovered over. It was making the tab names switch sometimes, not sure why.
-    # def mouseover_tab(self,event):
-    #     dist_to_edge=self.dist_to_edge(event)
-    #     if dist_to_edge==None: #not on a tab
+
+                
+
+
+            #print(tab)
+            
+            
+    # def dist_to_edge(self,event):
+    #     id_str='@'+str(event.x)+','+str(event.y)
+    #     try:
+    #         tab0=self.view_notebook.tab(id_str)
+    #         tab=self.view_notebook.tab(id_str)
+    #     except:
+    #         return None
+    #     dist_to_edge=0
+    #     while tab==tab0:
+    #         dist_to_edge+=1
+    #         id_str='@'+str(event.x+dist_to_edge)+','+str(event.y)
     #         try:
-    #             print('hm')
-    #             print(self.last_tab)
-    #             self.view_notebook.tab(self.last_tab,text=self.last_tab_text+'x')
-    #         except Exception as e:
-    #             print(e)
-    #             pass
-    #         return
-    #     elif dist_to_edge<18:
-    #         tab=self.view_notebook.tab("@%d,%d" % (event.x, event.y))
-    #         current_text=tab['text'][:-1]
-    #         print('cur txt')
-    #         print(current_text)
-    #         if 'Goniometer' in current_text:
-    #             return
-    #         self.last_tab = "@%d,%d" % (event.x, event.y)
-    #         self.last_tab_text=current_text
-    #         self.view_notebook.tab("@%d,%d" % (event.x, event.y),text=current_text+'X')
-    #         #print(tab)
-    #     else:
-    #         try:
-    #             self.view_notebook.tab(self.last_tab,text=self.last_tab_text+'x')
-    #         except:
-    #             pass
-            
-            
-    def dist_to_edge(self,event):
-        id_str='@'+str(event.x)+','+str(event.y)
-        try:
-            tab0=self.view_notebook.tab(id_str)
-            tab=self.view_notebook.tab(id_str)
-        except:
-            return None
-        dist_to_edge=0
-        while tab==tab0:
-            dist_to_edge+=1
-            id_str='@'+str(event.x+dist_to_edge)+','+str(event.y)
-            try:
-                tab=self.view_notebook.tab(id_str)
-            except: #If this didn't work, we were off the right edge of any tabs.
-                break
-            
-        return(dist_to_edge)
+    #             tab=self.view_notebook.tab(id_str)
+    #         except: #If this didn't work, we were off the right edge of any tabs.
+    #             break
+    #         
+    #     return(dist_to_edge)
         
 
     
@@ -3427,6 +3591,8 @@ class Dialog:
         self.buttons=buttons
         if button_width==None:
             button_width=self.button_width
+        else:
+            self.button_width=button_width
         #Sloppy way to check if button_frame already exists and reset it if it does.
         try:
             self.button_frame.destroy()
@@ -3443,6 +3609,10 @@ class Dialog:
                 self.ok_button = Button(self.button_frame, fg=self.textcolor,text='OK', command=self.ok, width=self.button_width)
                 self.tk_buttons.append(self.ok_button)
                 self.ok_button.pack(side=LEFT, padx=(10,10), pady=(10,10))
+            elif 'yes to all' in button.lower():
+                self.yes_to_all_button=Button(self.button_frame,fg=self.textcolor,text='Yes to all',command=self.yes_to_all,width=self.button_width)
+                self.yes_to_all_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
+                self.tk_buttons.append(self.yes_to_all_button)
             elif 'yes' in button.lower():
                 self.yes_button=Button(self.button_frame, fg=self.textcolor,text='Yes', bg='light gray', command=self.yes, width=self.button_width)
                 self.tk_buttons.append(self.yes_button)
@@ -3481,6 +3651,8 @@ class Dialog:
                 self.continue_button=Button(self.button_frame,fg=self.textcolor,text='Continue',command=self.cont,width=self.button_width)
                 self.continue_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
                 self.tk_buttons.append(self.continue_button)
+                
+
                 
             for button in self.tk_buttons:
                 button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
@@ -3532,6 +3704,10 @@ class Dialog:
         
     def yes(self):
         dict=self.buttons['yes']
+        self.execute(dict)
+        
+    def yes_to_all(self):
+        dict=self.buttons['yes to all']
         self.execute(dict)
         
     def no(self):
@@ -3676,6 +3852,7 @@ class CommandHandler():
                 self.wait_dialog.set_buttons(buttons)
 
     def finish(self):
+        self.controller.reset()
         self.wait_dialog.close()
         
 
@@ -3685,7 +3862,7 @@ class CommandHandler():
     
     def cancel(self):
         self.cancel=True
-        self.controller.queue=[]
+        self.controller.reset()
         self.wait_dialog.label='Canceling...'
         
     def interrupt(self,label, info_string=None, retry=False):
@@ -3706,8 +3883,9 @@ class CommandHandler():
         self.controller.freeze()
 
         
-    def remove_retry(self):
-        self.controller.wait_dialog=None
+    def remove_retry(self, need_new=True):
+        if need_new:
+            self.controller.wait_dialog=None
         removed=self.controller.rm_current()
         if removed: 
             numstr=str(self.controller.spec_num)
@@ -3730,10 +3908,16 @@ class CommandHandler():
             #self.wait_dialog.set_buttons({'ok':{}})
             
     def success(self,close=True):
-        self.controller.complete_queue_item()
+        try:
+            self.controller.complete_queue_item()
+        except IndexError as e:
+            print(e)
+            print('WHERE IS MY QUEUE??')
 
         if self.cancel:
             self.interrupt('Canceled.')
+            self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 119, 107, 69))
+            self.controller.reset()
         elif self.pause:
             buttons={
                 'continue':{
@@ -3752,6 +3936,7 @@ class CommandHandler():
             self.controller.script_running=False
             self.finish()
         else:
+            self.controller.reset()
             self.interrupt('Success!')
             
     def set_text(self,widget, text):
@@ -3814,10 +3999,20 @@ class OptHandler(CommandHandler):
                 #self.finish()
                 return
                 
+                
+            elif 'noconfig' in self.listener.queue:
+                self.listener.queue.remove('noconfig')
+                #If the next thing we're going to do is take a spectrum then set override to True - we will already have checked in with the user about those things when we first decided to take a spectrum.
+                
+                self.controller.queue.insert(0,{self.controller.set_save_config:[]})
+                self.controller.set_save_config()
+                return  
+                
             if 'optsuccess' in self.listener.queue:
                 self.listener.queue.remove('optsuccess')
                 self.success()
                 return
+                
             elif 'optfailure' in self.listener.queue:
                 self.listener.queue.remove('optfailure')
                 self.interrupt('Error: There was a problem with\noptimizing the instrument.',retry=True)
@@ -3838,11 +4033,12 @@ class OptHandler(CommandHandler):
 class WhiteReferenceHandler(CommandHandler):
     def __init__(self, controller, title='White referencing...',
     label='White referencing...'):
-        self.controller.white_referencing=True
+        
         timeout_s=int(controller.spec_config_count)/9+6+BUFFER
         self.listener=controller.spec_listener
         self.first_try=True
         super().__init__(controller, title, label,timeout=timeout_s)
+        self.controller.white_referencing=True
         
 
         
@@ -3862,7 +4058,6 @@ class WhiteReferenceHandler(CommandHandler):
                 self.listener.queue.remove('noconfig')
                 #If the next thing we're going to do is take a spectrum then set override to True - we will already have checked in with the user about those things when we first decided to take a spectrum.
                 if self.controller.wr in self.controller.queue[0]:
-                    print('setting override to true')
                     self.controller.queue[0][self.controller.wr][0]=True
                 else:
                     for item in self.controller.queue:
@@ -3880,6 +4075,7 @@ class WhiteReferenceHandler(CommandHandler):
                     self.interrupt('Error: Failed to take white reference.',retry=True)
                     self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)  
                     
+                    #Does nothing in automatic mode
                     self.controller.clear()
                 
                 return
@@ -3887,19 +4083,39 @@ class WhiteReferenceHandler(CommandHandler):
             elif 'wrfailedfileexists' in self.listener.queue:
                 self.listener.queue.remove('wrfailedfileexists')
                 
-                self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)   
-                 
-                self.controller.clear()
-                self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
-                buttons={
-                    'yes':{
-                        self.remove_retry:[]
-                    },
-                    'no':{
-                    }
-                }
+                if self.controller.overwrite_all:
+                    #self.wait_dialog.top.destroy()
+                    self.remove_retry(need_new=False) #No need for new wait dialog
                     
-                self.wait_dialog.set_buttons(buttons,button_width=20)
+                elif self.controller.manual_automatic.get()==0 and self.controller.script_running==False:
+                    self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                    buttons={
+                        'yes':{
+                            self.remove_retry:[]
+                        },
+
+                        'no':{
+                            self.finish:[]
+                        }
+                    }
+                        
+                    self.wait_dialog.set_buttons(buttons)
+                else:
+                    self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                    buttons={
+                        'yes':{
+                            self.remove_retry:[]
+                        },
+                        'yes to all':{
+                            self.controller.set_overwrite_all:[True],
+                            self.remove_retry:[]
+                        },
+                        'no':{
+                            self.finish:[]
+                        }
+                    }
+                        
+                    self.wait_dialog.set_buttons(buttons,button_width=10)
                 return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
@@ -3910,7 +4126,6 @@ class WhiteReferenceHandler(CommandHandler):
         self.timeout()
                 
     def success(self):
-
         self.controller.wr_time=int(time.time())
         super(WhiteReferenceHandler, self).success()
         
@@ -3975,17 +4190,26 @@ class ProcessHandler(CommandHandler):
             if 'processsuccess' in self.listener.queue:
 
                 self.listener.queue.remove('processsuccess')
-                self.controller.log('Files processed.\n\t'+self.controller.output_dir_entry.get()+'/'+self.controller.output_file_entry.get())
+                
+                outputfile=self.controller.output_file_entry.get()
+                if '.' not in outputfile:
+                    outputfile+='.tsv'
+                dir=self.controller.output_dir_entry.get()
+                if self.controller.opsys=='Linux' or self.controller.opsys=='Mac':
+                    if dir[-1]!='/':dir+='/'
+                else:
+                    if dir[-1]!='\\': dir+='\\'
+                self.controller.log('Files processed.\n\t'+dir+outputfile)
                 if self.controller.proc_local_remote=='local': #Move on to finishing the process by transferring the data from temp to final destination
                     try:
                         self.controller.complete_queue_item()
                         self.controller.next_in_queue()
                         self.success()
                     except Exception as e:
-                        print('2')
                         print(e)
                         self.interrupt('Error: Could not transfer data to local folder.')
                         os.remove(self.controller.spec_temp_loc+'proc_temp.tsv')
+                        os.remove(self.controller.spec_temp_loc+'proc_temp_log.txt')
                 else: #if the final destination was remote then we're already done.
                     self.success()
                 return
@@ -4160,16 +4384,42 @@ class SaveConfigHandler(CommandHandler):
                 
                 self.listener.queue.remove('saveconfigfailedfileexists')
                 self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
-                buttons={
-                    'yes':{
-                        self.remove_retry:[]
-                    },
-                    'no':{
-                        self.finish:[]
-                    }
-                }
+                
+                if self.controller.overwrite_all:
+                    #self.wait_dialog.top.destroy()
+                    self.remove_retry(need_new=False) #No need for new wait dialog
                     
-                self.wait_dialog.set_buttons(buttons,button_width=20)
+                elif self.controller.manual_automatic.get()==0 and self.controller.script_running==False:
+                    self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                    buttons={
+                        'yes':{
+                            self.remove_retry:[]
+                        },
+
+                        'no':{
+                            self.finish:[]
+                        }
+                    }
+                        
+                    self.wait_dialog.set_buttons(buttons)
+                    
+                else:
+                    self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                    buttons={
+                        'yes':{
+                            self.remove_retry:[]
+                        },
+                        
+                        'yes to all':{
+                            self.controller.set_overwrite_all:[True],
+                            self.remove_retry:[]
+                        },
+                        'no':{
+                            self.finish:[]
+                        }
+                    }
+                    
+                    self.wait_dialog.set_buttons(buttons,button_width=10)
                 return
 
             elif 'saveconfigfailed' in self.listener.queue:
@@ -4184,7 +4434,7 @@ class SaveConfigHandler(CommandHandler):
                 
             elif 'saveconfigerror' in self.listener.queue:
                 self.listener.queue.remove('saveconfigerror')
-                self.interrupt('Error: There was a problem setting the save configuration.\nIs the spectrometer connected? Is the spectrometer computer awake and unlocked?',retry=True)
+                self.interrupt('Error: There was a problem setting the save configuration.\n\nIs the spectrometer connected?\nIs the spectrometer computer awake and unlocked?',retry=True)
                 self.controller.log('Error: There was a problem setting the save configuration.')
                 self.controller.spec_save_path=''
                 self.controller.spec_basename=''
@@ -4279,18 +4529,44 @@ class SpectrumHandler(CommandHandler):
                 self.success()
                 return
             elif 'savespecfailedfileexists' in self.listener.queue:
-                self.listener.queue.remove('savespecfailedfileexists')
-                self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
-                self.wait_dialog.top.wm_geometry('420x130')
+                self.listener.queue.remove('savespecfailedfileexists')                
                 
-                buttons={
-                    'yes':{
-                        self.remove_retry:[]
-                    },
-                    'no':{}
-                }
+                if self.controller.overwrite_all:
+                    #self.wait_dialog.top.destroy()
+                    self.remove_retry(need_new=False) #No need for a new wait_dialog
                     
-                self.wait_dialog.set_buttons(buttons,button_width=20)
+                elif self.controller.manual_automatic.get()==0 and self.controller.script_running==False:
+                    self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                    self.wait_dialog.top.wm_geometry('420x130')
+                    buttons={
+                        'yes':{
+                            self.remove_retry:[]
+                        },
+
+                        'no':{
+                            self.finish:[]
+                        }
+                    }
+                        
+                    self.wait_dialog.set_buttons(buttons)
+                    
+                else:
+                    self.interrupt('Error: File exists.\nDo you want to overwrite this data?')
+                    self.wait_dialog.top.wm_geometry('420x130')
+                    buttons={
+                        'yes':{
+                            self.remove_retry:[]
+                        },
+                        'yes to all':{
+                            self.controller.set_overwrite_all:[True],
+                            self.remove_retry:[]
+                        },
+                        'no':{
+                            self.finish:[]
+                        }
+                    }
+                    
+                    self.wait_dialog.set_buttons(buttons,button_width=10)
                 return
                 
             time.sleep(INTERVAL)
@@ -4327,6 +4603,7 @@ class SpectrumHandler(CommandHandler):
         info_string=''
         label=''
         if self.controller.white_referencing: 
+            print('WHITE REF!')
             self.controller.white_referencing=False
             info_string='White reference saved.'
             label='White reference'
@@ -4334,31 +4611,34 @@ class SpectrumHandler(CommandHandler):
             info_string='Spectrum saved.'
             label=self.controller.sample_label_entries[self.controller.current_sample_gui_index].get()
 
-        info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+label+'\n'
-        #If it was a garbage spectrum, we don't need all of the information about it. When we delete it we will log that it happened.
+        # info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+label+'\n'
+        
+        info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+str(self.controller.i)+'\n\te: '+str(self.controller.e)+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+label+'\n'
+        #If it was a garbage spectrum, we don't need all of the information about it. Instead, just delete it and log that it happened.
         if 'garbage' in self.wait_dialog.label:
-            pass
+                
+            self.controller.spec_commander.delete_spec(self.spec_save_dir_entry.get(),self.spec_basename_entry.get(),numstr)
+            
+            t=BUFFER
+            while t>0:
+                if 'rmsuccess' in self.listener.queue:
+                    self.listener.queue.remove('rmsuccess')
+                    self.controller.log('\nSaved and deleted a garbage spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd).')
+                    break
+                elif 'rmfailure' in self.listener.queue:
+                    self.listener.queue.remove('rmfailure')
+                    self.controller.log('\nError: Failed to remove placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd. This data is likely garbage. ')
+                    break
+                t=t-INTERVAL
+                time.sleep(INTERVAL)
+            if t<=0:
+                self.controller.log('\nError: Operation timed out removing placeholder spectrum ('+self.spec_basename_entry.get()+lastnumstr+'.asd). This data is likely garbage.')
+            #self.complete_queue_item()
+            #self.next_in_queue()
         else:
             self.controller.log(info_string,True)
             
-        # if 'White reference' in self.controller.sample_label_entries[self.controller.current_sample_gui_index].get():
-        #     print('removing White ref label')
-        #     self.controller.unfreeze()
-        #     label=self.controller.sample_label_entries[self.controller.current_sample_gui_index].get()
-        #     label=label.replace('White reference:','')
-        #     label=label.replace('White reference','')
-        #     self.controller.sample_label_entries[self.controller.current_sample_gui_index].delete(0,'end')
-        #     self.controller.sample_label_entries[self.controller.current_sample_gui_index].insert(0,label)
-        #     self.controller.freeze()
-
-        #Clear out 'White reference' if that was put in earlier to use for this spectrum.
-        #Didn't I just do this above? I'm confused.
-        # self.controller.unfreeze()
-        # self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)  
         self.controller.clear()
-        
-
-        
         super(SpectrumHandler, self).success()
         
 class ErrorDialog(Dialog):
@@ -4545,7 +4825,6 @@ class RemoteFileExplorer(Dialog):
             dialog=ErrorDialog(self.controller,label='Error: Permission denied for\n'+newparent)
             return
         elif status=='timeout':
-            print('right here!')
             dialog=ErrorDialog(self.controller, label='Error: Operation timed out.\nCheck that the automation script is running on the spectrometer computer.')
             self.cancel()
             
@@ -5106,9 +5385,9 @@ class PiCommander(Commander):
     def __init__(self,write_command_loc,listener):
         super().__init__(write_command_loc,listener)
     
-    def configure(self,i,e):
+    def configure(self,i,e,pos):
         self.remove_from_listener_queue(['piconfigsuccess'])
-        filename=self.encrypt('configure',[i,e])
+        filename=self.encrypt('configure',[i,e,pos])
         self.send(filename)
         return filename
         
