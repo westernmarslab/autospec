@@ -19,7 +19,7 @@ class Plotter():
         self.dpi=dpi
         self.titles=[]
         self.style=style
-        #plt.style.use(style)
+        plt.style.use(style)
         
         self.tabs=[]
         self.samples={}
@@ -280,7 +280,7 @@ class Tab():
         print('Analyze!')
         #self.plotter.controller.open_data_analysis_tools(self,self.existing_indices,self.sample_options_list)
         
-    def build_sample_lists()
+    def build_sample_lists():
         #Sample options will be the list of strings to put in the listbox. It may include the sample title, depending on whether there is more than one title.
         self.sample_options_dict={}
         self.sample_options_list=[]
