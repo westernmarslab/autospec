@@ -178,7 +178,7 @@ class TestView():
         while np.abs(theta-self.theta_l)>0:
             self.theta_l=self.theta_l+0.5*np.sign(theta-self.theta_l)
             if not config:
-                time.sleep(0.1)
+                time.sleep(0.16)
             else:
                 time.sleep(.005)
             self.draw_circle(self.width,self.height)
@@ -188,7 +188,7 @@ class TestView():
         while np.abs(theta-self.theta_d)>0:
             self.theta_d=self.theta_d+0.5*np.sign(theta-self.theta_d)
             if not config:
-                time.sleep(0.1)
+                time.sleep(0.16)
             else:
                 time.sleep(.005)
             self.draw_circle(self.width,self.height)
