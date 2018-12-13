@@ -36,6 +36,10 @@ class Plotter():
     def update_tab_names(self):
         pass
         
+    def new_tab(self):
+        tab=Tab(self, 'New tab',[], title_override=True)
+        tab.ask_which_samples()
+        
     def open_right_click_menu(self,event):
         print('hooray!')
         print(event)
@@ -223,9 +227,10 @@ class Tab():
         #self.top.bind("<Visibility>", self.on_visibility)
         self.top.pack()
         
-        #If this is being created from the File -> Plot option, just put the tab at the end.
+        #If this is being created from the File -> Plot option, or from right click -> new tab, just put the tab at the end.
         if tab_index==None:
             self.plotter.notebook.add(self.top,text=self.title+' x')
+            self.plotter.notebook.select(self.plotter.notebook.tabs()[-1])
         #If this is being called after the user did Right click -> choose samples to plot, put it at the same index as before.
         else:
             self.plotter.notebook.add(self.top,text=self.title+' x')
@@ -262,10 +267,15 @@ class Tab():
                                     command=self.ask_which_samples)
         self.popup_menu.add_command(label="Open analysis tools",
                                     command=self.open_analysis_tools)
+        self.popup_menu.add_command(label="New tab",
+                                    command=self.new)
         self.popup_menu.add_command(label="Close tab",
                                     command=self.close)
+
         self.plotter.menus.append(self.popup_menu)
-        
+    
+    def new(self):
+        self.plotter.new_tab()
 
     def on_visibility(self, event):
         self.close_right_click_menu(event)
@@ -280,7 +290,7 @@ class Tab():
         print('Analyze!')
         #self.plotter.controller.open_data_analysis_tools(self,self.existing_indices,self.sample_options_list)
         
-    def build_sample_lists():
+    def build_sample_lists(self):
         #Sample options will be the list of strings to put in the listbox. It may include the sample title, depending on whether there is more than one title.
         self.sample_options_dict={}
         self.sample_options_list=[]
@@ -304,7 +314,7 @@ class Tab():
                 self.sample_options_dict[sample.name]=sample
                 self.sample_options_list.append(sample.name)
         
-        return self.sample_options
+        return self.sample_options_list
     
     #We want to pass a list of existing samples and a list of possible samples.
     def ask_which_samples(self):
@@ -385,8 +395,10 @@ class Plot():
                     
         self.legend_anchor=1.05+self.max_legend_label_len/97
         plot_width=215 #very vague character approximation of plot width
-        ratio=int(plot_width/self.max_legend_label_len)
-        print(ratio)
+        if self.max_legend_label_len==0:
+            ratio=1000
+        else:
+            ratio=int(plot_width/self.max_legend_label_len)
         gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
         self.plot = fig.add_subplot(gs[0])
 
