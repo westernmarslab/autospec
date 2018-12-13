@@ -523,9 +523,24 @@ class Controller():
                 script_config.write(os.getcwd())
                 self.script_loc=os.getcwd()
         self.notebook_frames=[]
-        self.control_frame=Frame(self.notebook_frame, bg=self.bg)
-        #self.control_frame.config(width=300)
+        
+        self.control_canvas=Canvas(self.notebook_frame)
+        self.control_frame=Frame(self.control_canvas, bg=self.bg)
+        self.control_vbar=Scrollbar(self.control_frame,orient="vertical")#,command=self.control_canvas.yview)       
+        self.control_vbar.pack(side=RIGHT,fill=Y)
+        self.control_vbar.config(command=self.control_canvas.yview)
+        self.control_canvas.configure(yscrollcommand=self.control_vbar.set)
+        
+                
+        #self.control_frame=Frame(self.notebook_frame, bg=self.bg)
+        self.control_frame.config(width=300)
         self.control_frame.pack(fill=BOTH,expand=True)
+        self.control_canvas.pack(fill=BOTH, expand=True)
+        
+        #self.control_vbar=Scrollbar(self.control_frame,orient=VERTICAL)
+
+        #self.control_frame.config(yscrollcommand=self.vbar.set)
+        
         self.save_config_frame=Frame(self.control_frame,bg=self.bg,highlightthickness=1)
         self.save_config_frame.pack(fill=BOTH,expand=True)
         self.spec_save_label=Label(self.save_config_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Raw spectral data save configuration:')
@@ -617,6 +632,10 @@ class Controller():
         self.i_config_label_entry_frame.pack()
         self.instrument_config_label=Label(self.i_config_label_entry_frame, fg=self.textcolor,text='Number of spectra to average:', bg=self.bg)
         self.instrument_config_label.pack(side=LEFT,padx=(20,0))
+        
+
+        
+        
         self.instrument_config_entry=Entry(self.i_config_label_entry_frame, width=10, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.entries.append(self.instrument_config_entry)
         self.instrument_config_entry.insert(0, 5)
@@ -1877,7 +1896,7 @@ class Controller():
             timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i))*5+BUFFER
             self.pi_commander.move_light(self.active_incidence_entries[0].get(),type)
             handler=MotionHandler(self,label='Moving light...',timeout=timeout)
-            if type=='angle':
+            if type=='angle': #type will always be angle if reading from GUI
                 self.test_view.move_light(int(self.active_incidence_entries[0].get()))
             self.set_light_geom()
         else:
@@ -1885,7 +1904,7 @@ class Controller():
             if type=='angle':
                 timeout=np.abs(int(i)-int(self.i))*5+BUFFER
             else:
-                timeout=int(i)/20+BUFFER
+                timeout=np.abs(int(i))/20+BUFFER
             self.pi_commander.move_light(i,type)
             handler=MotionHandler(self,label='Moving light...',timeout=timeout)
             if type=='angle':
@@ -1899,7 +1918,7 @@ class Controller():
             timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.e))*5+BUFFER
             self.pi_commander.move_detector(self.active_emission_entries[0].get(),type)
             handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
-            if type=='angle':
+            if type=='angle': #Type will always be angle if we are reading from GUI
                 self.test_view.move_detector(int(self.active_emission_entries[0].get()))
             self.set_detector_geom()
         else:
@@ -1907,7 +1926,7 @@ class Controller():
             if type=='angle':
                 timeout=np.abs(int(e)-int(self.e))*5+BUFFER
             else:
-                timeout=int(e)/20+BUFFER
+                timeout=np.abs(int(e))/20+BUFFER
             self.pi_commander.move_detector(e,type)
             handler=MotionHandler(self,label='Moving detector...',timeout=timeout)
             if type=='angle':
@@ -3017,7 +3036,7 @@ class Controller():
             for button in self.sample_removal_buttons:
                 button.pack(side=LEFT,padx=(5,5))
         
-        if len(self.sample_label_entries)>4:
+        if len(self.sample_label_entries)>10:
             self.add_sample_button.configure(state=DISABLED)
         self.add_sample_button.pack(pady=(10,10))
         
