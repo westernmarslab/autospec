@@ -125,14 +125,14 @@ if computer=='old':
     NUMLEN=3
     #Time added to timeouts to account for time to read/write files
     BUFFER=15
-    PI_BUFFER=5
+    PI_BUFFER=8
     server='melissa' #old computer
 elif computer=='new':
     #Number of digits in spectrum number for spec save config
     NUMLEN=5
     #Time added to timeouts to account for time to read/write files
     BUFFER=15
-    PI_BUFFER=5
+    PI_BUFFER=10
     server='geol-chzc5q2' #new computer
     
 elif computer=='desktop':
@@ -140,7 +140,7 @@ elif computer=='desktop':
     NUMLEN=5
     #Time added to timeouts to account for time to read/write files
     BUFFER=15
-    PI_BUFFER=5
+    PI_BUFFER=10
     server='marsinsight' #new computer
 
 pi_server='hozapi'
@@ -4441,7 +4441,7 @@ class MotionHandler(CommandHandler):
                 self.controller.log('Detector moved')
         elif 'light' in self.label:
             try:
-                self.controller.log('Goniometer moved to an incidence angle of '+self.controller.active_incidence_entries[0].get()+' degrees.')
+                self.controller.log('Goniometer moved to an incidence angle of '+self.controller.i+' degrees.')
             except:
                 self.controller.log('Light source moved')
             
