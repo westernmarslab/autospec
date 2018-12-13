@@ -88,9 +88,8 @@ class Plotter():
                     self.samples[file][sample_label]=new
                     self.sample_objects.append(new)
             if spectrum_label not in self.samples[file][sample_label].spectrum_labels: #This should do better and actually check that all the data is an exact duplicate, but that seems hard. Just don't label things exactly the same and save them in the same file with the same viewing geometry.
-                self.samples[file][sample_label].add_spectrum(spectrum_label)
-                self.samples[file][sample_label].data[spectrum_label]['reflectance']=reflectance[i]
-                self.samples[file][sample_label].data[spectrum_label]['wavelengths']=wavelengths
+                self.samples[file][sample_label].add_spectrum(spectrum_label, reflectance[i], wavelengths)
+
             # else:
             #     existing_r= self.samples[file][sample_label].data[spectrum_label]['reflectance']
             #     existing_w=self.samples[file][sample_label].data[spectrum_label['wavelengths']
@@ -188,19 +187,21 @@ class Plotter():
             
         return(dist_to_edge)
 class Sample():
-    def __init__(self, label, file, title):#colors):
+    def __init__(self, name, file, title):#colors):
         #self.colors=colors
         # self.index=-1
         # self.__next_color=self.colors[0]
         self.title=title
-        self.name=label
+        self.name=name
         self.file=file
         self.data={}
         self.spectrum_labels=[]
     
-    def add_spectrum(self,spectrum_label):
-        self.data[spectrum_label]={'reflectance':[],'wavelengths':[]}
+    def add_spectrum(self,spectrum_label, reflectance, wavelengths):
         self.spectrum_labels.append(spectrum_label)
+        self.data[spectrum_label]={'reflectance':[],'wavelengths':[]}
+        self.data[spectrum_label]['reflectance']=reflectance
+        self.data[spectrum_label]['wavelengths']=wavelengths
         
     def set_colors(self, colors):
         self.colors=colors
@@ -215,9 +216,10 @@ class Sample():
 class Tab():
     #Title override is true if the title of this individual tab is set manually by user.
     #If it is False, then the tab and plot title will be a combo of the file title plus the sample that is plotted.
-    def __init__(self, plotter, title, samples, tab_index=None,title_override=False):
+    def __init__(self, plotter, title, samples,tab_index=None,title_override=False):
         self.plotter=plotter
         self.samples=samples
+                
         if title_override==False:
             self.title=title+ ': '+samples[0].name
         else:
@@ -301,7 +303,7 @@ class Tab():
         if len(self.plotter.titles)>1:
             for i, sample in enumerate(self.plotter.sample_objects):
                 for plotted_sample in self.samples:
-                    if sample==plotted_sample:
+                    if sample.name==plotted_sample.name and sample.file==plotted_sample.file:
                         self.existing_indices.append(i)
                 self.sample_options_dict[sample.title+': '+sample.name]=sample
                 self.sample_options_list.append(sample.title+': '+sample.name)
@@ -309,7 +311,7 @@ class Tab():
         else:
             for i, sample in enumerate(self.plotter.sample_objects):
                 for plotted_sample in self.samples:
-                    if sample==plotted_sample:
+                    if sample.name==plotted_sample.name and sample.file==plotted_sample.file:
                         self.existing_indices.append(i)
                 self.sample_options_dict[sample.name]=sample
                 self.sample_options_list.append(sample.name)
@@ -324,7 +326,7 @@ class Tab():
         #We tell the controller which samples are already plotted so it can initiate the listbox with those samples highlighted.
         self.plotter.controller.ask_plot_samples(self,self.existing_indices, self.sample_options_list)#existing_samples, new_samples)
     
-    def set_samples(self, listbox_labels, title):
+    def set_samples(self, listbox_labels, title, incidences, emissions):
         #we made a dict mapping sample labels for a listbox to available samples to plot. This was passed back when the user clicked ok. Reset this tab's samples to be those ones, then replot.
         self.samples=[]
         if title=='':
@@ -332,9 +334,45 @@ class Tab():
         for label in listbox_labels:
             self.samples.append(self.sample_options_dict[label])
             
+        incidences=incidences.split(',')
+        for i in incidences:
+            i=i.replace(' ','')
+        if incidences==['']: 
+            incidences=[]
+    
+        
+        emissions=emissions.split(',')
+        for e in emissions:
+            e=e.replace(' ','')
+        if emissions==['']: 
+            emissions=[]
+            
+        self.geoms={'i':incidences,'e':emissions}
+        print(self.geoms)
+        
+        winnowed_samples=[] #These will only have the data we are actually going to plot, which will only be from the specificied geometries. 
+        
+        for i, sample in enumerate(self.samples):
+
+            
+            winnowed_sample=Sample(sample.name, sample.file, sample.title)
+            
+            for label in sample.spectrum_labels: #For every spectrum associated with the sample, check if it is for a geometry we are going to plot. if it is, attach that spectrum to the winnowed sample data
+                i=label.split('i=')[1].split(' ')[0]
+                e=label.split('e=')[1].strip(')')
+                print(i)
+                print(e)
+                if self.check_geom(i, e): #If this is a geometry we are supposed to plot
+                    winnowed_sample.add_spectrum(label, sample.data[label]['reflectance'], sample.data[label]['wavelengths'])
+
+                
+                    
+            winnowed_samples.append(winnowed_sample)
+
+        
         tab_index=self.plotter.notebook.index(self.plotter.notebook.select())
         self.plotter.notebook.forget(self.plotter.notebook.select())
-        self.__init__(self.plotter,title,self.samples, tab_index=tab_index,title_override=True)
+        self.__init__(self.plotter,title,winnowed_samples, tab_index=tab_index,title_override=True)
 
     def open_right_click_menu(self, event):
         self.popup_menu.post(event.x_root+10, event.y_root+1)
@@ -344,6 +382,13 @@ class Tab():
     def close(self):
         tabid=self.plotter.notebook.select()
         self.plotter.notebook.forget(tabid)
+
+    def check_geom(self, i, e):
+        if i in self.geoms['i'] and e in self.geoms['e']: return True
+        elif i in self.geoms['i'] and self.geoms['e']==[]: return True
+        elif self.geoms['i']==[] and e in self.geoms['e']: return True
+        elif self.geoms['i']==[] and self.geoms['e']==[]: return True
+        else: return False
         
     
         
@@ -354,6 +399,9 @@ class Plot():
         self.samples=samples
         # self.fig=fig
         self.title='' #This will be the text to put on the notebook tab
+        #self.geoms=geoms #This is a dict like this: {'i':[10,20],'e':[-10,0,10,20,30,40,50]} telling which incidence and emission angles to include on the plot. empty lists mean plot all available.
+
+        
         self.colors=[]
         self.colors.append(['#004d80','#006bb3','#008ae6','#33adff','#80ccff','#b3e0ff','#e6f5ff']) #blue
         self.colors.append(['#145214','#1f7a1f','#2eb82e','#5cd65c','#99e699','#d6f5d6']) #green
@@ -363,20 +411,13 @@ class Plot():
         
         self.files=[]
         self.num_spectra=0 #This is the total number of spectra we're plotting. We want to get a count so we know where to put the legend (on top or to the right).
-        for i, sample in enumerate(samples):
-            sample.set_colors(self.colors[i%len(self.colors)])
+        for i, sample in enumerate(self.samples):
             if sample.file not in self.files:
                 self.files.append(sample.file)
-                #self.title=self.title+sample.file+' '+sample.name #The tab title will be a the title of each tsv followed by the associated samples being plotted.
-            else:
-                self.title='test'
+            sample.set_colors(self.colors[i%len(self.colors)])
             self.num_spectra+=len(sample.spectrum_labels)
-                #self.title=self.title.split(sample.file)[0] +sample.name+self.title.split(sample.file)[1]
-                #self.title=self.title+','+sample.name
-            
-                
+
         self.title=title
-        print('plotting '+str(self.num_spectra)+' spectra.')
         
         self.max_legend_label_len=0 #This will tell us how much space to give the legend.
         #The whole point in this is to figure out how much space the legend might need. We do the whole thing again in a moment, which dumb.
@@ -434,10 +475,10 @@ class Plot():
             print('close plot!')
             top.destroy()
     
-    def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
 
         
-        
+    
+    def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
         for sample in self.samples:
             lines=[]
             for label in sample.spectrum_labels:
@@ -446,7 +487,7 @@ class Plot():
                 #     continue
                 legend_label=label
                 if len(self.samples)==1:
-                    legend_label=legend_label.replace(sample.name,'').replace('(i=','i=').strip('(')
+                    legend_label=legend_label.replace(sample.name,'').replace('(i=','i=').strip(')')
 
                 if len(self.files)>1:
                     legend_label=sample.title+': '+legend_label

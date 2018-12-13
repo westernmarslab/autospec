@@ -2748,23 +2748,45 @@ class Controller():
         buttons={
             'ok':{
                 #Sorry, this is a pretty confusing lambda. It just sends a list of the currently selected samples back to the tab along with the new title.
-                lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection())),self.new_plot_title_entry.get()):[]
+                lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection())),self.new_plot_title_entry.get(), self.i_entry.get(),self.e_entry.get()):[]
                 }
             }
-        dialog=Dialog(self,'Select Samples to Plot','\nSelect the sample(s) to show on this tab.\n',buttons=buttons)
-        self.plot_samples_listbox=ScrollableListbox(dialog.top,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
-        self.new_plot_title_label=Label(dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Plot title:')
-        self.new_plot_title_label.pack()
+        dialog=Dialog(self,'Edit Plot','\nPlot title:',buttons=buttons)
         self.new_plot_title_entry=Entry(dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.new_plot_title_entry.pack()
+        
+        sample_label=Label(dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='\nSamples:')
+        sample_label.pack(pady=(0,10))
+        self.plot_samples_listbox=ScrollableListbox(dialog.top,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
+        
+        self.geom_label=Label(dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='\nEnter incidence and emission angles to plot,\nor leave blank to plot all:\n')
+        self.geom_label.pack()
+        self.geom_frame=Frame(dialog.top)
+        self.geom_frame.pack(padx=(20,20),pady=(0,10))
+        self.i_label=Label(self.geom_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='i: ')
+        self.i_label.pack(side=LEFT)
+        self.i_entry=Entry(self.geom_frame, width=12, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.i_entry.pack(side=LEFT)
+        
+        self.e_label=Label(self.geom_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='    e: ')
+        self.e_label.pack(side=LEFT)
+        self.e_entry=Entry(self.geom_frame, width=12, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.e_entry.pack(side=LEFT)
+        
+        
+
+
 
         sample_files=[]
         for option in sample_options:
             self.plot_samples_listbox.insert(END,option)
-            
+        
+        print('select these ones!')
+        print(existing_sample_indices)
         for i in existing_sample_indices:
             self.plot_samples_listbox.select_set(i)
         self.plot_samples_listbox.config(height=8)
+        
     def reset_plot_data(self):
         self.plotter=Plotter(self,self.get_dpi(),[ self.config_loc+'color_config.mplstyle',self.config_loc+'size_config.mplstyle'])
         for i, tab in enumerate(self.view_notebook.tabs()):
@@ -5151,7 +5173,7 @@ class ScrollableListbox(Listbox):
         self.scrollbar.pack(side=RIGHT, fill=Y,padx=(0,10))
         self.scrollbar.config(command=self.yview)
         
-        super().__init__(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=selectmode,bg=entry_background, selectbackground=listboxhighlightcolor, height=15)
+        super().__init__(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=selectmode,bg=entry_background, selectbackground=listboxhighlightcolor, height=15,exportselection=0)
         self.pack(side=LEFT,expand=True, fill=BOTH,padx=(10,0))
 
 
