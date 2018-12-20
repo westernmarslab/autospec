@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 from tkinter import *
+from tkinter import filedialog
 
 import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -113,13 +114,50 @@ class Plotter():
     #     self.draw_plot(self.style)
         
         
-    def load_data(self, file):
+    def load_data(self, file, format='spectral_database_csv'):
+        labels=[]
+        #This is the format I was initially using. It is a simple .tsv file with a single row of headers e.g. Wavelengths     Sample_1 (i=0 e=30)     Sample_2 (i=0 e=30).
+        if format=='simple_tsv':
+            data = np.genfromtxt(file, names=True, dtype=None,delimiter='\t',deletechars='')
+            labels=list(data.dtype.names)[1:] #the first label is wavelengths
+            for i in range(len(labels)):
+                labels[i]=labels[i].replace('_(i=',' (i=').replace('_e=',' e=')
+        #This is the current format, which is compatible with the WWU spectral library format.
+        elif format=='spectral_database_csv':
+            skip_header=0
+            line=''
+            labels_found=False #We want to use the Sample Name field for labels, but if we haven't found that yet we may use Data ID, Sample ID, or mineral name instead.
+            with open(file,'r') as file2:
+                while line!='Wavelength\n':
+                    line=file2.readline()
+                    if line[0:11]=='Sample Name':
+                        labels=line.split(',')[1:]
+                        labels[-1]=labels[-1].strip('\n')
+                        labels_found=True #
+                    elif line[0:16]=='Viewing Geometry':
+                        for i, geom in enumerate(line.split(',')[1:]):
+                            geom=geom.strip('\n')
+                            labels[i]+=' ('+geom+')'
+                    elif line[0:7]=='Data ID':
+                        if labels_found==False: #Only use Data ID for labels if we haven't found the Sample Name field.
+                            labels=line.split(',')[1:]
+                            labels[-1]=labels[-1].strip('\n')
+                    elif line[0:9]=='Sample ID':
+                        if labels_found==False: #Only use Sample ID for labels if we haven't found the Sample Name field.
+                            labels=line.split(',')[1:]
+                            labels[-1]=labels[-1].strip('\n')
+                    elif line[0:12]=='Mineral Name':
+                        if labels_found==False: #Only use Data ID for labels if we haven't found the Sample Name field.
+                            labels=line.split(',')[1:]
+                            labels[-1]=labels[-1].strip('\n')
+                    skip_header+=1
 
-        data = np.genfromtxt(file, names=True, dtype=None,delimiter='\t',deletechars='')
 
-        labels=list(data.dtype.names)[1:] #the first label is wavelengths
-        for i in range(len(labels)):
-            labels[i]=labels[i].replace('_(i=',' (i=').replace('_e=',' e=')
+            data = np.genfromtxt(file, skip_header=skip_header, dtype=None,delimiter=',',deletechars='')
+
+            
+        
+
         data=zip(*data)
         wavelengths=[]
         reflectance=[]
@@ -216,10 +254,11 @@ class Sample():
 class Tab():
     #Title override is true if the title of this individual tab is set manually by user.
     #If it is False, then the tab and plot title will be a combo of the file title plus the sample that is plotted.
-    def __init__(self, plotter, title, samples,tab_index=None,title_override=False):
+    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}):
         self.plotter=plotter
         self.samples=samples
-                
+        self.geoms=geoms
+            
         if title_override==False:
             self.title=title+ ': '+samples[0].name
         else:
@@ -269,12 +308,18 @@ class Tab():
                                     command=self.ask_which_samples)
         self.popup_menu.add_command(label="Open analysis tools",
                                     command=self.open_analysis_tools)
+        self.popup_menu.add_command(label="Save plot",
+                                    command=self.save)
+
         self.popup_menu.add_command(label="New tab",
                                     command=self.new)
         self.popup_menu.add_command(label="Close tab",
                                     command=self.close)
 
         self.plotter.menus.append(self.popup_menu)
+        
+    def save(self):
+        self.plot.save()
     
     def new(self):
         self.plotter.new_tab()
@@ -324,7 +369,7 @@ class Tab():
         #Build up lists of strings telling available samples, which of those samples a currently plotted, and a dictionary mapping those strings to the sample options.
         self.build_sample_lists()
         #We tell the controller which samples are already plotted so it can initiate the listbox with those samples highlighted.
-        self.plotter.controller.ask_plot_samples(self,self.existing_indices, self.sample_options_list)#existing_samples, new_samples)
+        self.plotter.controller.ask_plot_samples(self,self.existing_indices, self.sample_options_list, self.geoms, self.title)#existing_samples, new_samples)
     
     def set_samples(self, listbox_labels, title, incidences, emissions):
         #we made a dict mapping sample labels for a listbox to available samples to plot. This was passed back when the user clicked ok. Reset this tab's samples to be those ones, then replot.
@@ -348,7 +393,6 @@ class Tab():
             emissions=[]
             
         self.geoms={'i':incidences,'e':emissions}
-        print(self.geoms)
         
         winnowed_samples=[] #These will only have the data we are actually going to plot, which will only be from the specificied geometries. 
         
@@ -358,12 +402,14 @@ class Tab():
             winnowed_sample=Sample(sample.name, sample.file, sample.title)
             
             for label in sample.spectrum_labels: #For every spectrum associated with the sample, check if it is for a geometry we are going to plot. if it is, attach that spectrum to the winnowed sample data
-                i=label.split('i=')[1].split(' ')[0]
-                e=label.split('e=')[1].strip(')')
-                print(i)
-                print(e)
-                if self.check_geom(i, e): #If this is a geometry we are supposed to plot
-                    winnowed_sample.add_spectrum(label, sample.data[label]['reflectance'], sample.data[label]['wavelengths'])
+                try: #If there is no geometry information for this sample, this will throw an exception.
+                    i=label.split('i=')[1].split(' ')[0]
+                    e=label.split('e=')[1].strip(')')
+                    if self.check_geom(i, e): #If this is a geometry we are supposed to plot
+                        winnowed_sample.add_spectrum(label, sample.data[label]['reflectance'], sample.data[label]['wavelengths'])
+                except: #If there's no geometry information, plot the sample.
+                    print('plotting spectrum with invalid geometry information')
+                    winnowed_sample.add_spectrum(label,sample.data[label]['reflectance'],sample.data[label]['wavelengths'])
 
                 
                     
@@ -372,7 +418,7 @@ class Tab():
         
         tab_index=self.plotter.notebook.index(self.plotter.notebook.select())
         self.plotter.notebook.forget(self.plotter.notebook.select())
-        self.__init__(self.plotter,title,winnowed_samples, tab_index=tab_index,title_override=True)
+        self.__init__(self.plotter,title,winnowed_samples, tab_index=tab_index,title_override=True, geoms=self.geoms)
 
     def open_right_click_menu(self, event):
         self.popup_menu.post(event.x_root+10, event.y_root+1)
@@ -397,9 +443,9 @@ class Plot():
         
         self.plotter=plotter
         self.samples=samples
-        # self.fig=fig
+        self.fig=fig
         self.title='' #This will be the text to put on the notebook tab
-        #self.geoms=geoms #This is a dict like this: {'i':[10,20],'e':[-10,0,10,20,30,40,50]} telling which incidence and emission angles to include on the plot. empty lists mean plot all available.
+        #self.geoms={'i':[],'e':[]} #This is a dict like this: {'i':[10,20],'e':[-10,0,10,20,30,40,50]} telling which incidence and emission angles to include on the plot. empty lists mean plot all available.
 
         
         self.colors=[]
@@ -477,7 +523,21 @@ class Plot():
     
 
         
-    
+    def save(self):
+        initialdir=None
+        if len(self.files)>0:
+            if '\\' in self.files[0]:
+                initialdir='\\'.join(self.files[0].split('\\')[0:-1])
+            elif '/' in self.files[0]:
+                initialdir='/'.join(self.files[0].split('/')[0:-1])
+                
+        if initialdir!=None:
+            path=filedialog.asksaveasfilename(initialdir=initialdir)
+            self.fig.savefig(path)
+        else:
+            path=asksaveasfilename()
+            self.fig.savefig(path)
+        
     def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
         for sample in self.samples:
             lines=[]

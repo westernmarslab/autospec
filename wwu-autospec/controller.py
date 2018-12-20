@@ -2744,7 +2744,7 @@ class Controller():
         
     #This gets called when the user clicks 'Overlay samples' from the right-click menu on a plot.
     #Pops up a scrollable listbox with sample options.
-    def ask_plot_samples(self, tab, existing_sample_indices, sample_options):
+    def ask_plot_samples(self, tab, existing_sample_indices, sample_options, existing_geoms, current_title):
         buttons={
             'ok':{
                 #Sorry, this is a pretty confusing lambda. It just sends a list of the currently selected samples back to the tab along with the new title.
@@ -2753,6 +2753,7 @@ class Controller():
             }
         dialog=Dialog(self,'Edit Plot','\nPlot title:',buttons=buttons)
         self.new_plot_title_entry=Entry(dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.new_plot_title_entry.insert(0,current_title)
         self.new_plot_title_entry.pack()
         
         sample_label=Label(dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='\nSamples:')
@@ -2766,23 +2767,29 @@ class Controller():
         self.i_label=Label(self.geom_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='i: ')
         self.i_label.pack(side=LEFT)
         self.i_entry=Entry(self.geom_frame, width=12, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        for i, incidence in enumerate(existing_geoms['i']):
+            if i==0:
+                self.i_entry.insert(0,incidence)
+            else:
+                self.i_entry.insert('end',','+incidence)
+                
         self.i_entry.pack(side=LEFT)
         
         self.e_label=Label(self.geom_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='    e: ')
         self.e_label.pack(side=LEFT)
         self.e_entry=Entry(self.geom_frame, width=12, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        for i, emission in enumerate(existing_geoms['e']):
+            if i==0:
+                self.e_entry.insert(0,emission)
+            else:
+                self.e_entry.insert('end',','+emission)
         self.e_entry.pack(side=LEFT)
-        
-        
-
-
 
         sample_files=[]
         for option in sample_options:
             self.plot_samples_listbox.insert(END,option)
         
-        print('select these ones!')
-        print(existing_sample_indices)
+
         for i in existing_sample_indices:
             self.plot_samples_listbox.select_set(i)
         self.plot_samples_listbox.config(height=8)
