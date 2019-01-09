@@ -1,5 +1,4 @@
-config/
-config/
+local_config/
 __pycache__/
 not__init__.py
 dist/
