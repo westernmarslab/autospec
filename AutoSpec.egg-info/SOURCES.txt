@@ -1,0 +1,11 @@
+README.txt
+setup.py
+AutoSpec.egg-info/PKG-INFO
+AutoSpec.egg-info/SOURCES.txt
+AutoSpec.egg-info/dependency_links.txt
+AutoSpec.egg-info/requires.txt
+AutoSpec.egg-info/top_level.txt
+autospec/controller.py
+autospec/data_converter.py
+autospec/goniometer_view.py
+autospec/plotter.py

@@ -162,7 +162,8 @@ if opsys=='Linux':
     pi_write_loc=pi_share_loc+'commands/from_control/'
     spec_read_loc=spec_share_loc+'commands/from_spec/'
     pi_read_loc=pi_share_loc+'/commands/from_pi/'
-    config_loc=package_loc+'config/'
+    local_config_loc=package_loc+'local_config/'
+    global_config_loc=package_loc+'global_config/'
     log_loc=package_loc+'log/'
 elif opsys=='Windows':
     spec_share_loc='\\\\'+server.upper()+'\\'+spec_share+'\\'
@@ -175,7 +176,8 @@ elif opsys=='Windows':
     pi_write_loc=pi_share_loc+'commands\\from_control\\'
     spec_read_loc=spec_share_loc+'commands\\from_spec\\'
     pi_read_loc=pi_share_loc+'commands\\from_pi\\'
-    config_loc=package_loc+'config\\'
+    local_config_loc=package_loc+'local_config\\'
+    global_config_loc=package_log+'global_config\\'
     log_loc=package_loc+'log\\'
     
 elif opsys=='Mac':
@@ -189,13 +191,14 @@ elif opsys=='Mac':
     pi_write_loc=pi_share_loc+'commands/from_control/'
     spec_read_loc=spec_share_loc+'commands/from_spec/'
     pi_read_loc=pi_share_loc+'commands/from_spec/'
-    config_loc=package_loc+'config/'
+    local_config_loc=package_loc+'local_config/'
+    global_config_loc=package_loc+'global_config/'
     log_loc=package_loc+'log/'
     
-if not os.path.isdir(config_loc):
+if not os.path.isdir(local_config_loc):
     print('Attempting to make config directory:')
-    print(config_loc)
-    os.mkdir(config_loc)
+    print(local_config_loc)
+    os.mkdir(local_config_loc)
 
 def donothing():
     pass
@@ -251,10 +254,10 @@ def main_part_3():
 
     icon_loc=package_loc+'exception'#test_icon.xbm'
     
-    control=Controller(spec_listener, pi_listener,spec_share_loc, spec_read_loc,spec_write_loc, spec_temp_loc, pi_write_loc, config_loc,data_share_loc,opsys, icon_loc)
+    control=Controller(spec_listener, pi_listener,spec_share_loc, spec_read_loc,spec_write_loc, spec_temp_loc, pi_write_loc, local_config_loc,global_config_loc, data_share_loc,opsys, icon_loc)
 
 class Controller():
-    def __init__(self, spec_listener, pi_listener,spec_share_loc, spec_read_loc, spec_write_loc,spec_temp_loc, pi_write_loc,config_loc, data_share_loc,opsys,icon):
+    def __init__(self, spec_listener, pi_listener,spec_share_loc, spec_read_loc, spec_write_loc,spec_temp_loc, pi_write_loc,local_config_loc, global_config_loc, data_share_loc,opsys,icon):
         self.spec_listener=spec_listener
         self.spec_listener.set_controller(self)
         self.spec_listener.start()
@@ -275,7 +278,8 @@ class Controller():
         
         self.remote_directory_worker=RemoteDirectoryWorker(self.spec_commander, self.spec_read_loc, self.spec_listener)
         
-        self.config_loc=config_loc
+        self.local_config_loc=local_config_loc
+        self.global_config_loc=global_config_loc
         self.opsys=opsys
         self.log_filename=None
         
@@ -454,7 +458,7 @@ class Controller():
 
 
         #The plotter, surprisingly, plots things.
-        self.plotter=Plotter(self,self.get_dpi(),[ self.config_loc+'color_config.mplstyle',self.config_loc+'size_config.mplstyle'])
+        self.plotter=Plotter(self,self.get_dpi(),[ self.global_config_loc+'color_config.mplstyle',self.global_config_loc+'size_config.mplstyle'])
         
         
         #The commander is in charge of sending all the commands for the spec compy to read
@@ -464,12 +468,12 @@ class Controller():
         self.process_input_dir=''
         self.process_output_dir=''
         try:
-            with open(self.config_loc+'process_directories.txt','r') as process_config:
+            with open(self.local_config_loc+'process_directories.txt','r') as process_config:
                 self.proc_local_remote=process_config.readline().strip('\n')
                 self.process_input_dir=process_config.readline().strip('\n')
                 self.process_output_dir=process_config.readline().strip('\n')
         except:
-            with open(self.config_loc+'process_directories.txt','w+') as f:
+            with open(self.local_config_loc+'process_directories.txt','w+') as f:
                 f.write('remote')
                 f.write('C:\\Users\n')
                 f.write('C:\\Users\n')
@@ -478,14 +482,14 @@ class Controller():
                 self.proc_output_dir='C:\\Users'
                 
         try:
-            with open(self.config_loc+'plot_config.txt','r') as plot_config:
+            with open(self.local_config_loc+'plot_config.txt','r') as plot_config:
                 self.plot_local_remote=plot_config.readline().strip('\n')
                 self.plot_input_file=plot_config.readline().strip('\n')
                 self.plot_title=plot_config.readline().strip('\n')
                 self.proc_logfile=plot_config.readline().strip('\n')
         except:
             
-            with open(self.config_loc+'plot_config.txt','w+') as f:
+            with open(self.local_config_loc+'plot_config.txt','w+') as f:
                 f.write('remote')
                 f.write('C:\\Users\n')
                 f.write('C:\\Users\n')
@@ -497,14 +501,14 @@ class Controller():
             self.plot_logile='C:\\Users'
     
         try:
-            with open(self.config_loc+'spec_save.txt','r') as spec_save_config:
+            with open(self.local_config_loc+'spec_save.txt','r') as spec_save_config:
                 self.spec_save_path=spec_save_config.readline().strip('\n')
                 self.spec_basename=spec_save_config.readline().strip('\n')
                 self.spec_startnum=str(int(spec_save_config.readline().strip('\n'))+1)
                 while len(self.spec_startnum)<NUMLEN:
                     self.spec_startnum='0'+self.spec_startnum
         except:
-            with open(self.config_loc+'spec_save.txt','w+') as f:
+            with open(self.local_config_loc+'spec_save.txt','w+') as f:
                 f.write('C:\\Users\n')
                 f.write('basename\n')
                 f.write('-1\n')
@@ -516,10 +520,10 @@ class Controller():
                     self.spec_startnum='0'+self.spec_startnum
                     
         try:
-            with open(self.config_loc+'script_config.txt','r') as script_config:
+            with open(self.local_config_loc+'script_config.txt','r') as script_config:
                 self.script_loc=script_config.readline().strip('\n')
         except:
-            with open(self.config_loc+'script_config.txt','w+') as script_config:
+            with open(self.local_config_loc+'script_config.txt','w+') as script_config:
                 script_config.write(os.getcwd())
                 self.script_loc=os.getcwd()
         self.notebook_frames=[]
@@ -1322,7 +1326,7 @@ class Controller():
         self.script_failed=False
         script_file = askopenfilename(initialdir=self.script_loc,title='Select script')
         self.queue=[]
-        with open(self.config_loc+'script_config.txt','w') as script_config:
+        with open(self.local_config_loc+'script_config.txt','w') as script_config:
             dir=''
             if self.opsys=='Linux' or self.opsys=='Mac':
                 dir='/'.join(script_file.split('/')[0:-1])
@@ -1740,7 +1744,7 @@ class Controller():
             return False
             
         if self.spec_save_config.get():
-            file=open(self.config_loc+'spec_save.txt','w')
+            file=open(self.local_config_loc+'spec_save.txt','w')
             file.write(self.spec_save_dir_entry.get()+'\n')
             file.write(self.spec_basename_entry.get()+'\n')
             file.write(self.spec_startnum_entry.get()+'\n')
@@ -2710,7 +2714,7 @@ class Controller():
             self.spec_commander.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
             
         if self.process_save_dir.get():
-            file=open(self.config_loc+'process_directories.txt','w')
+            file=open(self.local_config_loc+'process_directories.txt','w')
             file.write(self.plot_local_remote+'\n')
             file.write(self.input_dir_entry.get()+'\n')
             file.write(self.output_dir_entry.get()+'\n')
@@ -2803,7 +2807,7 @@ class Controller():
         self.plot_samples_listbox.config(height=8)
         
     def reset_plot_data(self):
-        self.plotter=Plotter(self,self.get_dpi(),[ self.config_loc+'color_config.mplstyle',self.config_loc+'size_config.mplstyle'])
+        self.plotter=Plotter(self,self.get_dpi(),[ self.global_config_loc+'color_config.mplstyle',self.global_config_loc+'size_config.mplstyle'])
         for i, tab in enumerate(self.view_notebook.tabs()):
             if i==0: continue
             else: self.view_notebook.forget(tab)
@@ -2896,7 +2900,7 @@ class Controller():
             elif self.plot_local.get():
                 self.plot_local_remote='local'
             
-            with open(self.config_loc+'plot_config.txt','w') as plot_config:
+            with open(self.local_config_loc+'plot_config.txt','w') as plot_config:
                 plot_config.write(self.plot_local_remote+'\n')
                 plot_config.write(self.plot_input_file+'\n')
                 plot_config.write(self.plot_title+'\n')

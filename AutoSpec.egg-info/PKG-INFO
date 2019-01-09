@@ -1,0 +1,12 @@
+Metadata-Version: 1.2
+Name: AutoSpec
+Version: 0.0.1
+Summary: Control software for spectroscopy using ASD RS3 and ViewSpec Pro
+Home-page: https://github.com/kathleenhoza/autospectroscopy
+Author: Kathleen Hoza
+Author-email: kathleenhoza@gmail.com
+License: Creative Commons Attribution-Noncommercial-Share Alike license
+Project-URL: Source, https://github.com/kathleenhoza/autospectroscopy
+Description: UNKNOWN
+Platform: UNKNOWN
+Requires-Python: >=3
