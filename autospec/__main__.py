@@ -355,6 +355,7 @@ class Controller():
         self.sample_labels=[]
         self.sample_num_labels=[]
         self.sample_label_pos_frames=[]
+        self.pos_menus=[]
         self.sample_pos_vars=[]
         self.current_sample_index=0
         self.current_sample_gui_index=0
@@ -548,7 +549,7 @@ class Controller():
         #self.control_vbar=Scrollbar(self.control_frame,orient=VERTICAL)
 
         #self.control_frame.config(yscrollcommand=self.vbar.set)
-        self.control_frame=VerticalScrolledFrame(self.notebook_frame, bg=self.bg)
+        self.control_frame=VerticalScrolledFrame(self, self.notebook_frame, bg=self.bg)
         self.control_frame.pack(fill=BOTH, expand=True)
         
         self.save_config_frame=Frame(self.control_frame.interior,bg=self.bg,highlightthickness=1)
@@ -905,9 +906,15 @@ class Controller():
         thread = Thread(target =self.bind)
         thread.start()
         
+        thread = Thread(target =self.scrollbar_check) #Waits for everything to get packed, then checks if you need a scrollbar on the control frame.
+        thread.start()
+        
         self.master.mainloop()
         
         #self.view.join()
+    def scrollbar_check(self):
+        time.sleep(0.5)
+        self.control_frame.update()
     def show_process_frame(self):
         #********************** Process frame ******************************
         self.process_top=Toplevel(self.master)
@@ -1222,12 +1229,9 @@ class Controller():
             self.next_pos-=10
         
     def bind(self):
-        #self.test_view.flip()
-        time.sleep(0.25)
         self.master.bind("<Configure>", self.resize)
-        window=PretendEvent(self.master,self.master.winfo_height(),self.master.winfo_width())
+        window=PretendEvent(self.master,self.master.winfo_width(),self.master.winfo_height())
         self.resize(window)
-        time.sleep(0.2)
         if not SPEC_OFFLINE:
             self.log('Spec compy connected.')
         else:
@@ -1237,8 +1241,6 @@ class Controller():
         else:
             self.log('Raspberry pi not connected. Working offline. Restart to use automation features.')
         
-        #self.master.configure(width=1300, height=800)
-
     def on_closing(self):
         self.test_view.quit()
         self.master.destroy()
@@ -2322,6 +2324,86 @@ class Controller():
             self.queue.insert(0,{self.take_spectrum:[True,True,False]})
             self.take_spectrum(True,True,False)
         #e.g. set_spec_save(directory=R:\RiceData\Kathleen\test_11_15, basename=test,num=0000) 
+        elif 'setup_geom_range(' in cmd:
+            if self.manual_automatic.get()==0:
+                self.log('Error: Not in automatic mode')
+                return False
+            self.set_individual_range(force=1)
+            params=cmd[0:-1].split('setup_geom_range(')[1].split(',')
+            for param in params:
+                if 'i_start' in param:
+                    try:
+                        self.light_start_entry.delete(0,'end')
+                        self.light_start_entry.insert(get_val(param))
+                    except:
+                        self.log('Error: Unable to parse initial incidence angle')
+                elif 'i_end' in param:
+                    try:
+                        self.light_end_entry.delete(0,'end')
+                        self.light_end_entry.insert(get_val(param))
+                    except:
+                        self.log('Error: Unable to parse final incidence angle')
+                elif 'e_start' in param:
+                    try:
+                        self.detector_start_entry.delete(0,'end')
+                        self.detector_start_entry.insert(get_val(param))
+                    except:
+                        self.log('Error: Unable to parse initial emission angle')
+                elif 'e_end' in param:
+                    try:
+                        self.detector_end_entry.delete(0,'end')
+                        self.detector_end_entry.insert(get_val(param))
+                    except:
+                        self.log('Error: Unable to parse final emission angle')
+                elif 'i_increment' in param:
+                    try:
+                        self.light_increment_entry.delete(0,'end')
+                        self.light_increment_entry.insert(0,get_val(param))
+                    except:
+                        self.log('Error: Unable to parse incidence angle increment.')
+                elif 'e_increment' in param:
+                    try:
+                        self.detector_increment_entry.delete(0,'end')
+                        self.detector_increment_entry.insert(0,get_val(param))
+                    except:
+                        self.log('Error: Unable to parse emission angle increment.')
+                    
+        elif 'set_samples(' in cmd:
+            params=cmd[0:-1].split('set_samples(')[1].split(',')
+            if params==['']:params=[]
+
+            #First clear all existing sample names
+            while len(self.sample_frames)>1:
+                self.remove_sample(-1)
+            self.sample_label_entries[0].delete(0,'end')
+            
+            #Then add in samples in order specified in params. Each param should be a sample name and pos.
+            skip_count=0 #If a param is badly formatted, we'll skip it. Keep track of how many are skipped in order to index labels, etc right.
+            for i, param in enumerate(params):
+                
+                try:
+                    name=param.split('=')[0].strip(' ')
+                    pos=get_val(param)
+                    valid_pos=validate_int_input(pos,1,5)
+                    if self.available_sample_positions[int(pos)-1] in self.taken_sample_positions: #If the requested position is already taken, we're not going to allow it.
+                        if len(self.sample_label_entries)>1: #If only one label is out there, it will be listed as taken even though the entry is empty, so we can ignore it. But if there is more than one label, we know the position is a repeat and not valid.
+                            valid_pos=False
+                        elif self.sample_label_entries[0].get()!='': #Even if there is only one label, if the entry has already been filled in then the position is a repeat and not valid.
+                            valid_pos=False
+                    if i-skip_count!=0 and valid_pos:
+                        self.add_sample()
+                except: #If the position isn't specified, fail.
+                    self.log('Error: could not parse command '+cmd+'. Use the format set_samples({name}={position}) e.g. set_samples(Basalt=1)')
+                    skip_count+=1
+
+                if valid_pos:
+                    self.sample_label_entries[i-skip_count].insert(0,name)
+                    self.sample_pos_vars[i-skip_count].set(self.available_sample_positions[int(pos)-1])
+                    self.set_taken_sample_positions()
+                else:
+                    self.log('Error: '+pos+' is an invalid sample position. Use the format set_samples({name}={position}) e.g. set_samples(Basalt=1). Do not repeat sample positions.')
+                    skip_count+=1
+                
         elif 'set_spec_save(' in cmd:
             params=cmd[0:-1].split('set_spec_save(')[1].split(',')
             for param in params:
@@ -2340,19 +2422,35 @@ class Controller():
                     
             if not self.script_running:
                 self.queue=[]
-            self.queue.insert(0,{self.set_save_config:[]})
-            self.set_save_config()
+                
+            #If the user uses the setup_only option, no commands are sent to the spec computer, but instead the GUI is just filled in for them how they want.
+            setup_only=False
+            if 'setup_only=True' in params: setup_only=True
+            elif 'setup_only =True' in params: setup_only=True
+            elif 'setup_only = True' in params: setup_only=True
+            
+            if not setup_only:
+                self.queue.insert(0,{self.set_save_config:[]})
+                self.set_save_config()
         elif 'instrument.configure('in cmd:
-            param=cmd[0:-1].split('instrument.configure(')[1]
+            params=cmd[0:-1].split('instrument.configure(')[1].split(',')
             try:
-                num=int(param)
+                num=int(params[0])
                 self.instrument_config_entry.delete(0,'end')
                 self.instrument_config_entry.insert(0,str(num))
-                
+                print(':D')
                 if not self.script_running:
                     self.queue=[]
-                self.queue.insert(0,{self.configure_instrument:[]})
-                self.configure_instrument()
+                    
+                #If the user uses the setup_only option, no commands are sent to the spec computer, but instead the GUI is just filled in for them how they want.
+                setup_only=False
+                if 'setup_only=True' in params: setup_only=True
+                elif 'setup_only =True' in params: setup_only=True
+                elif 'setup_only = True' in params: setup_only=True
+                
+                if not setup_only:
+                    self.queue.insert(0,{self.configure_instrument:[]})
+                    self.configure_instrument()
             except:
                 self.log('Error: could not parse command '+cmd)
 
@@ -3037,7 +3135,6 @@ class Controller():
         self.sample_label_frame.pack(fill=X)
         
         self.control_frame.min_height+=50
-        print(self.control_frame.min_height)
         self.control_frame.update()
 
         
@@ -3049,15 +3146,20 @@ class Controller():
         
         self.sample_pos_vars.append(StringVar(self.master))
         self.sample_pos_vars[-1].trace('w',self.set_taken_sample_positions)
+        menu_positions=[]
+        pos_set=False
         for pos in self.available_sample_positions:
             if pos in self.taken_sample_positions:
                 pass
-            else:
+            elif pos_set==False:
                 self.sample_pos_vars[-1].set(pos)
-                break
-        self.pos_menu = OptionMenu(self.sample_label_pos_frames[-1],self.sample_pos_vars[-1],*self.available_sample_positions)#'Sample 1','Sample 2','Sample 3','Sample 4', 'Sample 5')
-        self.pos_menu.configure(width=8,highlightbackground=self.highlightbackgroundcolor)
-        self.pos_menu.pack(side=LEFT)
+                pos_set=True
+            else:
+                menu_positions.append(pos)
+        print('APPEND!!')
+        self.pos_menus.append(OptionMenu(self.sample_label_pos_frames[-1],self.sample_pos_vars[-1],*menu_positions))
+        self.pos_menus[-1].configure(width=8,highlightbackground=self.highlightbackgroundcolor)
+        self.pos_menus[-1].pack(side=LEFT)
         
         self.sample_labels.append(Label(self.sample_label_pos_frames[-1],bg=self.bg,fg=self.textcolor,text='Label:',padx=self.padx,pady=self.pady))
         self.sample_labels[-1].pack(side=LEFT, padx=(5,0))
@@ -3066,14 +3168,7 @@ class Controller():
         self.entries.append(self.sample_label_entries[-1])
         self.sample_label_entries[-1].pack(side=LEFT,padx=(0,10))
         
-        # self.sample_pos_label=Label(self.sample_label_pos_frame, text='Position:', bg=self.bg,padx=self.padx,pady=self.pady)
-        # self.sample_pos_label.pack(side=LEFT)
-        
-        # self.pos_var=StringVar(self.master)
-        # self.pos_var.set('Sample 1')
-        # self.pos_menu = OptionMenu(self.sample_label_pos_frame,self.pos_var,'Sample 1',' 2    ',' 3    ',' 4    ',' 5    ')
-        # self.pos_menu.configure(width=3,highlightbackground=self.highlightbackgroundcolor)
-        # self.pos_menu.pack()
+
           
         self.sample_removal_buttons.append(Button(self.sample_label_pos_frames[-1], text='Remove', command=lambda x=len(self.sample_removal_buttons):self.remove_sample(x),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd))
         self.sample_removal_buttons[-1].config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
@@ -3081,7 +3176,7 @@ class Controller():
             for button in self.sample_removal_buttons:
                 button.pack(side=LEFT,padx=(5,5))
         
-        if len(self.sample_label_entries)>10:
+        if len(self.sample_label_entries)>len(self.available_sample_positions)-1:
             self.add_sample_button.configure(state=DISABLED)
         self.add_sample_button.pack(pady=(10,10))
         
@@ -3094,7 +3189,6 @@ class Controller():
         self.sample_removal_buttons.pop(index)
         self.sample_frames.pop(index).destroy()
         
-
 
 
         for i, button in enumerate(self.sample_removal_buttons):
@@ -3111,7 +3205,23 @@ class Controller():
     def set_taken_sample_positions(self,arg1=None,arg2=None,arg3=None):
         self.taken_sample_positions=[]
         for var in self.sample_pos_vars:
+            print(var.get())
             self.taken_sample_positions.append(var.get())
+            
+        #Now remake all option menus with taken sample positions not listed in options unless that was the option that was already selected for them.
+        menu_positions=[]
+        for pos in self.available_sample_positions:
+            if pos in self.taken_sample_positions:
+                pass
+            else:
+                menu_positions.append(pos)
+
+        
+        for i, menu in enumerate(self.pos_menus):
+            local_menu_positions=list(menu_positions)
+            self.pos_menus[i]['menu'].delete(0, 'end')
+            for choice in local_menu_positions:
+                self.pos_menus[i]['menu'].add_command(label=choice, command=tk._setit(self.sample_pos_vars[i], choice))
         
         
 
@@ -3402,8 +3512,11 @@ class Controller():
         self.test_view.flip()
         self.master.update()
             
-    def resize(self,window): #Resize the console and goniometer view frames to be proportional sizes, and redraw the goniometer.
+    def resize(self,window=None): #Resize the console and goniometer view frames to be proportional sizes, and redraw the goniometer.
+        if window==None:
+            window=PretendEvent(self.master, self.master.winfo_width(), self.master.winfo_height())
         if window.widget==self.master:
+
             reserve_width=500
             try:
                 width=self.console_frame.winfo_width()
@@ -5505,7 +5618,7 @@ class SpecListener(Listener):
                         try:
                             os.remove(self.read_command_loc+cmdfile)
                         except:
-                            print('could not remove lostcon')
+                            pass #This is probably because the lostconnection file was already removed by spec compy.
 
                         self.cmdfiles.remove(cmdfile)
                         if self.alert_lostconnection:
@@ -5940,7 +6053,8 @@ class VerticalScrolledFrame(Frame):
     * This frame only allows vertical scrolling
 
     """
-    def __init__(self, parent, *args, **kw):
+    def __init__(self, controller, parent, *args, **kw):
+        self.controller=controller
         Frame.__init__(self, parent, *args, **kw)        
         
         self.min_height=600 #Miniumum height for interior frame to show all elements. Changes as new samples or viewing geometries are added.    
@@ -5972,22 +6086,21 @@ class VerticalScrolledFrame(Frame):
 
         if self.canvas.winfo_height()>self.min_height:
             self.interior.config(height=self.canvas.winfo_height())
-            print(self.scrollbar.winfo_ismapped())
             if self.scrollbar.winfo_ismapped():
-                print('unpack!')
                 self.scrollbar.pack_forget()
         else:
+
             self.interior.config(height=self.min_height)
             self.scrollbar.pack(fill=Y, side=RIGHT, expand=FALSE)
             #canvas.itemconfigure(interior_id, height=900)
             self.canvas.config(scrollregion=self.canvas.bbox("all"))
         if self.interior.winfo_reqwidth() != self.canvas.winfo_width():
-            print('foo!')
             # update the inner frame's width to fill the canvas
             self.canvas.itemconfigure(self.interior_id, width=self.canvas.winfo_width())
     
     def update(self):
         self._configure_canvas(None)
+        self.controller.resize()
 
 if __name__=='__main__':
     main()
