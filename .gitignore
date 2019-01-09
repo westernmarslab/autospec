@@ -5,3 +5,4 @@ dist/
 build/
 delme/
 AutoSpec.egg-info/
+AutoSpec.egg-info/PKG-INFO
