@@ -72,7 +72,7 @@ if opsys=='Windows':
     except:
         print('Developer mode!')
         dev=True
-        package_loc='C:\\Users\\hozak\\Python\\wwu-autospec\\wwu-autospec\\'
+        package_loc='C:\\Users\\hozak\\Python\\autospec\\autospec\\'
 
 elif opsys=='Linux':
     #If I am running this script from my IDE, __file__ is not defined. In that case, I'll get an exception, and I'll go with my own hard-coded file location instead.
@@ -84,7 +84,7 @@ elif opsys=='Linux':
     except:
         print('Developer mode!')
         dev=True
-        package_loc='/home/khoza/Python/WWU-AutoSpec/wwu-autospec/'
+        package_loc='/home/khoza/Python/AutoSpec/autospec/'
 elif opsys=='Mac':
     try:
         rel_package_loc='/'.join(__file__.split('/')[:-1])+'/'
@@ -177,7 +177,7 @@ elif opsys=='Windows':
     spec_read_loc=spec_share_loc+'commands\\from_spec\\'
     pi_read_loc=pi_share_loc+'commands\\from_pi\\'
     local_config_loc=package_loc+'local_config\\'
-    global_config_loc=package_log+'global_config\\'
+    global_config_loc=package_loc+'global_config\\'
     log_loc=package_loc+'log\\'
     
 elif opsys=='Mac':

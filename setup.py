@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='AutoSpec',
-    version='0.0.1',
+    version='0.0.3',
     packages=['autospec'],
     license='Creative Commons Attribution-Noncommercial-Share Alike license',
     description='Control software for spectroscopy using ASD RS3 and ViewSpec Pro',
@@ -15,4 +15,5 @@ setup(
     },
     install_requires=['pygame','matplotlib','numpy','cython'],
     python_requires='>=3',
+    include_package_data=True
 )
