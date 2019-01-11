@@ -3140,7 +3140,7 @@ class Controller():
             if self.wait_dialog==None:
                 dialog=ErrorDialog(self,label='Error: Failed to configure Raspberry Pi.\nCheck connections and/or restart scripts.')
                 self.complete_queue_item()
-            else:
+            else: #Everything in this else clause is nonsense.
                 if i==None or e==None:
                     self.queue[0]={self.configure_pi:[self.i,self.e,self.sample_tray_pos]} 
                 else:
@@ -4057,7 +4057,7 @@ class CommandHandler():
 
         if self.cancel:
             self.interrupt('Canceled.')
-            self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 119, 107, 69))
+            self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 130, 107, 69))
             self.controller.reset()
         elif self.pause:
             buttons={
