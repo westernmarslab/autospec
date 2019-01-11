@@ -51,6 +51,7 @@ class TestView():
         self.theta_d=0
         self.d_up=False
         self.l_up=False
+        self.current_sample=''
         
         pygame.init()
 
@@ -81,10 +82,14 @@ class TestView():
         try:
             i_str='i='+str(int(self.theta_l))
             e_str='e='+str(int(self.theta_d))
+            sample_str=self.current_sample
+
+            
             text_size=np.max([int(self.char_len/18),20])
             largeText = pygame.font.Font('freesansbold.ttf',text_size)
             i_text=largeText.render(i_str, True, pygame.Color(self.controller.textcolor))
             e_text=largeText.render(e_str, True, pygame.Color(self.controller.textcolor))
+            sample_text=largeText.render(sample_str, True, pygame.Color(self.controller.textcolor))
         except:
             print('no pygame font')
         
@@ -158,6 +163,10 @@ class TestView():
         
         self.screen.blit(i_text,(x_l_text,y_l_text))
         self.screen.blit(e_text,(x_d_text,y_d_text))
+        if self.current_sample=='WR':
+            self.screen.blit(sample_text,(pivot[0]-text_size, pivot[1]+text_size))
+        else:
+            self.screen.blit(sample_text,(pivot[0]-int(2*text_size), pivot[1]+text_size))
         
         #border around screen
         pygame.draw.rect(self.screen,pygame.Color('darkgray'),(2,2,self.width-6,self.height+15),2)
@@ -183,6 +192,10 @@ class TestView():
                 time.sleep(0.16)
             else:
                 time.sleep(.005)
+            self.draw_circle(self.width,self.height)
+            self.flip()
+    def set_current_sample(self, sample):
+            self.current_sample=sample
             self.draw_circle(self.width,self.height)
             self.flip()
             

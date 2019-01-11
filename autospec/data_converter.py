@@ -1,8 +1,8 @@
 import os
-os.chdir('/home/khoza/Spectroscopy/data')
+os.chdir('/home/khoza/plots_data/')
 data=[]
 metadata=['Database of origin:,Western Washington University Planetary Spectroscopy Lab','Sample Name','Viewing Geometry']
-with open('data.tsv','r') as file:
+with open('basalt_weathered_pyroxene.tsv','r') as file:
     for i, line in enumerate(file.readlines()):
         if i==0:
             headers=line.split('\t')
@@ -17,13 +17,14 @@ with open('data.tsv','r') as file:
                 geom=header.split('(')[1].strip(')')
                 metadata[1]+=','+sample_name
                 metadata[2]+=','+geom
+
             metadata.append('')
             metadata.append('Wavelength')
 
         else:
             data.append(line.replace('\t',','))
             
-with open('data.csv','w+') as file:
+with open('data_1_10.csv','w+') as file:
     for line in metadata:
         print(line)
         file.write(line)

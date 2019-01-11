@@ -68,7 +68,6 @@ class Plotter():
             
 
         for i, spectrum_label in enumerate(labels):
-            
             sample_label=spectrum_label.split(' (i')[0]
             
             #If we don't have any data from this file yet, add it to the samples dictionary, and place the first sample inside.
@@ -88,22 +87,11 @@ class Plotter():
                     new=Sample(sample_label, file,title)
                     self.samples[file][sample_label]=new
                     self.sample_objects.append(new)
+                    
             if spectrum_label not in self.samples[file][sample_label].spectrum_labels: #This should do better and actually check that all the data is an exact duplicate, but that seems hard. Just don't label things exactly the same and save them in the same file with the same viewing geometry.
                 self.samples[file][sample_label].add_spectrum(spectrum_label, reflectance[i], wavelengths)
 
-            # else:
-            #     existing_r= self.samples[file][sample_label].data[spectrum_label]['reflectance']
-            #     existing_w=self.samples[file][sample_label].data[spectrum_label['wavelengths']
-            #     if reflectance[i]!=existing_r or wavelengths!=existing_w: #If we have the sample sample and same geometry but different data, add it as a second spectrum.
-            #         i=1
-            #         new_label=spectrum_label+'('+i+')'
-            #         while new_label in self.samples[file][sample_label].spectrum_labels:
-            #             i=i+1
-            #             new_label=spectrum_label+'('+i+')'
-            #         self.samples[file][sample_label].add_spectrum(spectrum_label)
-            #         self.samples[file][sample_label].data[spectrum_label]['reflectance']=reflectance[i]
-            #         self.samples[file][sample_label].data[spectrum_label]['wavelengths']=wavelengths
-                        
+
 
         for sample in self.samples[file]:
             tab=Tab(self, title,[self.samples[file][sample]])
@@ -118,18 +106,18 @@ class Plotter():
         labels=[]
         #This is the format I was initially using. It is a simple .tsv file with a single row of headers e.g. Wavelengths     Sample_1 (i=0 e=30)     Sample_2 (i=0 e=30).
         if format=='simple_tsv':
-            data = np.genfromtxt(file, names=True, dtype=None,delimiter='\t',deletechars='')
+            data = np.genfromtxt(file, names=True, dtype=float,encoding=None,delimiter='\t',deletechars='')
             labels=list(data.dtype.names)[1:] #the first label is wavelengths
             for i in range(len(labels)):
                 labels[i]=labels[i].replace('_(i=',' (i=').replace('_e=',' e=')
         #This is the current format, which is compatible with the WWU spectral library format.
         elif format=='spectral_database_csv':
             skip_header=0
-            line=''
+            
             labels_found=False #We want to use the Sample Name field for labels, but if we haven't found that yet we may use Data ID, Sample ID, or mineral name instead.
             with open(file,'r') as file2:
-                while line!='Wavelength\n':
-                    line=file2.readline()
+                line=file2.readline()
+                while line.split(',')[0].lower()!='wavelength' and line !='':
                     if line[0:11]=='Sample Name':
                         labels=line.split(',')[1:]
                         labels[-1]=labels[-1].strip('\n')
@@ -151,25 +139,23 @@ class Plotter():
                             labels=line.split(',')[1:]
                             labels[-1]=labels[-1].strip('\n')
                     skip_header+=1
+                    line=file2.readline()
 
 
-            data = np.genfromtxt(file, skip_header=skip_header, dtype=None,delimiter=',',deletechars='')
-
-            
-        
+            data = np.genfromtxt(file, skip_header=skip_header, dtype=float,delimiter=',',encoding=None,deletechars='')
+            print('hi?')
 
         data=zip(*data)
         wavelengths=[]
         reflectance=[]
         for i, d in enumerate(data):
-            if i==0: wavelengths=d[60:] #the first column in my .tsv (now first row) was wavelength in nm. Exclude the first 100 values because they are typically very noisy.
+            if i==0: wavelengths=d[60:] #the first column in my .csv (now first row) was wavelength in nm. Exclude the first 100 values because they are typically very noisy.
             else: #the other columns are all reflectance values
                 d=np.array(d)
                 reflectance.append(d[60:])
                 #d2=d/np.max(d) #d2 is normalized reflectance
                 #reflectance[0].append(d)
                 #reflectance[1].append(d2)
-
         return wavelengths, reflectance, labels
         
     def maybe_close_tab(self,event):
@@ -299,10 +285,9 @@ class Tab():
         self.canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
         
         #canvas.get_tk_widget().pack()
-        
         self.plot=Plot(self.plotter, self.fig, self.samples,self.title)
         self.canvas.draw()
-        
+        print('foo')
         self.popup_menu = Menu(self.top, tearoff=0)
         self.popup_menu.add_command(label="Edit plot",
                                     command=self.ask_which_samples)
@@ -449,10 +434,14 @@ class Plot():
 
         
         self.colors=[]
+        #self.colors.append(['#000a20','#002040','#003060','#004d80','#006bb3','#008ae6','#33adff','#80ccff'])
         self.colors.append(['#004d80','#006bb3','#008ae6','#33adff','#80ccff','#b3e0ff','#e6f5ff']) #blue
         self.colors.append(['#145214','#1f7a1f','#2eb82e','#5cd65c','#99e699','#d6f5d6']) #green
         self.colors.append(['#661400','#b32400','#ff3300','#ff704d','#ff9980','#ffd6cc']) #red
         self.colors.append(['#330066','#5900b3','#8c1aff','#b366ff','#d9b3ff','#f2e6ff']) #purple
+        
+        self.dark_colors=[]
+        
         
         
         self.files=[]
