@@ -72,7 +72,7 @@ if opsys=='Windows':
     except:
         print('Developer mode!')
         dev=True
-        package_loc='C:\\Users\\hozak\\Python\\autospec\\autospec\\'
+        package_loc='C:\\Users\\hozak\\Python\\wwu-autospec\\autospec\\'
 
 elif opsys=='Linux':
     #If I am running this script from my IDE, __file__ is not defined. In that case, I'll get an exception, and I'll go with my own hard-coded file location instead.
@@ -834,7 +834,9 @@ class Controller():
         self.console_entry=Entry(self.console_frame, width=self.some_width,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.console_entry.bind("<Return>",self.execute_cmd)
         self.console_entry.bind('<Up>',self.iterate_cmds)
+        #self.console_entry.bind('<KP_Up>',self.iterate_cmds)
         self.console_entry.bind('<Down>',self.iterate_cmds)
+        #self.console_entry.bind('<KP_Down>',self.iterate_cmds)
         self.console_entry.pack(fill=BOTH, side=BOTTOM)
         self.text_frame.pack(fill=BOTH, expand=True)
         self.console_log.pack(fill=BOTH,expand=True)
@@ -869,12 +871,12 @@ class Controller():
         self.wrfailsafe.set(1)
         self.optfailsafe=IntVar()
         self.optfailsafe.set(1)
-        self.anglesfailsafe=IntVar()
-        self.anglesfailsafe.set(1)
+        self.angles_failsafe=IntVar()
+        self.angles_failsafe.set(1)
         self.labelfailsafe=IntVar()
         self.labelfailsafe.set(1)
-        self.wr_anglesfailsafe=IntVar()
-        self.wr_anglesfailsafe.set(1)
+        self.wr_angles_failsafe=IntVar()
+        self.wr_angles_failsafe.set(1)
         self.anglechangefailsafe=IntVar()
         self.anglechangefailsafe.set(1)
         
@@ -896,7 +898,8 @@ class Controller():
             self.proc_local.set(1)
             self.proc_remote.set(0)
             
-        self.set_manual_automatic(force=1)
+        if not PI_OFFLINE:
+            self.set_manual_automatic(force=1)
 
 
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -1021,107 +1024,82 @@ class Controller():
         self.settings_frame=Frame(self.settings_top, bg=self.bg, pady=2*self.pady,padx=15)
         self.settings_frame.pack()
 
-        # self.timer_title_frame=Frame(self.dumb_frame, bg=self.bg)
-        # self.timer_title_frame.pack(pady=(10,0))
-        # self.timer_label0=Label(self.timer_title_frame, fg=self.textcolor,text='Timer:                                                   ', bg=self.bg)
-        # self.timer_label0.pack(side=LEFT)
-        # self.timer_frame=Frame(self.dumb_frame, bg=self.bg, pady=self.pady)
-        # self.timer_frame.pack()
-        # self.timer_check_frame=Frame(self.timer_frame, bg=self.bg)
-        # self.timer_check_frame.pack(pady=self.pady)
-        # self.timer=IntVar()
-        # self.timer_check=Checkbutton(self.timer_check_frame, fg=self.textcolor,text='Collect sets of spectra using a timer           ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.timer,selectcolor=self.check_bg)
-        # self.timer_check.pack(side=LEFT, pady=self.pady)
-        # 
-        # self.timer_duration_frame=Frame(self.timer_frame, bg=self.bg)
-        # self.timer_duration_frame.pack()
-        # self.timer_spectra_label=Label(self.timer_duration_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Total duration (min):')
-        # self.timer_spectra_label.pack(side=LEFT, padx=self.padx,pady=(0,8))
-        # self.timer_spectra_entry=Entry(self.timer_duration_frame, bd=1,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.timer_spectra_entry.pack(side=LEFT)
-    #     self.filler_label=Label(self.timer_duration_frame,bg=self.bg,fg=self.textcolor,text='              ')
-    #     self.filler_label.pack(side=LEFT)
-    #     
-    #     self.timer_interval_frame=Frame(self.timer_frame, bg=self.bg)
-    #     self.timer_interval_frame.pack()
-    #     self.timer_interval_label=Label(self.timer_interval_frame, padx=self.padx,pady=self.pady,bg=self.bg, fg=self.textcolor,text='Interval (min):')
-    #     self.timer_interval_label.pack(side=LEFT, padx=(10,0))
-    #     self.timer_interval_entry=Entry(self.timer_interval_frame,bd=self.bd,width=10,fg=self.textcolor,text='0',bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-    # # self.timer_interval_entry.insert(0,'-1')
-    #     self.timer_interval_entry.pack(side=LEFT, padx=(0,20))
-    #     self.filler_label=Label(self.timer_interval_frame,bg=self.bg,fg=self.textcolor,text='                   ')
-    #     self.filler_label.pack(side=LEFT)
         
         self.failsafe_title_frame=Frame(self.settings_frame, bg=self.bg)
-        self.failsafe_title_frame.pack(pady=(10,0))
+        self.failsafe_title_frame.pack(pady=(10,0),fill=X, expand=True)
         self.failsafe_label0=Label(self.failsafe_title_frame, fg=self.textcolor,text='Failsafes:                                                                      ', bg=self.bg)
         self.failsafe_label0.pack(side=LEFT)
-        self.failsafe_frame=Frame(self.settings_frame, bg=self.bg, pady=self.pady)
-        self.failsafe_frame.pack(side=LEFT,pady=self.pady)
-
         
-        #self.wrfailsafe=IntVar()
-        self.wrfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Prompt if no white reference has been taken.                  ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.wrfailsafe,selectcolor=self.check_bg)
-        self.wrfailsafe_check.pack()#side=LEFT, pady=self.pady)
+        self.failsafe_frame=Frame(self.settings_frame, bg=self.bg, pady=self.pady)
+        self.failsafe_frame.pack(fill=BOTH, expand=True, padx=(10,10))
+        
+
+
+        self.wr_failsafe_check_frame=Frame(self.failsafe_frame, bg=self.bg)
+        self.wr_failsafe_check_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
+        self.wrfailsafe_check=Checkbutton(self.wr_failsafe_check_frame, fg=self.textcolor,text='Prompt if no white reference has been taken.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.wrfailsafe,selectcolor=self.check_bg)
+        self.wrfailsafe_check.pack(side=LEFT)
         if self.wrfailsafe.get():
             self.wrfailsafe_check.select()
         
         self.wr_timeout_frame=Frame(self.failsafe_frame, bg=self.bg)
-        self.wr_timeout_frame.pack(pady=(0,10))
+        self.wr_timeout_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
         self.wr_timeout_label=Label(self.wr_timeout_frame, fg=self.textcolor,text='Timeout (minutes):', bg=self.bg)
-        self.wr_timeout_label.pack(side=LEFT, padx=(10,0))
+        self.wr_timeout_label.pack(side=LEFT, padx=(20,0))
         self.wr_timeout_entry=Entry(self.wr_timeout_frame, bd=self.bd,width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.wr_timeout_entry.pack(side=LEFT, padx=(0,20))
         self.wr_timeout_entry.insert(0,'8')
-        self.filler_label=Label(self.wr_timeout_frame,bg=self.bg,fg=self.textcolor,text='              ')
-        self.filler_label.pack(side=LEFT)
         
         
-        #self.optfailsafe=IntVar()
-        self.optfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Prompt if the instrument has not been optimized.              ', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.optfailsafe)
-        self.optfailsafe_check.pack()#side=LEFT, pady=self.pady)
+        self.optfailsafe_check_frame=Frame(self.failsafe_frame, bg=self.bg)
+        self.optfailsafe_check_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
+        self.optfailsafe_check=Checkbutton(self.optfailsafe_check_frame, fg=self.textcolor,text='Prompt if the instrument has not been optimized.', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.optfailsafe)
+        self.optfailsafe_check.pack(side=LEFT)
         if self.optfailsafe.get():
             self.optfailsafe_check.select()
         
         self.opt_timeout_frame=Frame(self.failsafe_frame, bg=self.bg)
-        self.opt_timeout_frame.pack()
+        self.opt_timeout_frame.pack(pady=self.pady,fill=X, expand=True,padx=(20,5))
         self.opt_timeout_label=Label(self.opt_timeout_frame, fg=self.textcolor,text='Timeout (minutes):', bg=self.bg)
-        self.opt_timeout_label.pack(side=LEFT, padx=(10,0))
+        self.opt_timeout_label.pack(side=LEFT, padx=(20,0))
         self.opt_timeout_entry=Entry(self.opt_timeout_frame,bd=self.bd, width=10,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.opt_timeout_entry.pack(side=LEFT, padx=(0,20))
         self.opt_timeout_entry.insert(0,'60')
         self.filler_label=Label(self.opt_timeout_frame,bg=self.bg,fg=self.textcolor,text='              ')
         self.filler_label.pack(side=LEFT)
         
-        #self.anglesfailsafe=IntVar()
-        self.anglesfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Check validity of emission and incidence angles.              ', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.anglesfailsafe)
-        self.anglesfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=self.pady)
-        if self.anglesfailsafe.get():
-            self.anglesfailsafe_check.select()
+        self.angles_failsafe_frame=Frame(self.failsafe_frame, bg=self.bg)
+        self.angles_failsafe_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
+        self.angles_failsafe_check=Checkbutton(self.angles_failsafe_frame, fg=self.textcolor,text='Check validity of emission and incidence angles.', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.angles_failsafe)
+        self.angles_failsafe_check.pack(pady=(6,5),side=LEFT,padx=(0,20))
+        if self.angles_failsafe.get():
+            self.angles_failsafe_check.select()
         
-        #self.labelfailsafe=IntVar()
-        self.labelfailsafe_check=Checkbutton(self.failsafe_frame, fg=self.textcolor,text='Require a label for each spectrum.                            ', bg=self.bg, pady=self.pady,highlightthickness=0, selectcolor=self.check_bg,variable=self.labelfailsafe)
-        self.labelfailsafe_check.pack(pady=(6,5))#side=LEFT, pady=self.pady)
+        self.label_failsafe_frame=Frame(self.failsafe_frame, bg=self.bg)
+        self.label_failsafe_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
+        self.label_failsafe_check=Checkbutton(self.label_failsafe_frame, fg=self.textcolor,text='Require a label for each spectrum.', bg=self.bg, pady=self.pady,highlightthickness=0, selectcolor=self.check_bg,variable=self.labelfailsafe)
+        self.label_failsafe_check.pack(pady=(6,5), side=LEFT,padx=(0,20))
         if self.labelfailsafe.get():
-            self.labelfailsafe_check.select()
+            self.label_failsafe_check.select()
 
-
-        #self.wr_anglesfailsafe=IntVar()
-        self.wr_anglesfailsafe_check=Checkbutton(self.failsafe_frame,selectcolor=self.check_bg, fg=self.textcolor,text='Require a new white reference at each viewing geometry             ', bg=self.bg, pady=self.pady, highlightthickness=0, variable=self.wr_anglesfailsafe)
-        self.wr_anglesfailsafe_check.pack(pady=(6,5),padx=(35,0))
-        if self.wr_anglesfailsafe.get():
-            self.wr_anglesfailsafe_check.select()
+        self.wr_angles_failsafe_frame=Frame(self.failsafe_frame, bg=self.bg)
+        self.wr_angles_failsafe_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
+        self.wr_angles_failsafe_check=Checkbutton(self.wr_angles_failsafe_frame,selectcolor=self.check_bg, fg=self.textcolor,text='Require a new white reference at each viewing geometry             ', bg=self.bg, pady=self.pady, highlightthickness=0, variable=self.wr_angles_failsafe)
+        self.wr_angles_failsafe_check.pack(pady=(6,5),side=LEFT)
+        if self.wr_angles_failsafe.get():
+            self.wr_angles_failsafe_check.select()
         
         self.wrap_frame=Frame(self.failsafe_frame,bg=self.bg)
-        self.wrap_frame.pack(side=LEFT,padx=(30,10))
-        self.filler_label=Label(self.wrap_frame,bg=self.bg,fg=self.textcolor,text='')
-        self.filler_label.pack(side=LEFT)
-        
-        #self.anglechangefailsafe=IntVar()
+        self.wrap_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
         self.anglechangefailsafe_check=Checkbutton(self.wrap_frame, selectcolor=self.check_bg,fg=self.textcolor,text='Remind me to check the goniometer if the viewing geometry changes.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.anglechangefailsafe)
         self.anglechangefailsafe_check.pack(pady=(6,5),side=LEFT)#side=LEFT, pady=self.pady)
         if self.anglechangefailsafe.get():
             self.anglechangefailsafe_check.select()
+            
+        self.failsafes_ok_button=Button(self.failsafe_frame,text='Ok',command=self.settings_top.destroy)
+        self.failsafes_ok_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor, width=15)
+        self.failsafes_ok_button.pack(pady=self.pady)
+        self.settings_top.resizable(False, False)
         
         
     def show_plot_frame(self):
@@ -1484,7 +1462,7 @@ class Controller():
                         if int(minutes)>0:
                             label+=' No white reference has been taken for '+minutes+' minutes '+seconds+' seconds.\n\n'
                         else: label+=' No white reference has been taken for '+seconds+' seconds.\n\n'
-                if self.wr_anglesfailsafe.get() and func!=self.wr:
+                if self.wr_angles_failsafe.get() and func!=self.wr:
     
                     if self.angles_change_time!=None and self.wr_time!=None:
                         if self.angles_change_time>self.wr_time+1:
@@ -1492,7 +1470,7 @@ class Controller():
                         elif emission!=self.e or incidence!=self.i:
                             label+=' No white reference has been taken at this viewing geometry.\n\n'
                         
-                if self.anglesfailsafe.get():
+                if self.angles_failsafe.get():
                     valid_i=validate_int_input(incidence,self.min_i,self.max_i)
                     valid_e=validate_int_input(emission,self.min_e,self.max_e)
                     valid_separation=self.validate_distance(incidence,emission)
@@ -2225,7 +2203,7 @@ class Controller():
     #these are stored in user_cmds with the index of the most recent command at 0
     #Every time the user enters a command, the user_cmd_index is changed to -1
     def iterate_cmds(self,keypress_event): 
-        if keypress_event.keycode==111: #up arrow
+        if keypress_event.keycode==111 or keypress_event.keycode==38: #up arrow on linux and windows, respectively
 
             if len(self.user_cmds)>self.user_cmd_index+1 and len(self.user_cmds)>0:
                 self.user_cmd_index=self.user_cmd_index+1
@@ -2233,7 +2211,7 @@ class Controller():
                 self.console_entry.delete(0,'end')
                 self.console_entry.insert(0,last)
 
-        elif keypress_event.keycode==116: #down arrow
+        elif keypress_event.keycode==116 or keypress_event.keycode==40: #down arrow on linux and windows, respectively
             if self.user_cmd_index>0:
                 self.user_cmd_index=self.user_cmd_index-1
                 next=self.user_cmds[self.user_cmd_index]
