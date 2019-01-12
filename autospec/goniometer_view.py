@@ -87,9 +87,10 @@ class TestView():
             
             text_size=np.max([int(self.char_len/18),20])
             largeText = pygame.font.Font('freesansbold.ttf',text_size)
+            sample_font=pygame.font.Font('freesansbold.ttf',int(0.75*text_size))
             i_text=largeText.render(i_str, True, pygame.Color(self.controller.textcolor))
             e_text=largeText.render(e_str, True, pygame.Color(self.controller.textcolor))
-            sample_text=largeText.render(sample_str, True, pygame.Color(self.controller.textcolor))
+            sample_text=sample_font.render(sample_str, True, pygame.Color(self.controller.textcolor))
         except:
             print('no pygame font')
         
