@@ -3183,12 +3183,8 @@ class Controller():
         self.sample_labels.append(Label(self.sample_frames[-1],bg=self.bg,fg=self.textcolor,text='Label:',padx=self.padx,pady=self.pady))
         self.sample_labels[-1].pack(side=LEFT, padx=(5,0))
         
-        sample_entry_var = StringVar()
-        self.sample_label_entries.append(Entry(self.sample_frames[-1], width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground,textvariable=sample_entry_var))
-        #)
-        sample_entry_var.trace('w', lambda w,x,y: self.validate_sample_name(self.sample_label_entries[-1]))
+        self.sample_label_entries.append(Entry(self.sample_frames[-1], width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground))
 
-        #sample_entry_var.entry=self.sample_label_entries[-1] #This lets us access it from the validate_sample_name function
         self.sample_label_entries[-1].insert(0,'foo')
         self.entries.append(self.sample_label_entries[-1])
         self.sample_label_entries[-1].pack(side=LEFT,padx=(0,10))
