@@ -112,12 +112,14 @@ class Plotter():
                 labels[i]=labels[i].replace('_(i=',' (i=').replace('_e=',' e=')
         #This is the current format, which is compatible with the WWU spectral library format.
         elif format=='spectral_database_csv':
-            skip_header=0
+            skip_header=1
             
             labels_found=False #We want to use the Sample Name field for labels, but if we haven't found that yet we may use Data ID, Sample ID, or mineral name instead.
             with open(file,'r') as file2:
                 line=file2.readline()
-                while line.split(',')[0].lower()!='wavelength' and line !='':
+                i=0
+                while line.split(',')[0].lower()!='wavelength' and line !='' and line.lower()!='wavelength\n': #Formatting can change slightly if you edit your .csv in libreoffice or some other editor, this captures different options. line will be '' only at the end of the file (it is \n for empty lines)
+                    i+=1
                     if line[0:11]=='Sample Name':
                         labels=line.split(',')[1:]
                         labels[-1]=labels[-1].strip('\n')
@@ -141,7 +143,7 @@ class Plotter():
                     skip_header+=1
                     line=file2.readline()
 
-
+            print(skip_header)
             data = np.genfromtxt(file, skip_header=skip_header, dtype=float,delimiter=',',encoding=None,deletechars='')
             print('hi?')
 

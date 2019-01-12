@@ -1478,7 +1478,7 @@ class Controller():
                     if not valid_i:
                         label+='The incidence angle is invalid (Min:'+str(self.min_i)+', Max:'+str(self.max_i)+').\n\n'
                     if not valid_e:
-                        label+='The emission angle is invalid (Min:'+str(self.min_e)+', Max:'+str(self.max_i)+').\n\n'
+                        label+='The emission angle is invalid (Min:'+str(self.min_e)+', Max:'+str(self.max_e)+').\n\n'
                     if valid_e and valid_i:
                         if not valid_separation:
                             label+='Incidence and emission need to be at least '+str(self.required_angular_separation)+' degrees apart.\n\n'
@@ -1518,6 +1518,17 @@ class Controller():
             if self.labelfailsafe.get():
                 if self.sample_label_entries[self.current_sample_gui_index].get()=='':
                     label +='This sample has no label.\n\n'
+            for entry in self.sample_label_entries:
+                sample_label=entry.get()
+                newlabel=self.validate_sample_name(sample_label)
+                if newlabel!=sample_label:
+                    entry.delete(0,'end')
+                    if newlabel=='':
+                        newlabel='sample'
+
+                    entry.insert(0,newlabel)
+                    label+="'"+sample_label+"' is an invalid sample label.\nSample will be labeled as '"+newlabel+"' instead.\n\n"
+                    self.log("Warning: '"+sample_label+"' is an invalid sample label. Removing reserved characters and expressions.")
 
             if label !='': #if we came up with errors
                 title='Warning!'
@@ -1673,6 +1684,8 @@ class Controller():
                 elif int(i)>int(e)-15:
                     dialog=ErrorDialog(self,label='Error: Due to geometric constraints on the goniometer,\nincidence must be at least 15 degrees less than emission.',width=300, height=130)
                     return False
+        
+
         return True
         
             
@@ -3510,17 +3523,16 @@ class Controller():
         self.spec_startnum_entry.insert(0,num)
         self.spec_startnum_entry.icursor(pos)
     
-    def validate_sample_name(self,entry):
-        print('contents!')
-        print(entry.get())
-        print('validate!')
 
-        pos=entry.index(INSERT)
-        name=entry.get()
+    def validate_sample_name(self, name):
+        #print(entry)
+        # pos=entry.index(INSERT)
+        # name=entry.get()
         name=name.replace('(','').replace(')','').replace('i=','i').replace('e=','e')
-        entry.delete(0,'end')
-        entry.insert(0,name)
-        entry.icursor(pos)   
+        return name
+        # entry.delete(0,'end')
+        # entry.insert(0,name)
+        # entry.icursor(pos)   
         
     def validate_distance(self,i,e):
         try:
