@@ -3185,6 +3185,8 @@ class Controller():
         self.sample_labels[-1].pack(side=LEFT, padx=(5,0))
         
         self.sample_label_entries.append(Entry(self.sample_frames[-1], width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground))
+
+        self.sample_label_entries[-1].insert(0,'foo')
         self.entries.append(self.sample_label_entries[-1])
         self.sample_label_entries[-1].pack(side=LEFT,padx=(0,10))
         
@@ -3518,6 +3520,7 @@ class Controller():
         self.spec_startnum_entry.insert(0,num)
         self.spec_startnum_entry.icursor(pos)
     
+
     def validate_sample_name(self, name):
         #print(entry)
         # pos=entry.index(INSERT)
@@ -6175,6 +6178,12 @@ class VerticalScrolledFrame(Frame):
     def update(self):
         self._configure_canvas(None)
         self.controller.resize()
+        
+class StringVarWithEntry(StringVar):
+    def __init__(self):
+        super().__init__()
+        print('hi!')
+        self.entry=None
 
 if __name__=='__main__':
     main()
