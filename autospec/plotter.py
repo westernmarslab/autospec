@@ -277,6 +277,8 @@ class Tab():
         self.legend_height=self.legend_len*21+100 #23 px per legend entry.
         self.oversize_legend=False
         if self.height>self.legend_height:scrollable=False
+        else:
+            self.oversize_legend=True
         if scrollable: #User can specify this in edit_plot#self.legend_len>7:
             self.top=VerticalScrolledFrame(self.plotter.controller, self.plotter.notebook)
 
@@ -360,7 +362,7 @@ class Tab():
         self.top.bind('<Configure>',resize_fig)
 
         
-        self.plot=Plot(self.plotter, self.fig, self.samples,self.title)
+        self.plot=Plot(self.plotter, self.fig, self.samples,self.title, self.oversize_legend)
 
 
 
@@ -501,7 +503,7 @@ class Tab():
     
         
 class Plot():
-    def __init__(self, plotter, fig, samples,title):
+    def __init__(self, plotter, fig, samples,title, oversize_legend=False):
         
         self.plotter=plotter
         self.samples=samples
@@ -511,6 +513,7 @@ class Plot():
 
         #we'll use these to generate hsv lists of colors for each sample, which will be evenly distributed across a gradient to make it easy to see what the overall trend of reflectance is.
         self.hues=[200,130,12,280]
+        self.oversize_legend=oversize_legend
         
         
         
@@ -550,7 +553,47 @@ class Plot():
         gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
         self.plot = fig.add_subplot(gs[0])
         pos1 = self.plot.get_position() # get the original position 
-        pos2 = [pos1.x0+0.02, pos1.y0 + 0.1+self.legend_len/300,  pos1.width, pos1.height -0.1-self.legend_len/300] 
+        y0=pos1.y0 +self.legend_len/130
+
+        if self.legend_len<70 and self.oversize_legend:
+            height=pos1.height -self.legend_len/150
+            if y0>0.8:
+                y0=0.8
+            print('SMALL')
+            #Looks very reasonable all the way through range of small
+        elif self.oversize_legend:
+            print('BIG')
+            print(self.legend_len)
+            height=pos1.height-.36-self.legend_len/600 #A little too small at 176, a tiny bit big at 135, good at 76.
+            
+            #y0=pos1.y0 +self.legend_len/210 #good at 76, too small at 105, too big at 212. Need less dependence on legend len. 
+            #y0=pos1.y0 +.2+self.legend_len/500 far too small at 105
+            if self.legend_len<150:
+                print('YAY!')
+                #y0=pos1.y0+self.legend_len/100 #Too high for 140 and 108 and 76
+                y0=pos1.y0-.4+self.legend_len/100 #plot is Too high for 140, plot is way too low for 76. Need y0 smaller for 140, y0 greater at 76
+                #y0=pos1.y0+.2+self.legend_len/300 #plot is slightly low at 140, and very slightly lower at 76
+                #y0=pos1.y0+.23+self.legend_len/300 #plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
+                #y0=pos1.y0+.27+self.legend_len/330 #very close! plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
+                y0=pos1.y0+.36+self.legend_len/430 #very close! plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
+                print(y0)
+            else:
+                #y0=pos1.y0 +.36+self.legend_len/520 #Good at 212, plot is too low at 156. Need y0 to be bigger for 156
+                #y0=pos1.y0 +.5+self.legend_len/800 #perfect at 212, plot slightly too low at 162
+                y0=pos1.y0 +.57+self.legend_len/1100
+                
+                
+            if y0>0.9:
+                y0=0.9
+        else:
+            print('NOT OVERSIZE!')
+            y0=pos1.y0
+            height=pos1.height
+        if height<0.1:
+            height=0.1
+        pos2 = [pos1.x0+0.02, y0,  pos1.width, height] 
+        print('pos2!')
+        print(pos2)
         self.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
         
         

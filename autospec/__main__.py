@@ -1955,6 +1955,7 @@ class Controller():
 
         if True:#self.individual_range.get()==0:
             #For each (i, e), opt, white reference, save the white reference, move the tray, take a  spectrum, then move the tray back, then update geom to next.
+            self.queue.append({self.move_tray:['wr']})
             for entry in self.active_incidence_entries:
                 self.queue.append({self.opt:[]})
                 self.queue.append({self.wr:[True,True]})
