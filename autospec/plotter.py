@@ -6,10 +6,12 @@ import matplotlib as mpl
 import numpy as np
 from tkinter import *
 from tkinter import filedialog
+import colorutils
 
 import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from verticalscrolledframe import VerticalScrolledFrame
 
 class Plotter():
     def __init__(self, controller,dpi, style):
@@ -45,6 +47,11 @@ class Plotter():
         print('hooray!')
         print(event)
         print(event.x)
+        
+    def set_height(self, height):
+        pass
+        for tab in self.tabs:
+            tab.top.configure(height=height)
 
     def plot_spectra(self, title, file, caption, exclude_wr=True):
         if title=='':
@@ -143,9 +150,7 @@ class Plotter():
                     skip_header+=1
                     line=file2.readline()
 
-            print(skip_header)
             data = np.genfromtxt(file, skip_header=skip_header, dtype=float,delimiter=',',encoding=None,deletechars='')
-            print('hi?')
 
         data=zip(*data)
         wavelengths=[]
@@ -229,8 +234,19 @@ class Sample():
         self.data[spectrum_label]['reflectance']=reflectance
         self.data[spectrum_label]['wavelengths']=wavelengths
         
-    def set_colors(self, colors):
-        self.colors=colors
+    #generate a list of hex colors that are evenly distributed from dark to light across a single hue. 
+    def set_colors(self, hue):
+        N=len(self.spectrum_labels)/2
+        if len(self.spectrum_labels)%2!=0:
+            N+=1
+        N=int(N)+1
+        
+        hsv_tuples = [(hue, 1, x*1.0/N) for x in range(2,N)]
+        hsv_tuples=hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N)]
+        self.colors=[]
+        for tuple in hsv_tuples:
+            self.colors.append(colorutils.hsv_to_hex(tuple))
+            
         self.index=-1
         #self.__next_color=self.colors[0]
         
@@ -246,13 +262,25 @@ class Tab():
         self.plotter=plotter
         self.samples=samples
         self.geoms=geoms
-            
         if title_override==False:
             self.title=title+ ': '+samples[0].name
         else:
             self.title=title
         
-        self.top=Frame(self.plotter.notebook)
+        width=self.plotter.notebook.winfo_width()
+        height=self.plotter.notebook.winfo_height()
+        
+        #If we need a bigger frame to hold a giant long legend, expand.
+        self.legend_len=0
+        for sample in self.samples:
+            self.legend_len+=len(sample.spectrum_labels)
+        self.legend_height=self.legend_len*23 #23 px per legend entry.
+        
+        if self.legend_len>13:
+            self.top=VerticalScrolledFrame(self.plotter.controller, self.plotter.notebook)
+        else:
+            self.top=NotScrolledFrame(self.plotter.notebook)
+        self.top.min_height=height
         #self.top.bind("<Visibility>", self.on_visibility)
         self.top.pack()
         
@@ -266,31 +294,40 @@ class Tab():
             self.plotter.notebook.insert(tab_index, self.plotter.notebook.tabs()[-1])
             self.plotter.notebook.select(self.plotter.notebook.tabs()[tab_index])
             
-        width=self.plotter.notebook.winfo_width()
-        height=self.plotter.notebook.winfo_height()
-        self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi)
-        #self.figs[title][samples]=fig
-        #We're making a second small subplot area to the right to accommodate big legends.
+        
+        #self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi) 
+        self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi),dpi=self.plotter.dpi) 
+
 
 
 
         
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.top)
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.top.interior)
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
         self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
+
         
-        self.vbar=Scrollbar(self.top,orient=VERTICAL)
-        self.vbar.pack(side=RIGHT,fill=Y)
-        self.vbar.config(command=self.canvas.get_tk_widget().yview)
-        self.canvas.get_tk_widget().config(width=300,height=300)
-        self.canvas.get_tk_widget().config(yscrollcommand=self.vbar.set)
-        self.canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
+        def resize_fig(event):
+            if self.legend_height>event.height:
+                self.top.min_height=self.legend_height
+                pos1 = self.plot.plot.get_position() # get the original position 
+                pos2 = [pos1.x0-0.01, pos1.y0+0.17,  pos1.width, pos1.height/1.3] 
+                self.plot.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
+            else:
+                self.top.min_height=0
+                self.top.scrollbar.pack_forget()
+            
+        #self.canvas.get_tk_widget().config(width=300,height=300)
+        self.canvas.get_tk_widget().pack(expand=True,fill=BOTH)
+        self.top.bind('<Configure>',resize_fig)
+
         
-        #canvas.get_tk_widget().pack()
         self.plot=Plot(self.plotter, self.fig, self.samples,self.title)
+
+
+
         self.canvas.draw()
-        print('foo')
-        self.popup_menu = Menu(self.top, tearoff=0)
+        self.popup_menu = Menu(self.top.interior, tearoff=0)
         self.popup_menu.add_command(label="Edit plot",
                                     command=self.ask_which_samples)
         self.popup_menu.add_command(label="Open analysis tools",
@@ -434,15 +471,8 @@ class Plot():
         self.title='' #This will be the text to put on the notebook tab
         #self.geoms={'i':[],'e':[]} #This is a dict like this: {'i':[10,20],'e':[-10,0,10,20,30,40,50]} telling which incidence and emission angles to include on the plot. empty lists mean plot all available.
 
-        
-        self.colors=[]
-        #self.colors.append(['#000a20','#002040','#003060','#004d80','#006bb3','#008ae6','#33adff','#80ccff'])
-        self.colors.append(['#004d80','#006bb3','#008ae6','#33adff','#80ccff','#b3e0ff','#e6f5ff']) #blue
-        self.colors.append(['#145214','#1f7a1f','#2eb82e','#5cd65c','#99e699','#d6f5d6']) #green
-        self.colors.append(['#661400','#b32400','#ff3300','#ff704d','#ff9980','#ffd6cc']) #red
-        self.colors.append(['#330066','#5900b3','#8c1aff','#b366ff','#d9b3ff','#f2e6ff']) #purple
-        
-        self.dark_colors=[]
+        #we'll use these to generate hsv lists of colors for each sample, which will be evenly distributed across a gradient to make it easy to see what the overall trend of reflectance is.
+        self.hues=[200,130,12,280]
         
         
         
@@ -451,7 +481,7 @@ class Plot():
         for i, sample in enumerate(self.samples):
             if sample.file not in self.files:
                 self.files.append(sample.file)
-            sample.set_colors(self.colors[i%len(self.colors)])
+            sample.set_colors(self.hues[i%len(self.hues)])
             self.num_spectra+=len(sample.spectrum_labels)
 
         self.title=title
@@ -479,7 +509,10 @@ class Plot():
             ratio=int(plot_width/self.max_legend_label_len)
         gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
         self.plot = fig.add_subplot(gs[0])
-
+        pos1 = self.plot.get_position() # get the original position 
+        pos2 = [pos1.x0+0.02, pos1.y0 + 0.1,  pos1.width, pos1.height -0.1] 
+        self.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
+        
         
         #If there is data from more than one data file, associate each sample name with that file. Otherwise, just use the sample name.
 
@@ -509,7 +542,6 @@ class Plot():
             # for i in self.plots:
             #     del self.plots[i]
             # #del self.plots[i]
-            print('close plot!')
             top.destroy()
     
 
@@ -564,8 +596,18 @@ class Plot():
         
         self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
 
-
-            
+class NotScrolledFrame(Frame):
+    def __init__(self, parent, *args, **kw):
+        Frame.__init__(self, parent, *args, **kw)  
+        self.interior=self
+        self.scrollbar=NotScrollbar()
+        
+class NotScrollbar():
+    def __init__(self):
+        pass
+    def pack_forget(self):
+        pass
+        
             
             
 

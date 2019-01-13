@@ -101,6 +101,7 @@ sys.path.append(package_loc)
 #import goniometer_model
 import goniometer_view
 import plotter
+import verticalscrolledframe
 
 #This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't changing the modules.
 if dev:
@@ -3560,18 +3561,22 @@ class Controller():
         if window==None:
             window=PretendEvent(self.master, self.master.winfo_width(), self.master.winfo_height())
         if window.widget==self.master:
-
+            print('hello!')
             reserve_width=500
             try:
                 width=self.console_frame.winfo_width()
                 #g_height=self.test_view.double_embed.winfo_height()
                 
                 console_height=int(window.height/3)+10
+                print(console_height)
                 if console_height<200: console_height=200
                 goniometer_height=window.height-console_height+10
+                print(goniometer_height)
                 self.test_view.double_embed.configure(height=goniometer_height)
                 self.console_frame.configure(height=console_height)
-                    
+                self.view_notebook.configure(height=goniometer_height)
+                self.plotter.set_height(goniometer_height)
+                
 
                 thread = Thread(target =self.refresh) #I don't understand why this is needed, but things don't seem to get drawn right without it. 
                 thread.start()
@@ -4331,6 +4336,7 @@ class OptHandler(CommandHandler):
             timeout_s=1000
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=timeout_s)
+        self.first_try=True #Occasionally, optimizing and white referencing may fail for reasons I haven't figured out. I made it do one automatic retry, which has yet to fail.
         
         
 
@@ -4366,9 +4372,15 @@ class OptHandler(CommandHandler):
                 
             elif 'optfailure' in self.listener.queue:
                 self.listener.queue.remove('optfailure')
-                self.interrupt('Error: There was a problem with\noptimizing the instrument.',retry=True)
-                self.wait_dialog.top.geometry('376x150')
-                self.controller.log('Error: There was a problem with optimizing the instrument.')
+                
+                if self.first_try==True:
+                    self.controller.log('Error: Failed to optimize instrument. Retrying.')
+                    self.first_try=False
+                    self.controller.next_in_queue()
+                else:
+                    self.interrupt('Error: There was a problem with\noptimizing the instrument.',retry=True)
+                    self.wait_dialog.top.geometry('376x150')
+                    self.controller.log('Error: There was a problem with optimizing the instrument.')
                 return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
@@ -4529,7 +4541,7 @@ class DataHandler(CommandHandler):
 class ProcessHandler(CommandHandler):
     def __init__(self, controller, title='Processing...', label='Processing...'):
         self.listener=controller.spec_listener
-        super().__init__(controller, title, label,timeout=60+BUFFER)
+        super().__init__(controller, title, label,timeout=200+BUFFER)
         
         self.wait_dialog.set_buttons({})
         self.wait_dialog.top.wm_geometry('376x130')
@@ -4576,6 +4588,13 @@ class ProcessHandler(CommandHandler):
                 self.listener.queue.remove('processerrorfileexists')
                 self.interrupt('Error processing files: Output file already exists')
                 self.controller.log('Error processing files: output file exists.')
+                return
+                
+            elif 'processerrornodirectory' in self.listener.queue:
+
+                self.listener.queue.remove('processerrornodirectory')
+                self.interrupt('Error processing files:\nInput directory does not exist.')
+                self.controller.log('Error processing files: Input directory does not exist.')
                 return
                 
             elif 'processerrorwropt' in self.listener.queue:
@@ -5596,7 +5615,8 @@ class SpecListener(Listener):
                     
                     elif 'processerrorwropt' in cmd:
                         self.queue.append('processerrorwropt')
-                    
+                    elif 'processerrornodirectory' in cmd:
+                        self.queue.append('processerrornodirectory')
                     elif 'processerror' in cmd:
                         self.queue.append('processerror')
                     
