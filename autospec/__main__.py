@@ -3564,17 +3564,14 @@ class Controller():
         if window==None:
             window=PretendEvent(self.master, self.master.winfo_width(), self.master.winfo_height())
         if window.widget==self.master:
-            print('hello!')
             reserve_width=500
             try:
                 width=self.console_frame.winfo_width()
                 #g_height=self.test_view.double_embed.winfo_height()
                 
                 console_height=int(window.height/3)+10
-                print(console_height)
                 if console_height<200: console_height=200
                 goniometer_height=window.height-console_height+10
-                print(goniometer_height)
                 self.test_view.double_embed.configure(height=goniometer_height)
                 self.console_frame.configure(height=console_height)
                 self.view_notebook.configure(height=goniometer_height)

@@ -258,7 +258,7 @@ class Sample():
 class Tab():
     #Title override is true if the title of this individual tab is set manually by user.
     #If it is False, then the tab and plot title will be a combo of the file title plus the sample that is plotted.
-    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}):
+    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}, scrollable=True):
         self.plotter=plotter
         self.samples=samples
         self.geoms=geoms
@@ -268,19 +268,22 @@ class Tab():
             self.title=title
         
         width=self.plotter.notebook.winfo_width()
-        height=self.plotter.notebook.winfo_height()
+        self.height=self.plotter.notebook.winfo_height()
         
         #If we need a bigger frame to hold a giant long legend, expand.
         self.legend_len=0
         for sample in self.samples:
             self.legend_len+=len(sample.spectrum_labels)
-        self.legend_height=self.legend_len*23 #23 px per legend entry.
-        
-        if self.legend_len>13:
+        self.legend_height=self.legend_len*21+100 #23 px per legend entry.
+        self.oversize_legend=False
+        if self.height>self.legend_height:scrollable=False
+        if scrollable: #User can specify this in edit_plot#self.legend_len>7:
             self.top=VerticalScrolledFrame(self.plotter.controller, self.plotter.notebook)
+
         else:
             self.top=NotScrolledFrame(self.plotter.notebook)
-        self.top.min_height=height
+            
+        self.top.min_height=np.max([self.legend_height, self.height-50])
         #self.top.bind("<Visibility>", self.on_visibility)
         self.top.pack()
         
@@ -288,34 +291,69 @@ class Tab():
         if tab_index==None:
             self.plotter.notebook.add(self.top,text=self.title+' x')
             self.plotter.notebook.select(self.plotter.notebook.tabs()[-1])
+            self.index=self.plotter.notebook.index(self.plotter.notebook.select())
         #If this is being called after the user did Right click -> choose samples to plot, put it at the same index as before.
         else:
             self.plotter.notebook.add(self.top,text=self.title+' x')
             self.plotter.notebook.insert(tab_index, self.plotter.notebook.tabs()[-1])
             self.plotter.notebook.select(self.plotter.notebook.tabs()[tab_index])
+            self.index=tab_index
             
         
         #self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi) 
-        self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi),dpi=self.plotter.dpi) 
-
-
-
-
-        
+        self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi) 
+ 
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.top.interior)
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
         self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
 
         
         def resize_fig(event):
-            if self.legend_height>event.height:
+            return
+            current_index=self.plotter.notebook.index(self.plotter.notebook.select())
+            if self.index!=current_index: return #Only do all the figure resizing stuff for the visible figure. This helps with speed.
+            #might be smart to make all this stuff happen only for visible plot.
+            if self.legend_height>event.height and self.oversize_legend==False: #We only need to do most of this once, but we'll still adjust the size of the figure at each resize.
                 self.top.min_height=self.legend_height
+                #Find height of legend
+                #Find height of event
+                #fig height needs to be related to ratio of event/legend.
+
+                self.oversize_legend=True
+            if self.legend_height>event.height:
                 pos1 = self.plot.plot.get_position() # get the original position 
-                pos2 = [pos1.x0-0.01, pos1.y0+0.17,  pos1.width, pos1.height/1.3] 
+
+                diff=event.height-self.height
+                if np.abs(diff)<5:return
+                self.height=event.height
+
+                
+                ratio=event.height/self.legend_height
+                print('event height')
+                print(event.height)
+                print('legend height')
+                print(self.legend_height)
+                inv=self.legend_height/event.height
+                y0=0.41+inv/9.7-.2
+                print(self.legend_height/130000)
+                y0=y0+self.legend_height/130000
+                if y0>0.88:
+                    y0=0.88
+                print(y0)
+                #When legend is big, it starts out too far down.
+                #So add a component that depends on legend height and will make y0 bigger when the legend is bigger
+                #It is also too small when the legend is big. The height needs to depend on both the ratio, and also the absolute legend size. Just do +legend_size/1000?
+                pos2 = [pos1.x0, y0,  pos1.width, ratio/1.3-0.04+self.legend_height/130000] 
                 self.plot.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
+
             else:
                 self.top.min_height=0
-                self.top.scrollbar.pack_forget()
+                if self.oversize_legend==True:
+                    pos1 = self.plot.plot.get_position() # get the original position 
+                    pos2 = [pos1.x0-0.01, pos1.y0-0.2,  pos1.width, pos1.height] 
+                    self.plot.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
+                    self.oversize_legend=False
+                self.top.scrollbar.pack_forget() #Shouldn't be needed, but for some reason we get a little strip beneath top.interior that doesn't go away and requires a scrollbar to see otherwise.
             
         #self.canvas.get_tk_widget().config(width=300,height=300)
         self.canvas.get_tk_widget().pack(expand=True,fill=BOTH)
@@ -486,7 +524,8 @@ class Plot():
 
         self.title=title
         
-        self.max_legend_label_len=0 #This will tell us how much space to give the legend.
+        self.max_legend_label_len=0 #This will tell us how much horizontal space to give the legend
+        self.legend_len=0
         #The whole point in this is to figure out how much space the legend might need. We do the whole thing again in a moment, which dumb.
         for sample in self.samples:
             for label in sample.spectrum_labels:
@@ -500,6 +539,7 @@ class Plot():
                     
                 if len(legend_label)>self.max_legend_label_len:
                     self.max_legend_label_len=len(legend_label)
+                self.legend_len+=1
                     
         self.legend_anchor=1.05+self.max_legend_label_len/97
         plot_width=215 #very vague character approximation of plot width
@@ -510,7 +550,7 @@ class Plot():
         gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
         self.plot = fig.add_subplot(gs[0])
         pos1 = self.plot.get_position() # get the original position 
-        pos2 = [pos1.x0+0.02, pos1.y0 + 0.1,  pos1.width, pos1.height -0.1] 
+        pos2 = [pos1.x0+0.02, pos1.y0 + 0.1+self.legend_len/300,  pos1.width, pos1.height -0.1-self.legend_len/300] 
         self.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
         
         
