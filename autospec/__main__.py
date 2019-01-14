@@ -302,14 +302,14 @@ class Controller():
         #     self.last_i=None
         #     self.last_e=None
         
-        self.min_i=-45
+        self.min_i=-50
         self.max_i=45
         self.i=None
         self.final_i=None
         self.i_interval=None
         
         self.min_e=-30
-        self.max_e=90
+        self.max_e=60
         self.e=None
         self.final_e=None
         self.e_interval=None
@@ -2306,13 +2306,11 @@ class Controller():
                     self.incidence_entries[0].insert(0,params[0])
                     self.emission_entries[0].delete(0,'end')
                     self.emission_entries[0].insert(0,params[1])
-                    print(params[0])
-                    print(params[1])
                     self.configure_pi(params[0],params[1],params[2])
 
                 else:
-                    self.log('Error: invalid arguments for control, i, e, sample_num: '+params)
-            except Excption as e:
+                    self.log('Error: invalid arguments for control, i, e, sample_num: '+str(params))
+            except Exception as e:
                 self.log('Error: Could not parse command '+cmd)
                 print(e)
         elif cmd=='collect_garbage()':
@@ -3185,7 +3183,6 @@ class Controller():
         
         self.sample_label_entries.append(Entry(self.sample_frames[-1], width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground))
 
-        self.sample_label_entries[-1].insert(0,'foo')
         self.entries.append(self.sample_label_entries[-1])
         self.sample_label_entries[-1].pack(side=LEFT,padx=(0,10))
         
@@ -4329,7 +4326,7 @@ class OptHandler(CommandHandler):
     def __init__(self, controller, title='Optimizing...', label='Optimizing...'):
 
         if controller.spec_config_count!=None:
-            timeout_s=int(controller.spec_config_count)/9+10+BUFFER
+            timeout_s=int(controller.spec_config_count)/9+50+BUFFER
         else:
             timeout_s=1000
         self.listener=controller.spec_listener

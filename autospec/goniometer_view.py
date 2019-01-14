@@ -167,7 +167,7 @@ class TestView():
         if self.current_sample=='WR':
             self.screen.blit(sample_text,(pivot[0]-text_size, pivot[1]+text_size))
         else:
-            self.screen.blit(sample_text,(pivot[0]-int(2*text_size), pivot[1]+text_size))
+            self.screen.blit(sample_text,(pivot[0]-int(1.5*text_size), pivot[1]+text_size))
         
         #border around screen
         pygame.draw.rect(self.screen,pygame.Color('darkgray'),(2,2,self.width-6,self.height+15),2)
