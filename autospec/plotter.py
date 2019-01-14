@@ -6,10 +6,12 @@ import matplotlib as mpl
 import numpy as np
 from tkinter import *
 from tkinter import filedialog
+import colorutils
 
 import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from verticalscrolledframe import VerticalScrolledFrame
 
 class Plotter():
     def __init__(self, controller,dpi, style):
@@ -45,6 +47,11 @@ class Plotter():
         print('hooray!')
         print(event)
         print(event.x)
+        
+    def set_height(self, height):
+        pass
+        for tab in self.tabs:
+            tab.top.configure(height=height)
 
     def plot_spectra(self, title, file, caption, exclude_wr=True):
         if title=='':
@@ -143,9 +150,7 @@ class Plotter():
                     skip_header+=1
                     line=file2.readline()
 
-            print(skip_header)
             data = np.genfromtxt(file, skip_header=skip_header, dtype=float,delimiter=',',encoding=None,deletechars='')
-            print('hi?')
 
         data=zip(*data)
         wavelengths=[]
@@ -229,8 +234,19 @@ class Sample():
         self.data[spectrum_label]['reflectance']=reflectance
         self.data[spectrum_label]['wavelengths']=wavelengths
         
-    def set_colors(self, colors):
-        self.colors=colors
+    #generate a list of hex colors that are evenly distributed from dark to light across a single hue. 
+    def set_colors(self, hue):
+        N=len(self.spectrum_labels)/2
+        if len(self.spectrum_labels)%2!=0:
+            N+=1
+        N=int(N)+1
+        
+        hsv_tuples = [(hue, 1, x*1.0/N) for x in range(2,N)]
+        hsv_tuples=hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N)]
+        self.colors=[]
+        for tuple in hsv_tuples:
+            self.colors.append(colorutils.hsv_to_hex(tuple))
+            
         self.index=-1
         #self.__next_color=self.colors[0]
         
@@ -242,17 +258,34 @@ class Sample():
 class Tab():
     #Title override is true if the title of this individual tab is set manually by user.
     #If it is False, then the tab and plot title will be a combo of the file title plus the sample that is plotted.
-    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}):
+    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}, scrollable=True):
         self.plotter=plotter
         self.samples=samples
         self.geoms=geoms
-            
         if title_override==False:
             self.title=title+ ': '+samples[0].name
         else:
             self.title=title
         
-        self.top=Frame(self.plotter.notebook)
+        width=self.plotter.notebook.winfo_width()
+        self.height=self.plotter.notebook.winfo_height()
+        
+        #If we need a bigger frame to hold a giant long legend, expand.
+        self.legend_len=0
+        for sample in self.samples:
+            self.legend_len+=len(sample.spectrum_labels)
+        self.legend_height=self.legend_len*21+100 #23 px per legend entry.
+        self.oversize_legend=False
+        if self.height>self.legend_height:scrollable=False
+        else:
+            self.oversize_legend=True
+        if scrollable: #User can specify this in edit_plot#self.legend_len>7:
+            self.top=VerticalScrolledFrame(self.plotter.controller, self.plotter.notebook)
+
+        else:
+            self.top=NotScrolledFrame(self.plotter.notebook)
+            
+        self.top.min_height=np.max([self.legend_height, self.height-50])
         #self.top.bind("<Visibility>", self.on_visibility)
         self.top.pack()
         
@@ -260,37 +293,81 @@ class Tab():
         if tab_index==None:
             self.plotter.notebook.add(self.top,text=self.title+' x')
             self.plotter.notebook.select(self.plotter.notebook.tabs()[-1])
+            self.index=self.plotter.notebook.index(self.plotter.notebook.select())
         #If this is being called after the user did Right click -> choose samples to plot, put it at the same index as before.
         else:
             self.plotter.notebook.add(self.top,text=self.title+' x')
             self.plotter.notebook.insert(tab_index, self.plotter.notebook.tabs()[-1])
             self.plotter.notebook.select(self.plotter.notebook.tabs()[tab_index])
+            self.index=tab_index
             
-        width=self.plotter.notebook.winfo_width()
-        height=self.plotter.notebook.winfo_height()
-        self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi)
-        #self.figs[title][samples]=fig
-        #We're making a second small subplot area to the right to accommodate big legends.
-
-
-
         
-        self.canvas = FigureCanvasTkAgg(self.fig, master=self.top)
+        #self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi) 
+        self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi) 
+ 
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.top.interior)
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
         self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
+
         
-        self.vbar=Scrollbar(self.top,orient=VERTICAL)
-        self.vbar.pack(side=RIGHT,fill=Y)
-        self.vbar.config(command=self.canvas.get_tk_widget().yview)
-        self.canvas.get_tk_widget().config(width=300,height=300)
-        self.canvas.get_tk_widget().config(yscrollcommand=self.vbar.set)
-        self.canvas.get_tk_widget().pack(side=LEFT,expand=True,fill=BOTH)
+        def resize_fig(event):
+            return
+            current_index=self.plotter.notebook.index(self.plotter.notebook.select())
+            if self.index!=current_index: return #Only do all the figure resizing stuff for the visible figure. This helps with speed.
+            #might be smart to make all this stuff happen only for visible plot.
+            if self.legend_height>event.height and self.oversize_legend==False: #We only need to do most of this once, but we'll still adjust the size of the figure at each resize.
+                self.top.min_height=self.legend_height
+                #Find height of legend
+                #Find height of event
+                #fig height needs to be related to ratio of event/legend.
+
+                self.oversize_legend=True
+            if self.legend_height>event.height:
+                pos1 = self.plot.plot.get_position() # get the original position 
+
+                diff=event.height-self.height
+                if np.abs(diff)<5:return
+                self.height=event.height
+
+                
+                ratio=event.height/self.legend_height
+                print('event height')
+                print(event.height)
+                print('legend height')
+                print(self.legend_height)
+                inv=self.legend_height/event.height
+                y0=0.41+inv/9.7-.2
+                print(self.legend_height/130000)
+                y0=y0+self.legend_height/130000
+                if y0>0.88:
+                    y0=0.88
+                print(y0)
+                #When legend is big, it starts out too far down.
+                #So add a component that depends on legend height and will make y0 bigger when the legend is bigger
+                #It is also too small when the legend is big. The height needs to depend on both the ratio, and also the absolute legend size. Just do +legend_size/1000?
+                pos2 = [pos1.x0, y0,  pos1.width, ratio/1.3-0.04+self.legend_height/130000] 
+                self.plot.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
+
+            else:
+                self.top.min_height=0
+                if self.oversize_legend==True:
+                    pos1 = self.plot.plot.get_position() # get the original position 
+                    pos2 = [pos1.x0-0.01, pos1.y0-0.2,  pos1.width, pos1.height] 
+                    self.plot.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
+                    self.oversize_legend=False
+                self.top.scrollbar.pack_forget() #Shouldn't be needed, but for some reason we get a little strip beneath top.interior that doesn't go away and requires a scrollbar to see otherwise.
+            
+        #self.canvas.get_tk_widget().config(width=300,height=300)
+        self.canvas.get_tk_widget().pack(expand=True,fill=BOTH)
+        self.top.bind('<Configure>',resize_fig)
+
         
-        #canvas.get_tk_widget().pack()
-        self.plot=Plot(self.plotter, self.fig, self.samples,self.title)
+        self.plot=Plot(self.plotter, self.fig, self.samples,self.title, self.oversize_legend)
+
+
+
         self.canvas.draw()
-        print('foo')
-        self.popup_menu = Menu(self.top, tearoff=0)
+        self.popup_menu = Menu(self.top.interior, tearoff=0)
         self.popup_menu.add_command(label="Edit plot",
                                     command=self.ask_which_samples)
         self.popup_menu.add_command(label="Open analysis tools",
@@ -426,7 +503,7 @@ class Tab():
     
         
 class Plot():
-    def __init__(self, plotter, fig, samples,title):
+    def __init__(self, plotter, fig, samples,title, oversize_legend=False):
         
         self.plotter=plotter
         self.samples=samples
@@ -434,15 +511,9 @@ class Plot():
         self.title='' #This will be the text to put on the notebook tab
         #self.geoms={'i':[],'e':[]} #This is a dict like this: {'i':[10,20],'e':[-10,0,10,20,30,40,50]} telling which incidence and emission angles to include on the plot. empty lists mean plot all available.
 
-        
-        self.colors=[]
-        #self.colors.append(['#000a20','#002040','#003060','#004d80','#006bb3','#008ae6','#33adff','#80ccff'])
-        self.colors.append(['#004d80','#006bb3','#008ae6','#33adff','#80ccff','#b3e0ff','#e6f5ff']) #blue
-        self.colors.append(['#145214','#1f7a1f','#2eb82e','#5cd65c','#99e699','#d6f5d6']) #green
-        self.colors.append(['#661400','#b32400','#ff3300','#ff704d','#ff9980','#ffd6cc']) #red
-        self.colors.append(['#330066','#5900b3','#8c1aff','#b366ff','#d9b3ff','#f2e6ff']) #purple
-        
-        self.dark_colors=[]
+        #we'll use these to generate hsv lists of colors for each sample, which will be evenly distributed across a gradient to make it easy to see what the overall trend of reflectance is.
+        self.hues=[200,130,12,280]
+        self.oversize_legend=oversize_legend
         
         
         
@@ -451,12 +522,13 @@ class Plot():
         for i, sample in enumerate(self.samples):
             if sample.file not in self.files:
                 self.files.append(sample.file)
-            sample.set_colors(self.colors[i%len(self.colors)])
+            sample.set_colors(self.hues[i%len(self.hues)])
             self.num_spectra+=len(sample.spectrum_labels)
 
         self.title=title
         
-        self.max_legend_label_len=0 #This will tell us how much space to give the legend.
+        self.max_legend_label_len=0 #This will tell us how much horizontal space to give the legend
+        self.legend_len=0
         #The whole point in this is to figure out how much space the legend might need. We do the whole thing again in a moment, which dumb.
         for sample in self.samples:
             for label in sample.spectrum_labels:
@@ -470,6 +542,7 @@ class Plot():
                     
                 if len(legend_label)>self.max_legend_label_len:
                     self.max_legend_label_len=len(legend_label)
+                self.legend_len+=1
                     
         self.legend_anchor=1.05+self.max_legend_label_len/97
         plot_width=215 #very vague character approximation of plot width
@@ -479,7 +552,50 @@ class Plot():
             ratio=int(plot_width/self.max_legend_label_len)
         gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
         self.plot = fig.add_subplot(gs[0])
+        pos1 = self.plot.get_position() # get the original position 
+        y0=pos1.y0 +self.legend_len/130
 
+        if self.legend_len<70 and self.oversize_legend:
+            height=pos1.height -self.legend_len/150
+            if y0>0.8:
+                y0=0.8
+            print('SMALL')
+            #Looks very reasonable all the way through range of small
+        elif self.oversize_legend:
+            print('BIG')
+            print(self.legend_len)
+            height=pos1.height-.36-self.legend_len/600 #A little too small at 176, a tiny bit big at 135, good at 76.
+            
+            #y0=pos1.y0 +self.legend_len/210 #good at 76, too small at 105, too big at 212. Need less dependence on legend len. 
+            #y0=pos1.y0 +.2+self.legend_len/500 far too small at 105
+            if self.legend_len<150:
+                print('YAY!')
+                #y0=pos1.y0+self.legend_len/100 #Too high for 140 and 108 and 76
+                y0=pos1.y0-.4+self.legend_len/100 #plot is Too high for 140, plot is way too low for 76. Need y0 smaller for 140, y0 greater at 76
+                #y0=pos1.y0+.2+self.legend_len/300 #plot is slightly low at 140, and very slightly lower at 76
+                #y0=pos1.y0+.23+self.legend_len/300 #plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
+                #y0=pos1.y0+.27+self.legend_len/330 #very close! plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
+                y0=pos1.y0+.36+self.legend_len/430 #very close! plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
+                print(y0)
+            else:
+                #y0=pos1.y0 +.36+self.legend_len/520 #Good at 212, plot is too low at 156. Need y0 to be bigger for 156
+                #y0=pos1.y0 +.5+self.legend_len/800 #perfect at 212, plot slightly too low at 162
+                y0=pos1.y0 +.57+self.legend_len/1100
+                
+                
+            if y0>0.9:
+                y0=0.9
+        else:
+            print('NOT OVERSIZE!')
+            y0=pos1.y0
+            height=pos1.height
+        if height<0.1:
+            height=0.1
+        pos2 = [pos1.x0+0.02, y0,  pos1.width, height] 
+        print('pos2!')
+        print(pos2)
+        self.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
+        
         
         #If there is data from more than one data file, associate each sample name with that file. Otherwise, just use the sample name.
 
@@ -509,7 +625,6 @@ class Plot():
             # for i in self.plots:
             #     del self.plots[i]
             # #del self.plots[i]
-            print('close plot!')
             top.destroy()
     
 
@@ -564,8 +679,18 @@ class Plot():
         
         self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
 
-
-            
+class NotScrolledFrame(Frame):
+    def __init__(self, parent, *args, **kw):
+        Frame.__init__(self, parent, *args, **kw)  
+        self.interior=self
+        self.scrollbar=NotScrollbar()
+        
+class NotScrollbar():
+    def __init__(self):
+        pass
+    def pack_forget(self):
+        pass
+        
             
             
 
