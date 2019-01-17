@@ -2878,13 +2878,68 @@ class Controller():
         final_log_destination+='.txt'
         shutil.move(self.spec_temp_loc+'proc_temp.csv',final_data_destination)
         shutil.move(self.spec_temp_loc+'proc_temp_log.txt',final_log_destination)
+    def open_analysis_tools(self, tab):
+        def calculate_slopes():
+
+            slopes=tab.calculate_slopes(self.right_slope_entry.get(),self.left_slope_entry.get())
+            try:
+                self.slopes_listbox.delete(0,'end')
+            except:
+                self.slopes_listbox=ScrollableListbox(self.slope_results_frame,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
+            for slope in slopes:
+                self.slopes_listbox.insert(0,slope)
+            self.slopes_listbox.pack(fill=BOTH, expand=True)
+
         
-    #This gets called when the user clicks 'Overlay samples' from the right-click menu on a plot.
+        tab.freeze() #You have to finish dealing with this before, say, opening another analysis box.
+        buttons={
+            'reset':{
+                tab.reset:[]
+            },
+            'close':{}
+        }
+        dialog=Dialog(self,'Analyze Data','',buttons=buttons)
+        
+        
+        
+        
+        
+        self.normalize_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15)
+        self.normalize_frame.pack()
+        self.normalize_label=Label(self.normalize_frame,text='Normalize at wavelength (nm):',bg=self.bg,fg=self.textcolor)
+        self.normalize_entry=Entry(self.normalize_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.normalize_button=Button(self.normalize_frame,text='Apply',  command=lambda:tab.normalize(self.normalize_entry.get()),width=6, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.normalize_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.normalize_button.pack(side=RIGHT,padx=(10,10))
+        self.normalize_entry.pack(side=RIGHT,padx=self.padx)
+        self.normalize_label.pack(side=RIGHT,padx=self.padx)
+        
+        self.slope_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15)
+        self.slope_frame.pack()
+
+        self.slope_label=Label(self.slope_frame,text='Calculate slopes from',bg=self.bg,fg=self.textcolor)
+        self.left_slope_entry=Entry(self.slope_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.slope_label_2=Label(self.slope_frame,text='to',bg=self.bg,fg=self.textcolor)
+        self.right_slope_entry=Entry(self.slope_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.slope_button=Button(self.slope_frame,text='Apply',  command=calculate_slopes,width=6, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.slope_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.slope_button.pack(side=RIGHT,padx=(10,10))
+        self.right_slope_entry.pack(side=RIGHT,padx=self.padx)
+        self.slope_label_2.pack(side=RIGHT,padx=self.padx)
+        self.left_slope_entry.pack(side=RIGHT,padx=self.padx)
+        self.slope_label.pack(side=RIGHT,padx=self.padx)
+        self.slope_results_frame=Frame(dialog.top,bg=self.bg)
+        self.slope_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with slope info in here later after calculating.
+
+
+
+        
+    #This gets called when the user clicks 'Edit plot' from the right-click menu on a plot.
     #Pops up a scrollable listbox with sample options.
     def ask_plot_samples(self, tab, existing_sample_indices, sample_options, existing_geoms, current_title):
         buttons={
             'ok':{
-                #Sorry, this is a pretty confusing lambda. It just sends a list of the currently selected samples back to the tab along with the new title.
+                #The lambda sends a list of the currently selected samples back to the tab along with the new title and selected incidence/emission angles
                 lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection())),self.new_plot_title_entry.get(), self.i_entry.get(),self.e_entry.get()):[]
                 }
             }
@@ -4002,7 +4057,14 @@ class Dialog:
                 self.continue_button=Button(self.button_frame,fg=self.textcolor,text='Continue',command=self.cont,width=self.button_width)
                 self.continue_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
                 self.tk_buttons.append(self.continue_button)
-                
+            elif 'close' in button.lower():
+                self.close_button=Button(self.button_frame,fg=self.textcolor,text='Close',command=self.close,width=self.button_width)
+                self.close_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
+                self.tk_buttons.append(self.close_button)
+            elif 'reset' in button.lower():
+                self.reset_button=Button(self.button_frame,fg=self.textcolor,text='Reset',command=self.reset,width=self.button_width)
+                self.reset_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
+                self.tk_buttons.append(self.reset_button)
 
                 
             for button in self.tk_buttons:
@@ -4023,7 +4085,10 @@ class Dialog:
         if self.allow_exit:
             self.controller.unfreeze()
             self.top.destroy()
-            
+    def reset(self):
+        dict=self.buttons['reset']
+        self.execute(dict,close=False)
+        
     def close(self):
         #Might fail if controller==None (happens if server isn't connected at startup)
         try:
@@ -5383,6 +5448,10 @@ class ScrollableListbox(Listbox):
         
         super().__init__(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=selectmode,bg=entry_background, selectbackground=listboxhighlightcolor, height=15,exportselection=0)
         self.pack(side=LEFT,expand=True, fill=BOTH,padx=(10,0))
+    
+    def destroy(self):
+        self.scrollbar.destroy()
+        super().destroy()
 
 
                 

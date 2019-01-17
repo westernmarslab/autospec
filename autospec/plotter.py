@@ -32,6 +32,9 @@ class Plotter():
         self.notebook.bind('<Motion>',lambda event: self.mouseover_tab(event))
         self.menus=[]
         
+        self.save_dir=None #This will get set if the user saves a plot so that the next time they click save plot, the save dialog opens into the same directory where they just saved.
+    
+        
     def notebook_click(self, event):
         self.close_right_click_menus(event)
         self.maybe_close_tab(event)
@@ -258,8 +261,12 @@ class Sample():
 class Tab():
     #Title override is true if the title of this individual tab is set manually by user.
     #If it is False, then the tab and plot title will be a combo of the file title plus the sample that is plotted.
-    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}, scrollable=True):
+    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}, scrollable=True,original=None):
         self.plotter=plotter
+        if original==None: #This is true if we're not normalizing anything. holding on to the original data lets us reset.
+            self.original_samples=samples
+        else:
+            self.original_samples=original
         self.samples=samples
         self.geoms=geoms
         if title_override==False:
@@ -309,7 +316,8 @@ class Tab():
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
         self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
 
-        
+
+            
         def resize_fig(event):
             return
             current_index=self.plotter.notebook.index(self.plotter.notebook.select())
@@ -381,7 +389,10 @@ class Tab():
                                     command=self.close)
 
         self.plotter.menus.append(self.popup_menu)
-        
+    def freeze(self):
+        self.frozen=True
+    def unfreeze(self):
+        self.frozen=False
     def save(self):
         self.plot.save()
     
@@ -390,8 +401,55 @@ class Tab():
 
     def on_visibility(self, event):
         self.close_right_click_menu(event)
-        
+    
+    def calculate_slopes(self, left, right):
+        left=float(left)
+        right=float(right)
+        slopes=[]
 
+        for i, sample in enumerate(self.samples):
+            for label in sample.spectrum_labels: 
+                wavelengths=np.array(sample.data[label]['wavelengths'])
+                reflectance=np.array(sample.data[label]['reflectance'])
+                index_left = (np.abs(wavelengths - left)).argmin() #find index of wavelength 
+                index_right = (np.abs(wavelengths - right)).argmin() #find index of wavelength 
+                slope=(reflectance[index_right]-reflectance[index_left])/(index_right-index_left)
+                slopes.append(label+': '+str(slope))
+        self.plot.draw_vertical_lines([left, right])
+
+        return slopes
+        
+        
+    def normalize(self, wavelength):
+        print('Normalize!')
+        print(wavelength)
+        wavelength=float(wavelength)
+
+            
+        normalized_samples=[]
+        for i, sample in enumerate(self.samples):
+            
+
+            normalized_sample=Sample(sample.name, sample.file, sample.title) #Note that we aren't editing the original samples list, we're making entirely new objects. This way we can reset later.
+            multiplier=None
+            for label in sample.spectrum_labels: 
+                wavelengths=np.array(sample.data[label]['wavelengths'])
+                reflectance=np.array(sample.data[label]['reflectance'])
+                index = (np.abs(wavelengths - wavelength)).argmin() #find index of wavelength closest to wavelength we want to normalize to
+
+                multiplier=1/reflectance[index] #Normalize to 1
+                
+                reflectance=reflectance*multiplier
+                reflectance=list(reflectance)
+                normalized_sample.add_spectrum(label, reflectance,sample.data[label]['wavelengths'])
+            normalized_samples.append(normalized_sample)
+        self.samples=normalized_samples
+        self.refresh(original=self.original_samples) #Let the tab know this data has been modified and we want to hold on to a separate set of original samples.
+        
+    def reset(self):
+        self.samples=self.original_samples
+        self.refresh()
+        
     def close_right_click_menu(self, event):
         self.popup_menu.unpost()
         
@@ -399,7 +457,9 @@ class Tab():
         #Build up lists of strings telling available samples, which of those samples a currently plotted, and a dictionary mapping those strings to the sample options.
         self.build_sample_lists()
         print('Analyze!')
+        self.plotter.controller.open_analysis_tools(self)
         #self.plotter.controller.open_data_analysis_tools(self,self.existing_indices,self.sample_options_list)
+        
         
     def build_sample_lists(self):
         #Sample options will be the list of strings to put in the listbox. It may include the sample title, depending on whether there is more than one title.
@@ -479,10 +539,15 @@ class Tab():
                     
             winnowed_samples.append(winnowed_sample)
 
-        
+        self.samples=winnowed_samples
+        self.title=title
+        self.refresh()
+
+    def refresh(self,original=None): #Gets called when data is updated, either from edit plot or analysis tools. We set original = False if calling from normalize, that way we will still hold on to the unchanged data.
         tab_index=self.plotter.notebook.index(self.plotter.notebook.select())
         self.plotter.notebook.forget(self.plotter.notebook.select())
-        self.__init__(self.plotter,title,winnowed_samples, tab_index=tab_index,title_override=True, geoms=self.geoms)
+        self.__init__(self.plotter,self.title,self.samples, tab_index=tab_index,title_override=True, geoms=self.geoms,original=original)
+        
 
     def open_right_click_menu(self, event):
         self.popup_menu.post(event.x_root+10, event.y_root+1)
@@ -514,7 +579,7 @@ class Plot():
         #we'll use these to generate hsv lists of colors for each sample, which will be evenly distributed across a gradient to make it easy to see what the overall trend of reflectance is.
         self.hues=[200,130,12,280]
         self.oversize_legend=oversize_legend
-        
+        self.annotations=[] #These will be vertical lines drawn to help with analysis to show where slopes are being calculated, etc
         
         
         self.files=[]
@@ -630,19 +695,37 @@ class Plot():
 
         
     def save(self):
-        initialdir=None
-        if len(self.files)>0:
-            if '\\' in self.files[0]:
-                initialdir='\\'.join(self.files[0].split('\\')[0:-1])
-            elif '/' in self.files[0]:
-                initialdir='/'.join(self.files[0].split('/')[0:-1])
+        initialdir=self.plotter.save_dir
+    
+        if initialdir==None:
+            if len(self.files)>0:
+                if '\\' in self.files[0]:
+                    initialdir='\\'.join(self.files[0].split('\\')[0:-1])
+                    
+                elif '/' in self.files[0]:
+                    initialdir='/'.join(self.files[0].split('/')[0:-1])
                 
+        path=None
         if initialdir!=None:
             path=filedialog.asksaveasfilename(initialdir=initialdir)
-            self.fig.savefig(path)
         else:
             path=asksaveasfilename()
-            self.fig.savefig(path)
+            
+        self.plotter.save_dir=path
+        if '\\' in path:
+            self.plotter.save_dir='\\'.join(path.split('\\')[0:-1])
+        elif '/' in path:
+            self.plotter.save_dir='/'.join(path.split('/')[0:-1])
+        self.fig.savefig(path)
+        
+    def draw_vertical_lines(self, xcoords):
+        for _ in range(len(self.annotations)):
+            self.annotations.pop(0).remove()
+        print('draw vertical!')
+        for x in xcoords:
+            print(x)
+            self.annotations.append(self.plot.axvline(x=x,color='lightgray',linewidth=1))
+        self.fig.canvas.draw()
         
     def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
         for sample in self.samples:
@@ -661,16 +744,10 @@ class Plot():
                 color=sample.next_color()
                 lines.append(self.plot.plot(sample.data[label]['wavelengths'], sample.data[label]['reflectance'], label=legend_label,color=color,linewidth=2))
                 
-            # Create a legend for this sample
-            #legend = plt.legend(bbox_to_anchor=(self.legend_anchor, 1),handles=lines[0], loc=1)
-            #ax = plt.gca().add_artist(legend)
-        # if sample!=None:
-        #     if title in self.title_bases:
-        #         base=self.title_bases[title]
-        #     else:
-        #         base=title
-        #     plot.set_title(base+' '+sample, fontsize=24)
-        # else:
+
+        
+
+
         self.plot.set_title(self.title, fontsize=24)
             
         self.plot.set_ylabel('Relative Reflectance',fontsize=18)
@@ -678,6 +755,16 @@ class Plot():
         self.plot.tick_params(labelsize=14)
         
         self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
+        
+        # Major ticks every 500, minor ticks every 5
+        major_ticks = np.arange(500, 2600, 500)
+        minor_ticks = np.arange(400, 2500, 100)
+        
+        self.plot.set_xticks(major_ticks)
+        self.plot.set_xticks(minor_ticks, minor=True)
+
+        self.plot.grid(which='minor', alpha=0.05)
+        self.plot.grid(which='major', alpha=0.2)
 
 class NotScrolledFrame(Frame):
     def __init__(self, parent, *args, **kw):
