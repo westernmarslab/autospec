@@ -2887,8 +2887,19 @@ class Controller():
             except:
                 self.slopes_listbox=ScrollableListbox(self.slope_results_frame,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
             for slope in slopes:
-                self.slopes_listbox.insert(0,slope)
+                self.slopes_listbox.insert('end',slope)
             self.slopes_listbox.pack(fill=BOTH, expand=True)
+            
+        def calculate_photometric_variability():
+
+            photo_var=tab.calculate_photometric_variability(self.right_photo_var_entry.get(),self.left_photo_var_entry.get())
+            try:
+                self.photo_var_listbox.delete(0,'end')
+            except:
+                self.photo_var_listbox=ScrollableListbox(self.photo_var_results_frame,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
+            for var in photo_var:
+                self.photo_var_listbox.insert('end',var)
+            self.photo_var_listbox.pack(fill=BOTH, expand=True)
 
         
         tab.freeze() #You have to finish dealing with this before, say, opening another analysis box.
@@ -2930,6 +2941,23 @@ class Controller():
         self.slope_label.pack(side=RIGHT,padx=self.padx)
         self.slope_results_frame=Frame(dialog.top,bg=self.bg)
         self.slope_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with slope info in here later after calculating.
+        
+        self.photo_var_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15)
+        self.photo_var_frame.pack()
+
+        self.photo_var_label=Label(self.photo_var_frame,text='Calculate photometric variability from',bg=self.bg,fg=self.textcolor)
+        self.left_photo_var_entry=Entry(self.photo_var_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.photo_var_label_2=Label(self.photo_var_frame,text='to',bg=self.bg,fg=self.textcolor)
+        self.right_photo_var_entry=Entry(self.photo_var_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.photo_var_button=Button(self.photo_var_frame,text='Apply',  command=calculate_photometric_variability,width=6, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.photo_var_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.photo_var_button.pack(side=RIGHT,padx=(10,10))
+        self.right_photo_var_entry.pack(side=RIGHT,padx=self.padx)
+        self.photo_var_label_2.pack(side=RIGHT,padx=self.padx)
+        self.left_photo_var_entry.pack(side=RIGHT,padx=self.padx)
+        self.photo_var_label.pack(side=RIGHT,padx=self.padx)
+        self.photo_var_results_frame=Frame(dialog.top,bg=self.bg)
+        self.photo_var_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with slope info in here later after calculating.
 
 
 
@@ -3960,7 +3988,8 @@ class Dialog:
         self.label_frame.pack(side=TOP)
         self.__label = tk.Label(self.label_frame, fg=self.textcolor,text=label, bg=self.bg)
         self.set_label_text(label, log_string=info_string)
-        self.__label.pack(pady=(10,10), padx=(10,10))
+        if label!='':
+            self.__label.pack(pady=(10,10), padx=(10,10))
     
         self.button_width=button_width
         self.buttons=buttons

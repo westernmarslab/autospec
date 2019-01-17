@@ -419,6 +419,45 @@ class Tab():
 
         return slopes
         
+    def calculate_photometric_variability(self, left, right):
+        left=float(left)
+        right=float(right)
+        photo_var=[]
+
+        for i, sample in enumerate(self.samples):
+            print(sample.name)
+            min_slope=None
+            max_slope=None
+            for i, label in enumerate(sample.spectrum_labels): 
+
+                wavelengths=np.array(sample.data[label]['wavelengths'])
+                reflectance=np.array(sample.data[label]['reflectance'])
+                index_left = (np.abs(wavelengths - left)).argmin() #find index of wavelength 
+                index_right = (np.abs(wavelengths - right)).argmin() #find index of wavelength 
+                slope=(reflectance[index_right]-reflectance[index_left])/(index_right-index_left)
+                print(slope)
+                if i==0:
+                    min_slope=slope
+                    min_slope_label=label.split('(')[1].strip(')')+' ('+str(slope)+')'
+                    max_slope=slope
+                    max_slope_label=label.split('(')[1].strip(')')+' ('+str(slope)+')'
+                else:
+                    if slope<min_slope:
+                        min_slope=slope
+                        min_slope_label=label.split('(')[1].strip(')')+' ('+str(slope)+')'
+                    if slope>max_slope:
+                        max_slope=slope
+                        max_slope_label=label.split('(')[1].strip(')')+' ('+str(slope)+')'
+
+            var=max_slope-min_slope
+            photo_var.append(sample.name+': '+str(var))
+            photo_var.append('  min: '+min_slope_label)
+            photo_var.append('  max: '+max_slope_label)
+        
+        self.plot.draw_vertical_lines([left, right])
+
+        return photo_var
+        
         
     def normalize(self, wavelength):
         print('Normalize!')
