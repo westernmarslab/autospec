@@ -1104,7 +1104,7 @@ class Plot():
         print(self.legend_len)
         if self.oversize_legend:
             height=pos1.height*self.plot_scale/self.legend_len
-            y0=1-self.plot_scale/self.legend_len+pos1.y0*self.plot_scale/(self.legend_len)*0.1        
+            y0=1-self.plot_scale/self.legend_len+pos1.y0*self.plot_scale/(self.legend_len)*0.5        
 
         pos2 = [pos1.x0, y0,  pos1.width, height] 
 
