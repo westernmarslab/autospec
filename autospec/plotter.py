@@ -280,7 +280,7 @@ class Tab():
         self.xlim=xlim
         self.ylim=ylim
         
-        width=self.plotter.notebook.winfo_width()
+        self.width=self.plotter.notebook.winfo_width()
         self.height=self.plotter.notebook.winfo_height()
         
         #If we need a bigger frame to hold a giant long legend, expand.
@@ -293,6 +293,8 @@ class Tab():
         else:
             self.oversize_legend=True
             self.plot_scale=(self.height-130)/21
+            self.plot_width=self.width/9#very vague character approximation of plot width
+            print(self.plot_width)
         if scrollable: #User can specify this in edit_plot#self.legend_len>7:
             self.top=VerticalScrolledFrame(self.plotter.controller, self.plotter.notebook)
 
@@ -317,7 +319,7 @@ class Tab():
             
         
         #self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi) 
-        self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi) 
+        self.fig = mpl.figure.Figure(figsize=(self.width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi) 
  
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.top.interior)
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
@@ -374,7 +376,7 @@ class Tab():
         self.top.bind('<Configure>',resize_fig)
 
         
-        self.plot=Plot(self.plotter, self.fig, self.samples,self.title, self.oversize_legend,self.plot_scale,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim)
+        self.plot=Plot(self.plotter, self.fig, self.samples,self.title, self.oversize_legend,self.plot_scale,self.plot_width,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim)
 
 
 
@@ -943,7 +945,7 @@ class Tab():
     
         
 class Plot():
-    def __init__(self, plotter, fig, samples,title, oversize_legend=False,plot_scale=18,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None):
+    def __init__(self, plotter, fig, samples,title, oversize_legend=False,plot_scale=18,plot_width=215,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None):
         
         self.plotter=plotter
         self.samples=samples
@@ -1061,12 +1063,15 @@ class Plot():
                     self.max_legend_label_len=len(legend_label)
                 self.legend_len+=1
                     
-        self.legend_anchor=1.05+self.max_legend_label_len/97
-        plot_width=215 #very vague character approximation of plot width
+      
+        plot_width=plot_width*0.85
         if self.max_legend_label_len==0:
             ratio=1000
+            self.legend_anchor=1.05
         else:
-            ratio=int(plot_width/self.max_legend_label_len)
+            ratio=int(plot_width/self.max_legend_label_len)+0.1
+            self.legend_anchor=1.12+1.0/ratio*1.3
+
         gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
         self.plot = fig.add_subplot(gs[0])
         pos1 = self.plot.get_position() # get the original position 
@@ -1106,7 +1111,7 @@ class Plot():
             height=pos1.height*self.plot_scale/self.legend_len
             y0=1-self.plot_scale/self.legend_len+pos1.y0*self.plot_scale/(self.legend_len)*0.5        
 
-        pos2 = [pos1.x0, y0,  pos1.width, height] 
+        pos2 = [pos1.x0+.02, y0,  pos1.width, height] 
 
         self.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
         
@@ -1273,7 +1278,8 @@ class Plot():
         elif self.x_axis=='g':
             self.plot.set_xlabel('Phase angle (degrees)',fontsize=18)
         self.plot.tick_params(labelsize=14)
-        
+        print('here is the legend anchor!')
+        print(self.legend_anchor)
         self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
         
         self.plot.set_xlim(*self.xlim)
