@@ -10,7 +10,7 @@ image.cmap: 'tab20'
 xtick.color: white
 ytick.color: white
 
-grid.color: white
+grid.color: darkgray
 
 figure.facecolor: 333333
 figure.edgecolor: 333333

@@ -211,10 +211,12 @@ def retry_func():
      os.execl(sys.executable, os.path.abspath(__file__), *sys.argv) 
 
 def main():
+
     #Check if you are connected to the server. 
     spec_connection_checker=SpecConnectionChecker(spec_read_loc, func=main_part_2)
     connected = spec_connection_checker.check_connection(True)
 
+    
 def main_part_2():
     pi_connection_checker=PiConnectionChecker(pi_read_loc, func=main_part_3)
     connected=pi_connection_checker.check_connection(True)
@@ -412,7 +414,7 @@ class Controller():
         editmenu.add_command(label="Plot settings...", command=self.show_plot_settings_frame)
         menubar.add_cascade(label="Settings", menu=editmenu)
         
-        
+
         
         self.goniometermenu=Menu(editmenu, tearoff=0)
         self.goniometermenu.add_command(label='X Manual', command=lambda:self.set_manual_automatic(force=0))
@@ -909,7 +911,7 @@ class Controller():
         
         thread = Thread(target =self.scrollbar_check) #Waits for everything to get packed, then checks if you need a scrollbar on the control frame.
         thread.start()
-        
+
         self.master.mainloop()
         
         #self.view.join()
@@ -2893,13 +2895,371 @@ class Controller():
         final_log_destination+='.txt'
         shutil.move(self.spec_temp_loc+'proc_temp.csv',final_data_destination)
         shutil.move(self.spec_temp_loc+'proc_temp_log.txt',final_log_destination)
+    def open_options(self, tab,current_title):
+        buttons={
+            'ok':{
+                lambda: tab.set_title(self.new_plot_title_entry.get()):[]
+            }
+        }
+        dialog=Dialog(self,'Plot Options','\nPlot title:',buttons=buttons)
+        self.new_plot_title_entry=Entry(dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.new_plot_title_entry.insert(0,current_title)
+        self.new_plot_title_entry.pack()
         
-    #This gets called when the user clicks 'Overlay samples' from the right-click menu on a plot.
+        self.outer_outer_zoom_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15)
+        self.outer_outer_zoom_frame.pack(expand=True,fill=BOTH)
+
+        self.zoom_title_frame=Frame(self.outer_outer_zoom_frame,bg=self.bg)
+        self.zoom_title_frame.pack(pady=(5,10))
+        self.zoom_title_label=Label(self.zoom_title_frame,text='Adjust plot x and y limits:',bg=self.bg,fg=self.textcolor)
+        self.zoom_title_label.pack(side=LEFT,pady=(0,4)) 
+        
+        self.outer_zoom_frame=Frame(self.outer_outer_zoom_frame,bg=self.bg,padx=self.padx)
+        self.outer_zoom_frame.pack(expand=True,fill=BOTH,pady=(0,10))
+        self.zoom_frame=Frame(self.outer_zoom_frame,bg=self.bg,padx=self.padx)
+        self.zoom_frame.pack()
+        
+        self.zoom_label=Label(self.zoom_frame,text='x1:',bg=self.bg,fg=self.textcolor)
+        self.left_zoom_entry=Entry(self.zoom_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_label2=Label(self.zoom_frame,text='x2:',bg=self.bg,fg=self.textcolor)
+        self.right_zoom_entry=Entry(self.zoom_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_button=Button(self.zoom_frame,text='Apply',  command=lambda:tab.adjust_x(self.left_zoom_entry.get(),self.right_zoom_entry.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.zoom_button.pack(side=RIGHT,padx=(10,10))
+        self.right_zoom_entry.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label2.pack(side=RIGHT,padx=self.padx)
+        self.left_zoom_entry.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label.pack(side=RIGHT,padx=self.padx)
+        
+        
+        self.outer_zoom_frame2=Frame(self.outer_outer_zoom_frame,bg=self.bg,padx=self.padx)
+        self.outer_zoom_frame2.pack(expand=True,fill=BOTH,pady=(0,10))
+        self.zoom_frame2=Frame(self.outer_zoom_frame2,bg=self.bg,padx=self.padx)
+        self.zoom_frame2.pack()
+        self.zoom_label3=Label(self.zoom_frame2,text='y1:',bg=self.bg,fg=self.textcolor)
+        self.left_zoom_entry2=Entry(self.zoom_frame2, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_label4=Label(self.zoom_frame2,text='y2:',bg=self.bg,fg=self.textcolor)
+        self.right_zoom_entry2=Entry(self.zoom_frame2, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_button2=Button(self.zoom_frame2,text='Apply',  command=lambda:tab.adjust_y(self.left_zoom_entry2.get(),self.right_zoom_entry2.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button2.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+
+
+        
+        self.zoom_button2.pack(side=RIGHT,padx=(10,10))
+        self.right_zoom_entry2.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label4.pack(side=RIGHT,padx=self.padx)
+        self.left_zoom_entry2.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label3.pack(side=RIGHT,padx=self.padx)
+        
+        
+        
+    def open_analysis_tools(self, tab):
+        def calculate():
+            print('yay calculate!')
+            print(self.analyze_var.get())
+            if self.analyze_var.get()=='slope':
+                slopes=tab.calculate_slopes(self.left_slope_entry.get(),self.right_slope_entry.get())
+                populate_listbox(slopes)
+            elif self.analyze_var.get()=='band depth':
+                depths=tab.calculate_band_depths(self.left_slope_entry.get(),self.right_slope_entry.get())
+                populate_listbox(depths)
+            elif self.analyze_var.get()=='band center':
+                centers=tab.calculate_band_centers(self.left_slope_entry.get(),self.right_slope_entry.get())
+                populate_listbox(centers)
+            elif self.analyze_var.get()=='reflectance':
+                reflectance=tab.calculate_avg_reflectance(self.left_slope_entry.get(),self.right_slope_entry.get())
+                populate_listbox(reflectance)
+                
+        def calculate_slopes():
+            pass
+            
+
+        def populate_listbox(slopes):
+            if len(slopes)>0:
+                self.slope_results_frame.pack(fill=BOTH, expand=True,pady=(10,10))
+                try:
+                    self.slopes_listbox.delete(0,'end')
+                except:
+                    self.slopes_listbox=ScrollableListbox(self.slope_results_frame,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
+                for slope in slopes:
+                    self.slopes_listbox.insert('end',slope)
+                self.slopes_listbox.pack(fill=BOTH, expand=True)
+                self.plot_slope_button.configure(state=NORMAL)
+                
+        def plot():
+            
+            if self.analyze_var.get()=='slope':
+                tab.plot_slopes(self.plot_slope_var.get())
+            elif self.analyze_var.get()=='band depth':
+                tab.plot_band_depths(self.plot_slope_var.get())
+            elif self.analyze_var.get()=='band center':
+               tab.plot_band_centers(self.plot_slope_var.get())
+            elif self.analyze_var.get()=='reflectance':
+                tab.plot_avg_reflectance(self.plot_slope_var.get())
+                print('reflectance!')
+        def calculate_band_depths():
+            pass
+        def plot_band_depths():
+            pass
+        def calculate_band_centers():
+            pass
+        def plot_band_centers():
+            pass
+        def calculate_zooms():
+            pass
+            
+        def normalize():
+            
+            try:
+                self.slopes_listbox.delete(0,'end')
+                calculate_slopes()
+            except:
+                pass
+            tab.normalize(self.normalize_entry.get())
+        def calculate_photometric_variability():
+
+            photo_var=tab.calculate_photometric_variability(self.right_photo_var_entry.get(),self.left_photo_var_entry.get())
+            try:
+                self.photo_var_listbox.delete(0,'end')
+            except:
+                self.photo_var_listbox=ScrollableListbox(self.photo_var_results_frame,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
+            for var in photo_var:
+                self.photo_var_listbox.insert('end',var)
+            self.photo_var_listbox.pack(fill=BOTH, expand=True)
+
+        
+        tab.freeze() #You have to finish dealing with this before, say, opening another analysis box.
+        buttons={
+            'reset':{
+                tab.reset:[]
+            },
+            'close':{}
+        }
+        dialog=Dialog(self,'Analyze Data','',buttons=buttons,button_width=13)
+        
+        
+        
+        
+        self.outer_normalize_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_normalize_frame.pack(expand=True,fill=BOTH)
+        self.slope_title_label=Label(self.outer_normalize_frame,text='Normalize:',bg=self.bg,fg=self.textcolor)
+        self.slope_title_label.pack()
+        self.normalize_frame=Frame(self.outer_normalize_frame,bg=self.bg,padx=self.padx,pady=15)
+        self.normalize_frame.pack()
+
+        self.normalize_label=Label(self.normalize_frame,text='Wavelength (nm):',bg=self.bg,fg=self.textcolor)
+        self.normalize_entry=Entry(self.normalize_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.normalize_button=Button(self.normalize_frame,text='Apply',  command=normalize,width=6, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.normalize_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.normalize_button.pack(side=RIGHT,padx=(10,10))
+        self.normalize_entry.pack(side=RIGHT,padx=self.padx)
+        self.normalize_label.pack(side=RIGHT,padx=self.padx)
+        
+        
+        self.outer_outer_zoom_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_outer_zoom_frame.pack(expand=True,fill=BOTH)
+
+        self.zoom_title_frame=Frame(self.outer_outer_zoom_frame,bg=self.bg)
+        self.zoom_title_frame.pack(pady=(5,10))
+        self.zoom_title_label=Label(self.zoom_title_frame,text='Adjust plot x and y limits:',bg=self.bg,fg=self.textcolor)
+        self.zoom_title_label.pack(side=LEFT,pady=(0,4)) 
+        
+        self.outer_zoom_frame=Frame(self.outer_outer_zoom_frame,bg=self.bg,padx=self.padx)
+        self.outer_zoom_frame.pack(expand=True,fill=BOTH,pady=(0,10))
+        self.zoom_frame=Frame(self.outer_zoom_frame,bg=self.bg,padx=self.padx)
+        self.zoom_frame.pack()
+        
+        self.zoom_label=Label(self.zoom_frame,text='x1:',bg=self.bg,fg=self.textcolor)
+        self.left_zoom_entry=Entry(self.zoom_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_label2=Label(self.zoom_frame,text='x2:',bg=self.bg,fg=self.textcolor)
+        self.right_zoom_entry=Entry(self.zoom_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_button=Button(self.zoom_frame,text='Apply',  command=lambda:tab.adjust_x(self.left_zoom_entry.get(),self.right_zoom_entry.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.zoom_button.pack(side=RIGHT,padx=(10,10))
+        self.right_zoom_entry.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label2.pack(side=RIGHT,padx=self.padx)
+        self.left_zoom_entry.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label.pack(side=RIGHT,padx=self.padx)
+        
+        
+        self.outer_zoom_frame2=Frame(self.outer_outer_zoom_frame,bg=self.bg,padx=self.padx)
+        self.outer_zoom_frame2.pack(expand=True,fill=BOTH,pady=(0,10))
+        self.zoom_frame2=Frame(self.outer_zoom_frame2,bg=self.bg,padx=self.padx)
+        self.zoom_frame2.pack()
+        self.zoom_label3=Label(self.zoom_frame2,text='y1:',bg=self.bg,fg=self.textcolor)
+        self.left_zoom_entry2=Entry(self.zoom_frame2, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_label4=Label(self.zoom_frame2,text='y2:',bg=self.bg,fg=self.textcolor)
+        self.right_zoom_entry2=Entry(self.zoom_frame2, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_button2=Button(self.zoom_frame2,text='Apply',  command=lambda:tab.adjust_y(self.left_zoom_entry2.get(),self.right_zoom_entry2.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button2.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+
+
+        
+        self.zoom_button2.pack(side=RIGHT,padx=(10,10))
+        self.right_zoom_entry2.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label4.pack(side=RIGHT,padx=self.padx)
+        self.left_zoom_entry2.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label3.pack(side=RIGHT,padx=self.padx)
+        
+        self.outer_outer_slope_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_outer_slope_frame.pack(expand=True,fill=BOTH)
+        
+        self.outer_slope_frame=Frame(self.outer_outer_slope_frame,bg=self.bg,padx=self.padx)
+        self.outer_slope_frame.pack(expand=True,fill=BOTH,pady=(0,10))
+        self.slope_title_frame=Frame(self.outer_slope_frame,bg=self.bg)
+        self.slope_title_frame.pack(pady=(5,25))
+        self.slope_title_label=Label(self.slope_title_frame,text='Analyze ',bg=self.bg,fg=self.textcolor)
+        self.slope_title_label.pack(side=LEFT,pady=(0,4))
+        self.analyze_var=StringVar()
+        self.analyze_var.set('slope')
+        self.analyze_menu=OptionMenu(self.slope_title_frame,self.analyze_var,'slope','band depth','band center','reflectance')
+        self.analyze_menu.configure(width=10,highlightbackground=self.highlightbackgroundcolor)
+        self.analyze_menu.pack(side=LEFT)
+
+        
+        self.slope_frame=Frame(self.outer_slope_frame,bg=self.bg,padx=self.padx)
+        self.slope_frame.pack()
+        
+        self.slope_label=Label(self.slope_frame,text='x1:',bg=self.bg,fg=self.textcolor)
+        self.left_slope_entry=Entry(self.slope_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.slope_label_2=Label(self.slope_frame,text='x2:',bg=self.bg,fg=self.textcolor)
+        self.right_slope_entry=Entry(self.slope_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.slope_button=Button(self.slope_frame,text='Calculate',  command=calculate,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.slope_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+
+        self.slope_button.pack(side=RIGHT,padx=(10,10))
+        self.right_slope_entry.pack(side=RIGHT,padx=self.padx)
+        self.slope_label_2.pack(side=RIGHT,padx=self.padx)
+        self.left_slope_entry.pack(side=RIGHT,padx=self.padx)
+        self.slope_label.pack(side=RIGHT,padx=self.padx)
+        self.slope_results_frame=Frame(self.outer_slope_frame,bg=self.bg)
+        self.slope_results_frame.pack(fill=BOTH, expand=True,pady=(10,10)) #We'll put a listbox with slope info in here later after calculating.
+        
+        self.outer_plot_slope_frame=Frame(self.outer_outer_slope_frame,bg=self.bg,padx=self.padx,pady=10)
+        self.outer_plot_slope_frame.pack(expand=True,fill=BOTH)
+        self.plot_slope_frame=Frame(self.outer_plot_slope_frame,bg=self.bg,padx=self.padx)
+        self.plot_slope_frame.pack(side=RIGHT)
+        self.plot_slope_label=Label(self.plot_slope_frame,text='Plot as a function of',bg=self.bg,fg=self.textcolor)
+        self.plot_slope_var=StringVar()
+        self.plot_slope_var.set('e')
+        self.plot_slope_menu=OptionMenu(self.plot_slope_frame,self.plot_slope_var,'e','i','g')
+        self.plot_slope_menu.configure(width=2,highlightbackground=self.highlightbackgroundcolor)
+        self.plot_slope_button=Button(self.plot_slope_frame,text='Plot',  command=plot,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.plot_slope_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
+        self.plot_slope_button.pack(side=RIGHT,padx=(10,10))
+        self.plot_slope_menu.pack(side=RIGHT,padx=self.padx)
+        self.plot_slope_label.pack(side=RIGHT,padx=self.padx)
+        
+
+        
+        # 
+        # self.outer_outer_bdepth_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        # self.outer_outer_bdepth_frame.pack(expand=True,fill=BOTH)
+        # self.outer_bdepth_frame=Frame(self.outer_outer_bdepth_frame,bg=self.bg,padx=self.padx)
+        # self.outer_bdepth_frame.pack(expand=True,fill=BOTH,pady=(0,10))
+        # self.bdepth_title_label=Label(self.outer_bdepth_frame,text='Analyze band depths:',bg=self.bg,fg=self.textcolor)
+        # self.bdepth_title_label.pack(pady=(0,10))
+        # self.bdepth_frame=Frame(self.outer_bdepth_frame,bg=self.bg,padx=self.padx)
+        # self.bdepth_frame.pack(side=RIGHT)
+        # 
+        # self.bdepth_label=Label(self.bdepth_frame,text='x1:',bg=self.bg,fg=self.textcolor)
+        # self.left_bdepth_entry=Entry(self.bdepth_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        # self.bdepth_label_2=Label(self.bdepth_frame,text='x2:',bg=self.bg,fg=self.textcolor)
+        # self.right_bdepth_entry=Entry(self.bdepth_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        # self.bdepth_button=Button(self.bdepth_frame,text='Calculate',  command=calculate_band_centers,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        # self.bdepth_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        # 
+        # self.bdepth_button.pack(side=RIGHT,padx=(10,10))
+        # self.right_bdepth_entry.pack(side=RIGHT,padx=self.padx)
+        # self.bdepth_label_2.pack(side=RIGHT,padx=self.padx)
+        # self.left_bdepth_entry.pack(side=RIGHT,padx=self.padx)
+        # self.bdepth_label.pack(side=RIGHT,padx=self.padx)
+        # self.bdepth_results_frame=Frame(self.outer_outer_bdepth_frame,bg=self.bg)
+        # self.bdepth_results_frame.pack(fill=BOTH, expand=True)
+        # 
+        # self.outer_plot_bdepth_frame=Frame(self.outer_outer_bdepth_frame,bg=self.bg,padx=self.padx)
+        # self.outer_plot_bdepth_frame.pack(side=BOTTOM,expand=True,fill=BOTH)
+        # self.plot_bdepth_frame=Frame(self.outer_plot_bdepth_frame,bg=self.bg,padx=self.padx)
+        # self.plot_bdepth_frame.pack(side=RIGHT)
+        # self.plot_bdepth_label=Label(self.plot_bdepth_frame,text='Plot as a function of',bg=self.bg,fg=self.textcolor)
+        # self.plot_bdepth_var=StringVar()
+        # self.plot_bdepth_var.set('e')
+        # self.plot_bdepth_menu=OptionMenu(self.plot_bdepth_frame,self.plot_bdepth_var,'e','i','g')
+        # self.plot_bdepth_menu.configure(width=2,highlightbackground=self.highlightbackgroundcolor)
+        # self.plot_bdepth_button=Button(self.plot_bdepth_frame,text='Plot',  command=lambda:tab.plot_band_depths(self.plot_bcenters_var.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        # self.plot_bdepth_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
+        # self.plot_bdepth_button.pack(side=RIGHT,padx=(10,10))
+        # self.plot_bdepth_menu.pack(side=RIGHT,padx=self.padx)
+        # self.plot_bdepth_label.pack(side=RIGHT,padx=self.padx)
+        # 
+        # 
+        # 
+        # self.outer_outer_bcenter_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        # self.outer_outer_bcenter_frame.pack(expand=True,fill=BOTH)
+        # self.outer_bcenter_frame=Frame(self.outer_outer_bcenter_frame,bg=self.bg,padx=self.padx)
+        # self.outer_bcenter_frame.pack(expand=True,fill=BOTH,pady=(0,10))
+        # self.bcenter_title_label=Label(self.outer_bcenter_frame,text='Analyze band centers:',bg=self.bg,fg=self.textcolor)
+        # self.bcenter_title_label.pack(pady=(0,10))
+        # self.bcenter_frame=Frame(self.outer_bcenter_frame,bg=self.bg,padx=self.padx)
+        # self.bcenter_frame.pack(side=RIGHT)
+        # 
+        # self.bcenter_label=Label(self.bcenter_frame,text='x1:',bg=self.bg,fg=self.textcolor)
+        # self.left_bcenter_entry=Entry(self.bcenter_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        # self.bcenter_label_2=Label(self.bcenter_frame,text='x2:',bg=self.bg,fg=self.textcolor)
+        # self.right_bcenter_entry=Entry(self.bcenter_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        # self.bcenter_button=Button(self.bcenter_frame,text='Calculate',  command=calculate_band_centers,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        # self.bcenter_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+
+        #   self.bcenter_button.pack(side=RIGHT,padx=(10,10))
+        # self.right_bcenter_entry.pack(side=RIGHT,padx=self.padx)
+        # self.bcenter_label_2.pack(side=RIGHT,padx=self.padx)
+        # self.left_bcenter_entry.pack(side=RIGHT,padx=self.padx)
+        # self.bcenter_label.pack(side=RIGHT,padx=self.padx)
+        # self.bcenter_results_frame=Frame(self.outer_outer_bcenter_frame,bg=self.bg)
+        # self.bcenter_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with bcenter info in here later after calculating.
+        # 
+        # self.outer_plot_bcenter_frame=Frame(self.outer_outer_bcenter_frame,bg=self.bg,padx=self.padx,pady=10)
+        # self.outer_plot_bcenter_frame.pack(expand=True,fill=BOTH)
+        # self.plot_bcenter_frame=Frame(self.outer_plot_bcenter_frame,bg=self.bg,padx=self.padx)
+        # self.plot_bcenter_frame.pack(side=RIGHT)
+        # self.plot_bcenter_label=Label(self.plot_bcenter_frame,text='Plot as a function of',bg=self.bg,fg=self.textcolor)
+        # self.plot_bcenter_var=StringVar()
+        # self.plot_bcenter_var.set('e')
+        # self.plot_bcenter_menu=OptionMenu(self.plot_bcenter_frame,self.plot_bcenter_var,'e','i','g')
+        # self.plot_bcenter_menu.configure(width=2,highlightbackground=self.highlightbackgroundcolor)
+        # self.plot_bcenter_button=Button(self.plot_bcenter_frame,text='Plot',  command=lambda:tab.plot_band_centers(self.plot_bcenter_var.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        # self.plot_bcenter_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
+        # self.plot_bcenter_button.pack(side=RIGHT,padx=(10,10))
+        # self.plot_bcenter_menu.pack(side=RIGHT,padx=self.padx)
+        # self.plot_bcenter_label.pack(side=RIGHT,padx=self.padx)
+        
+        # self.outer_photo_var_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15)
+        # #self.outer_photo_var_frame.pack(expand=True,fill=BOTH)
+        # self.photo_var_frame=Frame(self.outer_photo_var_frame,bg=self.bg,padx=self.padx,pady=15)
+        # self.photo_var_frame.pack(side=RIGHT)
+
+        #   self.photo_var_label=Label(self.photo_var_frame,text='Calculate photometric variability from',bg=self.bg,fg=self.textcolor)
+        # self.left_photo_var_entry=Entry(self.photo_var_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        # self.photo_var_label_2=Label(self.photo_var_frame,text='to',bg=self.bg,fg=self.textcolor)
+        # self.right_photo_var_entry=Entry(self.photo_var_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        # self.photo_var_button=Button(self.photo_var_frame,text='Apply',  command=calculate_photometric_variability,width=6, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        # self.photo_var_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        # self.photo_var_button.pack(side=RIGHT,padx=(10,10))
+        # self.right_photo_var_entry.pack(side=RIGHT,padx=self.padx)
+        # self.photo_var_label_2.pack(side=RIGHT,padx=self.padx)
+        # self.left_photo_var_entry.pack(side=RIGHT,padx=self.padx)
+        # self.photo_var_label.pack(side=RIGHT,padx=self.padx)
+        # self.photo_var_results_frame=Frame(dialog.top,bg=self.bg)
+        # self.photo_var_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with bcenter info in here later after calculating.
+
+
+        
+    #This gets called when the user clicks 'Edit plot' from the right-click menu on a plot.
     #Pops up a scrollable listbox with sample options.
     def ask_plot_samples(self, tab, existing_sample_indices, sample_options, existing_geoms, current_title):
         buttons={
             'ok':{
-                #Sorry, this is a pretty confusing lambda. It just sends a list of the currently selected samples back to the tab along with the new title.
+                #The lambda sends a list of the currently selected samples back to the tab along with the new title and selected incidence/emission angles
                 lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection())),self.new_plot_title_entry.get(), self.i_entry.get(),self.e_entry.get()):[]
                 }
             }
@@ -3919,7 +4279,8 @@ class Dialog:
         self.label_frame.pack(side=TOP)
         self.__label = tk.Label(self.label_frame, fg=self.textcolor,text=label, bg=self.bg)
         self.set_label_text(label, log_string=info_string)
-        self.__label.pack(pady=(10,10), padx=(10,10))
+        if label!='':
+            self.__label.pack(pady=(10,10), padx=(10,10))
     
         self.button_width=button_width
         self.buttons=buttons
@@ -4016,7 +4377,14 @@ class Dialog:
                 self.continue_button=Button(self.button_frame,fg=self.textcolor,text='Continue',command=self.cont,width=self.button_width)
                 self.continue_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
                 self.tk_buttons.append(self.continue_button)
-                
+            elif 'close' in button.lower():
+                self.close_button=Button(self.button_frame,fg=self.textcolor,text='Close',command=self.close,width=self.button_width)
+                self.close_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
+                self.tk_buttons.append(self.close_button)
+            elif 'reset' in button.lower():
+                self.reset_button=Button(self.button_frame,fg=self.textcolor,text='Reset',command=self.reset,width=self.button_width)
+                self.reset_button.pack(side=LEFT,padx=(10,10),pady=(10,10))
+                self.tk_buttons.append(self.reset_button)
 
                 
             for button in self.tk_buttons:
@@ -4037,7 +4405,10 @@ class Dialog:
         if self.allow_exit:
             self.controller.unfreeze()
             self.top.destroy()
-            
+    def reset(self):
+        dict=self.buttons['reset']
+        self.execute(dict,close=False)
+        
     def close(self):
         #Might fail if controller==None (happens if server isn't connected at startup)
         try:
@@ -5413,6 +5784,10 @@ class ScrollableListbox(Listbox):
         
         super().__init__(self.scroll_frame,yscrollcommand=self.scrollbar.set, selectmode=selectmode,bg=entry_background, selectbackground=listboxhighlightcolor, height=15,exportselection=0)
         self.pack(side=LEFT,expand=True, fill=BOTH,padx=(10,0))
+    
+    def destroy(self):
+        self.scrollbar.destroy()
+        super().destroy()
 
 
                 
@@ -6214,4 +6589,5 @@ class StringVarWithEntry(StringVar):
         self.entry=None
 
 if __name__=='__main__':
+    print('foo')
     main()
