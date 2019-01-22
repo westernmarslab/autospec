@@ -1897,8 +1897,19 @@ class Controller():
     #Move light will either read i from the GUI (default, i=None), or if this is a text command then i will be passed as a parameter.
     #When from the commandline, i may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'.
     def move_light(self, i=None, type='angle'):
+
         steps=True
-        if type=='angle':steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
+        if type=='angle': 
+            #First check whether we actually need to move at all.
+            if i==None:
+                i=int(self.active_incidence_entries[0].get())
+            if i==self.i: #No change in incidence angle, no need to move
+                self.log('Goniometer remaining at an incidence angle of '+str(self.i)+' degrees.')
+                self.complete_queue_item()
+                if len(self.queue)>0:
+                    self.next_in_queue()
+                return
+            steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
         if i==None:
             timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i))*5+BUFFER
             self.pi_commander.move_light(self.active_incidence_entries[0].get(),type)
@@ -2172,13 +2183,13 @@ class Controller():
                     'cancel':{},
                     'retry':{self.next_in_queue:[]}
                 }
-                if self.wait_dialog!=None:
+                try: #Do this if there is a wait dialog up
                     self.wait_dialog.interrupt('Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer\n computer and the spectrometer is connected.')
                     self.wait_dialog.set_buttons(buttons)#, buttons=buttons)
                     self.wait_dialog.top.geometry('376x175')
                     for button in self.wait_dialog.tk_buttons:
                         button.config(width=15)
-                else:
+                except:
                     dialog=ErrorDialog(self, label='Error: Operation timed out.\n\nCheck that the automation script is running on the spectrometer\n computer and the spectrometer is connected.',buttons=buttons)
                     dialog.top.geometry('376x145')
                     for button in dialog.tk_buttons:
@@ -2481,7 +2492,13 @@ class Controller():
             param=cmd[0:-1].split('sleep(')[1]
             try:
                 num=float(param)
-                time.sleep(num)
+                elapsed=0
+                while elapsed<num-10:
+                    time.sleep(10)
+                    elapsed+=10
+                    self.console_log.insert('\t'+str(elapsed))
+                remaining=num-elapsed
+                time.sleep(remaining)
                 self.cmd_complete==True
                 self.console_log.insert(END,'Done sleeping.\n')
                 if len(self.queue)>0:
@@ -4371,12 +4388,20 @@ class OptHandler(CommandHandler):
             elif 'optfailure' in self.listener.queue:
                 self.listener.queue.remove('optfailure')
                 
-                if self.first_try==True:
+                if self.first_try==True and not self.cancel and not self.pause: #Actually this is always true since a new OptHandler gets created for each attempt
                     self.controller.log('Error: Failed to optimize instrument. Retrying.')
                     self.first_try=False
                     self.controller.next_in_queue()
-                else:
+                elif self.pause:
+                    self.interrupt('Error: There was a problem with\noptimizing the instrument.\n\nPaused.',retry=True)
+                    self.wait_dialog.top.geometry('376x150')
+                    self.controller.log('Error: There was a problem with optimizing the instrument.')
+                elif not self.cancel:
                     self.interrupt('Error: There was a problem with\noptimizing the instrument.',retry=True)
+                    self.wait_dialog.top.geometry('376x150')
+                    self.controller.log('Error: There was a problem with optimizing the instrument.')
+                else: #You can't retry if you already clicked cancel because we already cleared out the queue
+                    self.interrupt('Error: There was a problem with\noptimizing the instrument.\n\nData acquisition canceled.',retry=False)
                     self.wait_dialog.top.geometry('376x150')
                     self.controller.log('Error: There was a problem with optimizing the instrument.')
                 return
@@ -4395,7 +4420,7 @@ class WhiteReferenceHandler(CommandHandler):
     def __init__(self, controller, title='White referencing...',
     label='White referencing...'):
         
-        timeout_s=int(controller.spec_config_count)/9+6+BUFFER
+        timeout_s=int(controller.spec_config_count)/9+30+BUFFER
         self.listener=controller.spec_listener
         self.first_try=True
         super().__init__(controller, title, label,timeout=timeout_s)
@@ -4429,13 +4454,21 @@ class WhiteReferenceHandler(CommandHandler):
                 return
             elif 'wrfailed' in self.listener.queue:
                 self.listener.queue.remove('wrfailed')
-                if self.first_try==True:
+
+
+                if self.first_try==True and not self.cancel: #Actually this is always true since a new OptHandler gets created for each attempt
                     self.controller.log('Error: Failed to take white reference. Retrying.')
                     self.first_try=False
                     self.controller.next_in_queue()
-                else:
+                elif self.pause:
+                    self.interrupt('Error: Failed to take white reference.\n\nPaused.',retry=True)
+                    self.wait_dialog.top.geometry('376x150')
+                    self.controller.log('Error: Failed to take white reference.')
+                elif not self.cancel:
                     self.interrupt('Error: Failed to take white reference.',retry=True)
                     self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)  
+                else: #You can't retry if you already clicked cancel because we already cleared out the queue
+                    self.interrupt('Error: Failed to take white reference.\n\nData acquisition canceled.',retry=False)
                     
                     #Does nothing in automatic mode
                     self.controller.clear()
@@ -4478,7 +4511,7 @@ class WhiteReferenceHandler(CommandHandler):
                     }
                         
                     self.wait_dialog.set_buttons(buttons,button_width=10)
-                self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 150, 107, 69))
+                self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 165, 107, 69))
                 return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
@@ -4873,7 +4906,7 @@ class SaveConfigHandler(CommandHandler):
     
 class SpectrumHandler(CommandHandler):
     def __init__(self, controller, title='Saving Spectrum...', label='Saving spectrum...'):
-        timeout=int(controller.spec_config_count)/9+BUFFER
+        timeout=int(controller.spec_config_count)/8+BUFFER #This timeout grows a little faster than the actual time to take a spectrum grows, which would be numspectra/9
         self.listener=controller.spec_listener
         super().__init__(controller, title, label, timeout=timeout)
 

@@ -553,10 +553,13 @@ class Plot():
         gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
         self.plot = fig.add_subplot(gs[0])
         pos1 = self.plot.get_position() # get the original position 
-        y0=pos1.y0 +self.legend_len/130
+        #y0=pos1.y0 +self.legend_len/130
+        y0=pos1.y0 +self.legend_len/100
+        
 
         if self.legend_len<70 and self.oversize_legend:
-            height=pos1.height -self.legend_len/150
+            #height=pos1.height -self.legend_len/150
+            height=pos1.height -self.legend_len/120
             if y0>0.8:
                 y0=0.8
             print('SMALL')
@@ -564,23 +567,18 @@ class Plot():
         elif self.oversize_legend:
             print('BIG')
             print(self.legend_len)
-            height=pos1.height-.36-self.legend_len/600 #A little too small at 176, a tiny bit big at 135, good at 76.
-            
-            #y0=pos1.y0 +self.legend_len/210 #good at 76, too small at 105, too big at 212. Need less dependence on legend len. 
-            #y0=pos1.y0 +.2+self.legend_len/500 far too small at 105
+            #height=pos1.height-.36-self.legend_len/600 
+            height=pos1.height-.36-self.legend_len/420
             if self.legend_len<150:
                 print('YAY!')
-                #y0=pos1.y0+self.legend_len/100 #Too high for 140 and 108 and 76
-                y0=pos1.y0-.4+self.legend_len/100 #plot is Too high for 140, plot is way too low for 76. Need y0 smaller for 140, y0 greater at 76
-                #y0=pos1.y0+.2+self.legend_len/300 #plot is slightly low at 140, and very slightly lower at 76
-                #y0=pos1.y0+.23+self.legend_len/300 #plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
-                #y0=pos1.y0+.27+self.legend_len/330 #very close! plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
-                y0=pos1.y0+.36+self.legend_len/430 #very close! plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
+                
+                #y0=pos1.y0+.36+self.legend_len/430 
+                y0=pos1.y0+.36+self.legend_len/300 
                 print(y0)
             else:
-                #y0=pos1.y0 +.36+self.legend_len/520 #Good at 212, plot is too low at 156. Need y0 to be bigger for 156
-                #y0=pos1.y0 +.5+self.legend_len/800 #perfect at 212, plot slightly too low at 162
-                y0=pos1.y0 +.57+self.legend_len/1100
+                #height=pos1.height-.36-self.legend_len/500
+                #y0=pos1.y0 +.57+self.legend_len/1100
+                y0=pos1.y0 +.57+self.legend_len/760
                 
                 
             if y0>0.9:
