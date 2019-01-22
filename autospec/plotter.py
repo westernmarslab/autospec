@@ -46,10 +46,6 @@ class Plotter():
         tab=Tab(self, 'New tab',[], title_override=True)
         tab.ask_which_samples()
         
-    def open_right_click_menu(self,event):
-        print('hooray!')
-        print(event)
-        print(event.x)
         
     def set_height(self, height):
         pass
@@ -291,11 +287,12 @@ class Tab():
         self.legend_len=0
         for sample in self.samples:
             self.legend_len+=len(sample.spectrum_labels)
-        self.legend_height=self.legend_len*21+100 #23 px per legend entry.
+        self.legend_height=self.legend_len*21+100 #21 px per legend entry.
         self.oversize_legend=False
         if self.height>self.legend_height:scrollable=False
         else:
             self.oversize_legend=True
+            self.plot_scale=(self.height-130)/21
         if scrollable: #User can specify this in edit_plot#self.legend_len>7:
             self.top=VerticalScrolledFrame(self.plotter.controller, self.plotter.notebook)
 
@@ -377,7 +374,7 @@ class Tab():
         self.top.bind('<Configure>',resize_fig)
 
         
-        self.plot=Plot(self.plotter, self.fig, self.samples,self.title, self.oversize_legend,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim)
+        self.plot=Plot(self.plotter, self.fig, self.samples,self.title, self.oversize_legend,self.plot_scale,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim)
 
 
 
@@ -423,13 +420,6 @@ class Tab():
 
     def on_visibility(self, event):
         self.close_right_click_menu(event)
-    
-    def plot_band_depths(self,left,right):
-        print('depths!')
-        pass
-    def plot_band_centers(self,left,right):
-        print('centers')
-        pass
     
     
 
@@ -504,8 +494,7 @@ class Tab():
                 i=int(label.split('i=')[1].split(' ')[0])
                 e=int(label.split('e=')[1].strip(')'))
                 g=e-i
-                print(g)
-                
+
                 incidence=sample.name+' (i='+str(i)+')'
                 emission=sample.name+' (e='+str(e)+')'
                 phase=sample.name
@@ -831,7 +820,6 @@ class Tab():
     def open_analysis_tools(self):
         #Build up lists of strings telling available samples, which of those samples a currently plotted, and a dictionary mapping those strings to the sample options.
         self.build_sample_lists()
-        print('Analyze!')
         self.plotter.controller.open_analysis_tools(self)
         #self.plotter.controller.open_data_analysis_tools(self,self.existing_indices,self.sample_options_list)
         
@@ -927,7 +915,6 @@ class Tab():
     def open_right_click_menu(self, event):
         self.popup_menu.post(event.x_root+10, event.y_root+1)
         self.popup_menu.grab_release()
-        #self.popup_menu.attributes('-topmost', 0)
     
     def close(self):
         tabid=self.plotter.notebook.select()
@@ -956,7 +943,7 @@ class Tab():
     
         
 class Plot():
-    def __init__(self, plotter, fig, samples,title, oversize_legend=False,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None):
+    def __init__(self, plotter, fig, samples,title, oversize_legend=False,plot_scale=18,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None):
         
         self.plotter=plotter
         self.samples=samples
@@ -1003,7 +990,6 @@ class Plot():
                         self.ylim[1]=np.max([self.ylim[1],sample_max])
                             
             #add a little margin around edges
-            print('ADD Y MARGIN!')
             delta_y=self.ylim[1]-self.ylim[0]
             self.ylim[0]=self.ylim[0]-delta_y*.02
             self.ylim[1]=self.ylim[1]+delta_y*.02 
@@ -1044,6 +1030,7 @@ class Plot():
         #we'll use these to generate hsv lists of colors for each sample, which will be evenly distributed across a gradient to make it easy to see what the overall trend of reflectance is.
         self.hues=[200,12,130,280]
         self.oversize_legend=oversize_legend
+        self.plot_scale=plot_scale
         self.annotations=[] #These will be vertical lines drawn to help with analysis to show where slopes are being calculated, etc
         
         
@@ -1115,31 +1102,9 @@ class Plot():
         
         print('************************')
         print(self.legend_len)
-        scale=1.3
-        if self.legend_len<56 and self.oversize_legend:
-            height=pos1.height +0.24-self.legend_len/89*scale
-            y0=pos1.y0-.19+self.legend_len/90*scale
-
-        elif self.legend_len<90 and self.oversize_legend:
-            height=pos1.height -0.15-self.legend_len/230*scale
-            y0=self.legend_len/130*scale
-            
-        elif self.legend_len<130 and self.oversize_legend:
-            height=pos1.height-.25-self.legend_len/350*scale
-            y0=pos1.y0+.36+self.legend_len/430*scale
-        
-        elif self.legend_len<180 and self.oversize_legend:
-            height=pos1.height-0.395-self.legend_len/670*scale
-            y0=pos1.y0+.36+self.legend_len/430*scale
-
-        elif self.legend_len<260 and self.oversize_legend:
-            height=pos1.height-0.55-self.legend_len/1800*scale
-            y0=pos1.y0 +.57+self.legend_len/1100*scale
-
-        elif self.oversize_legend:
-            height=pos1.height-0.665-self.legend_len/7900*scale
-            y0=pos1.y0 +.75+self.legend_len/5700*scale
-            
+        if self.oversize_legend:
+            height=pos1.height*self.plot_scale/self.legend_len
+            y0=1-self.plot_scale/self.legend_len+pos1.y0*self.plot_scale/(self.legend_len)*0.1        
 
         pos2 = [pos1.x0, y0,  pos1.width, height] 
 
@@ -1189,9 +1154,7 @@ class Plot():
     def draw_vertical_lines(self, xcoords):
         for _ in range(len(self.annotations)):
             self.annotations.pop(0).remove()
-        print('draw vertical!')
         for x in xcoords:
-            print(x)
             self.annotations.append(self.plot.axvline(x=x,color='lightgray',linewidth=1))
         self.fig.canvas.draw()
     
@@ -1213,7 +1176,6 @@ class Plot():
         
         order=-3.0
         delta_x=(self.xlim[1]-self.xlim[0])
-        print(delta_x)
         
         # Decide where to place tick marks.
         while np.power(10,order)-delta_x<0:
@@ -1291,8 +1253,7 @@ class Plot():
                     
                     lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], label=legend_label,color=color,linewidth=2))
                 elif self.x_axis=='g':
-                    print(sample.data[label]['g'])
-                    print(self.x_axis)
+
                     lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], 'o',label=legend_label,color=color, markersize=6))
                 else:
                     lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], '-o',label=legend_label,color=color, markersize=5))
