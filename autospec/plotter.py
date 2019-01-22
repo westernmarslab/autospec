@@ -245,9 +245,9 @@ class Sample():
         N=len(self.spectrum_labels)/2
         if len(self.spectrum_labels)%2!=0:
             N+=1
-        N=int(N)+1
+        N=int(N)+2
         
-        hsv_tuples = [(hue, 1, x*1.0/N) for x in range(2,N)]
+        hsv_tuples = [(hue, 1, x*1.0/N) for x in range(4,N)]
         hsv_tuples=hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N)]
         self.colors=[]
         for tuple in hsv_tuples:
@@ -457,13 +457,12 @@ class Tab():
     #if we're on the edges, average out a few values.
     def get_vals(self, wavelengths, reflectance, nm):
         index = (np.abs(wavelengths - nm)).argmin() #find index of wavelength 
-        print('Index')
-        print(index)
+
         
         r=reflectance[index]
         w=wavelengths[index]
         
-        if wavelengths[index]<600 or wavelengths[index]>2400: #If we're on the edges, spectra are noisy. Calculate slopes based on an average.
+        if wavelengths[index]<600 or wavelengths[index]>2200: #If we're on the edges, spectra are noisy. Calculate slopes based on an average.
             if index<len(reflectance)-3 and index>2:
                 r=np.mean(reflectance[index-3:index+3])
                 w=wavelengths[index]
@@ -474,9 +473,7 @@ class Tab():
                 r=np.mean(reflectance[0:6]) #Take the first 6 values if you are at the beginning
                 w=wavelengths[3]
         
-        print('get vals!')
-        print(w)
-        print(r)
+
         return w, r
     def get_index(self, array, val):
         index = (np.abs(array - val)).argmin()
@@ -487,13 +484,11 @@ class Tab():
         avgs=[]
         self.incidence_samples=[]
         self.emission_samples=[]
-        self.phase_samples=[]
         
         
         for i, sample in enumerate(self.samples):
             incidence_sample=Sample(sample.name,sample.file,sample.title)
             emission_sample=Sample(sample.name,sample.file,sample.title)
-            phase_sample=Sample(sample.name,sample.file,sample.title)
             for label in sample.spectrum_labels: 
                 wavelengths=np.array(sample.data[label]['wavelength'])
                 reflectance=np.array(sample.data[label]['reflectance'])
@@ -509,6 +504,7 @@ class Tab():
                 i=int(label.split('i=')[1].split(' ')[0])
                 e=int(label.split('e=')[1].strip(')'))
                 g=e-i
+                print(g)
                 
                 incidence=sample.name+' (i='+str(i)+')'
                 emission=sample.name+' (e='+str(e)+')'
@@ -516,27 +512,22 @@ class Tab():
                
                 
                 if incidence not in incidence_sample.data:
-                    incidence_sample.data[incidence]={'e':[],'average reflectance':[]}
+                    incidence_sample.data[incidence]={'e':[],'g':[],'average reflectance':[]}
                     incidence_sample.spectrum_labels.append(incidence)
                 if emission not in emission_sample.data:
                     emission_sample.data[emission]={'i':[],'average reflectance':[]}
                     emission_sample.spectrum_labels.append(emission)
-                if phase not in phase_sample.data:
-                    phase_sample.data[phase]={'g':[],'average reflectance':[]}
-                    phase_sample.spectrum_labels.append(phase)
 
                 
                 incidence_sample.data[incidence]['e'].append(e)
+                incidence_sample.data[incidence]['g'].append(g)
                 incidence_sample.data[incidence]['average reflectance'].append(avg)
                 emission_sample.data[emission]['i'].append(i)
                 emission_sample.data[emission]['average reflectance'].append(avg)
-                phase_sample.data[phase]['g'].append(g)
-                phase_sample.data[phase]['average reflectance'].append(avg)
                 
                 avgs.append(label+': '+str(avg))
             self.emission_samples.append(emission_sample)
             self.incidence_samples.append(incidence_sample)
-            self.phase_samples.append(phase_sample)
         self.plot.draw_vertical_lines([left, right])
 
         return avgs
@@ -546,13 +537,11 @@ class Tab():
         centers=[]
         self.incidence_samples=[]
         self.emission_samples=[]
-        self.phase_samples=[]
         
         
         for i, sample in enumerate(self.samples):
             incidence_sample=Sample(sample.name,sample.file,sample.title)
             emission_sample=Sample(sample.name,sample.file,sample.title)
-            phase_sample=Sample(sample.name,sample.file,sample.title)
             for label in sample.spectrum_labels: 
                 wavelengths=np.array(sample.data[label]['wavelength'])
                 reflectance=np.array(sample.data[label]['reflectance'])
@@ -561,13 +550,11 @@ class Tab():
                 #if we're on the edges, average out a few values.
                 w_left, r_left=self.get_vals(wavelengths, reflectance,left)
                 index_left=self.get_index(wavelengths, left)
-                print('Index left')
-                print(index_left)
+
                 
                 w_right, r_right=self.get_vals(wavelengths, reflectance, right)
                 index_right=self.get_index(wavelengths, right)
-                print('Index right')
-                print(index_right)
+
                 
                 
                 slope=(r_right-r_left)/(w_right-w_left)
@@ -588,27 +575,24 @@ class Tab():
                
                 
                 if incidence not in incidence_sample.data:
-                    incidence_sample.data[incidence]={'e':[],'band center':[]}
+                    incidence_sample.data[incidence]={'e':[],'g':[],'band center':[]}
                     incidence_sample.spectrum_labels.append(incidence)
                 if emission not in emission_sample.data:
                     emission_sample.data[emission]={'i':[],'band center':[]}
                     emission_sample.spectrum_labels.append(emission)
-                if phase not in phase_sample.data:
-                    phase_sample.data[phase]={'g':[],'band center':[]}
-                    phase_sample.spectrum_labels.append(phase)
+
 
                 
                 incidence_sample.data[incidence]['e'].append(e)
+                incidence_sample.data[incidence]['g'].append(g)
                 incidence_sample.data[incidence]['band center'].append(center)
                 emission_sample.data[emission]['i'].append(i)
                 emission_sample.data[emission]['band center'].append(center)
-                phase_sample.data[phase]['g'].append(g)
-                phase_sample.data[phase]['band center'].append(center)
+
                 
                 centers.append(label+': '+str(center))
             self.emission_samples.append(emission_sample)
             self.incidence_samples.append(incidence_sample)
-            self.phase_samples.append(phase_sample)
         self.plot.draw_vertical_lines([left, right])
 
         return centers
@@ -625,7 +609,6 @@ class Tab():
         for i, sample in enumerate(self.samples):
             incidence_sample=Sample(sample.name,sample.file,sample.title)
             emission_sample=Sample(sample.name,sample.file,sample.title)
-            phase_sample=Sample(sample.name,sample.file,sample.title)
             for label in sample.spectrum_labels: 
                 wavelengths=np.array(sample.data[label]['wavelength'])
                 reflectance=np.array(sample.data[label]['reflectance'])
@@ -634,13 +617,10 @@ class Tab():
                 #if we're on the edges, average out a few values.
                 w_left, r_left=self.get_vals(wavelengths, reflectance,left)
                 index_left=self.get_index(wavelengths, left)
-                print('Index left')
-                print(index_left)
+
                 
                 w_right, r_right=self.get_vals(wavelengths, reflectance, right)
                 index_right=self.get_index(wavelengths, right)
-                print('Index right')
-                print(index_right)
                 
                 
                 slope=(r_right-r_left)/(w_right-w_left)
@@ -651,12 +631,7 @@ class Tab():
                 delta_w=w_min-w_left
                 
                 r_continuum=r_left+slope*delta_w
-                print('R continuum')
-                print(r_continuum)
-                print('R min')
-                print(r_min)
-                print('w loc')
-                print(w_min)
+
                 
                 depth=r_continuum-r_min
                 
@@ -670,30 +645,36 @@ class Tab():
                
                 
                 if incidence not in incidence_sample.data:
-                    incidence_sample.data[incidence]={'e':[],'band depth':[]}
+                    incidence_sample.data[incidence]={'e':[],'g':[],'band depth':[]}
                     incidence_sample.spectrum_labels.append(incidence)
                 if emission not in emission_sample.data:
                     emission_sample.data[emission]={'i':[],'band depth':[]}
                     emission_sample.spectrum_labels.append(emission)
-                if phase not in phase_sample.data:
-                    phase_sample.data[phase]={'g':[],'band depth':[]}
-                    phase_sample.spectrum_labels.append(phase)
 
                 
                 incidence_sample.data[incidence]['e'].append(e)
+                incidence_sample.data[incidence]['g'].append(g)
                 incidence_sample.data[incidence]['band depth'].append(depth)
                 emission_sample.data[emission]['i'].append(i)
                 emission_sample.data[emission]['band depth'].append(depth)
-                phase_sample.data[phase]['g'].append(g)
-                phase_sample.data[phase]['band depth'].append(depth)
+
                 
                 depths.append(label+': '+str(depth))
             self.emission_samples.append(emission_sample)
             self.incidence_samples.append(incidence_sample)
-            self.phase_samples.append(phase_sample)
         self.plot.draw_vertical_lines([left, right])
 
         return depths
+        
+    def get_e_i_g(self, label): #Extract e, i, and g from a label.
+        i=int(label.split('i=')[1].split(' ')[0])
+        e=int(label.split('e=')[1].strip(')'))
+        if i<=0:
+            g=e-i
+        else:
+            g=-1*(e-i)
+        
+        return e, i, g
         
     def calculate_slopes(self, left, right):
         left=float(left)
@@ -718,9 +699,7 @@ class Tab():
                 
                 slope=(r_right-r_left)/(w_right-w_left)
                 
-                i=int(label.split('i=')[1].split(' ')[0])
-                e=int(label.split('e=')[1].strip(')'))
-                g=e-i
+                e,i,g=self.get_e_i_g(label)
                 
                 incidence=sample.name+' (i='+str(i)+')'
                 emission=sample.name+' (e='+str(e)+')'
@@ -728,27 +707,24 @@ class Tab():
                
                 
                 if incidence not in incidence_sample.data:
-                    incidence_sample.data[incidence]={'e':[],'slope':[]}
+                    incidence_sample.data[incidence]={'e':[],'g':[],'slope':[]}
                     incidence_sample.spectrum_labels.append(incidence)
                 if emission not in emission_sample.data:
                     emission_sample.data[emission]={'i':[],'slope':[]}
                     emission_sample.spectrum_labels.append(emission)
-                if phase not in phase_sample.data:
-                    phase_sample.data[phase]={'g':[],'slope':[]}
-                    phase_sample.spectrum_labels.append(phase)
+
 
                 
                 incidence_sample.data[incidence]['e'].append(e)
+                incidence_sample.data[incidence]['g'].append(g)
                 incidence_sample.data[incidence]['slope'].append(slope)
                 emission_sample.data[emission]['i'].append(i)
                 emission_sample.data[emission]['slope'].append(slope)
-                phase_sample.data[phase]['g'].append(g)
-                phase_sample.data[phase]['slope'].append(slope)
+
                 
                 slopes.append(label+': '+str(slope))
             self.emission_samples.append(emission_sample)
             self.incidence_samples.append(incidence_sample)
-            self.phase_samples.append(phase_sample)
         self.plot.draw_vertical_lines([left, right])
 
         return slopes
@@ -758,21 +734,21 @@ class Tab():
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='average reflectance')
         elif x_axis=='g':
-            tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.phase_samples, x_axis=x_axis,y_axis='average reflectance') 
+            tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='average reflectance') 
     def plot_band_centers(self, x_axis):
         if x_axis=='e':
             tab=Tab(self.plotter, 'Band center vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band center')
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Band center vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='band center')
         elif x_axis=='g':
-            tab=Tab(self.plotter, 'Band center vs '+x_axis,self.phase_samples, x_axis=x_axis,y_axis='band center') 
+            tab=Tab(self.plotter, 'Band center vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band center') 
     def plot_band_depths(self, x_axis):
         if x_axis=='e':
             tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band depth')
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='band depth')
         elif x_axis=='g':
-            tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.phase_samples, x_axis=x_axis,y_axis='band depth')  
+            tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band depth')  
             
     def plot_slopes(self, x_axis):
         if x_axis=='e':
@@ -780,7 +756,7 @@ class Tab():
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Slope vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='slope')
         elif x_axis=='g':
-            tab=Tab(self.plotter, 'Slope vs '+x_axis,self.phase_samples, x_axis=x_axis,y_axis='slope')
+            tab=Tab(self.plotter, 'Slope vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='slope')
         
     def calculate_photometric_variability(self, left, right):
         left=float(left)
@@ -788,7 +764,6 @@ class Tab():
         photo_var=[]
 
         for i, sample in enumerate(self.samples):
-            print(sample.name)
             min_slope=None
             max_slope=None
             for i, label in enumerate(sample.spectrum_labels): 
@@ -798,7 +773,6 @@ class Tab():
                 index_left = (np.abs(wavelengths - left)).argmin() #find index of wavelength 
                 index_right = (np.abs(wavelengths - right)).argmin() #find index of wavelength 
                 slope=(reflectance[index_right]-reflectance[index_left])/(index_right-index_left)
-                print(slope)
                 if i==0:
                     min_slope=slope
                     min_slope_label=label.split('(')[1].strip(')')+' ('+str(slope)+')'
@@ -1007,6 +981,11 @@ class Plot():
                             sample_max=np.max(sample.data[label][self.y_axis])
                             self.ylim[0]=np.min([self.ylim[0],sample_min])
                             self.ylim[1]=np.max([self.ylim[1],sample_max])
+        
+            #add a little margin around edges
+            delta_y=self.ylim[1]-self.ylim[0]
+            self.ylim[0]=self.ylim[0]-delta_y*.02
+            self.ylim[1]=self.ylim[1]+delta_y*.02 
 
         elif ylim==None:
             for i, sample in enumerate(self.samples):
@@ -1024,6 +1003,8 @@ class Plot():
                         self.ylim[1]=np.max([self.ylim[1],sample_max])
                             
             #add a little margin around edges
+            print('ADD Y MARGIN!')
+            delta_y=self.ylim[1]-self.ylim[0]
             self.ylim[0]=self.ylim[0]-delta_y*.02
             self.ylim[1]=self.ylim[1]+delta_y*.02 
 
@@ -1102,60 +1083,46 @@ class Plot():
         gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
         self.plot = fig.add_subplot(gs[0])
         pos1 = self.plot.get_position() # get the original position 
-        y0=pos1.y0 +self.legend_len/130
+        
         print('************************')
         print(self.legend_len)
-        if self.legend_len<70 and self.oversize_legend:
-            height=pos1.height -self.legend_len/150
-            if y0>0.8:
-                y0=0.8
-            #Looks too small at legend length of 30, but good at 70
-        elif self.oversize_legend:
+        if self.legend_len<56 and self.oversize_legend:
+            height=pos1.height +0.24-self.legend_len/89
+            y0=pos1.y0-.19+self.legend_len/90 
 
-            height=pos1.height-.36-self.legend_len/600 #A little too small at 176, a tiny bit big at 135, good at 76.
+        elif self.legend_len<90 and self.oversize_legend:
+
+            height=pos1.height -0.15-self.legend_len/230 #great at 76, 90, starts to get too small at 95
+            y0=self.legend_len/130
             
+        elif self.legend_len<130 and self.oversize_legend:
 
-            if self.legend_len<150:
+            
+            height=pos1.height-.25-self.legend_len/350 #great at 117, great at 90
+            y0=pos1.y0+.36+self.legend_len/430
+        
+        elif self.legend_len<180 and self.oversize_legend:
+            height=pos1.height-0.395-self.legend_len/670 
 
-                y0=pos1.y0+.36+self.legend_len/430 #very close! plot is perfect at 140, anda little low at 76. Need y0 to be bigger at 76.
-                print(y0)
-            else:
+            
+            y0=pos1.y0+.36+self.legend_len/430
 
-                y0=pos1.y0 +.57+self.legend_len/1100
-                
+        elif self.legend_len<260 and self.oversize_legend:
+            height=pos1.height-0.55-self.legend_len/1800 
+            y0=pos1.y0 +.57+self.legend_len/1100
                 
             if y0>0.9:
                 y0=0.9
-        else:
-            y0=pos1.y0
-            height=pos1.height
-        if height<0.1:
-            height=0.1
+        elif self.oversize_legend:
+            height=pos1.height-0.665-self.legend_len/7900 #great at 330, still a little small at 275, good up through 550 but starts to be too small at 660.
+
+            y0=pos1.y0 +.75+self.legend_len/5700
+            
+
         pos2 = [pos1.x0+0.02, y0,  pos1.width, height] 
 
         self.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
         
-        
-        #If there is data from more than one data file, associate each sample name with that file. Otherwise, just use the sample name.
-
-        # if len(self.files)>1:
-        #     for sample in samples:
-        #         for i, label in sample.labels:
-        #             if sample.title not in sample.labels[i]:
-        #                 sample.extended_labels[i]=sample.title+' '+label
-        #                 sample.data[sample.extended_labels[i]]=sample.data[label]
-        #                 
-        #         sample.labels=sample.title+' '+sample.label
-        #         for sample in samples[tsv_title]:
-        #             label=tsv_title+' '+sample
-        #             self.labels.append(label)
-        #             self.data[label]=plotter.data[tsv_title][sample]
-        # else:
-        #     for tsv_title in samples:
-        #         for sample in samples[tsv_title]:
-        #             label=sample
-        #             self.labels.append(label)
-        #             self.data[label]=plotter.data[tsv_title][sample]
 
         
         self.draw()
@@ -1236,17 +1203,22 @@ class Plot():
             order=order-2
 
         order=int(order*-1)
-        print(order)
+
         interval=np.round(delta_x/5,order)
-        print(interval)
+
         interval_2=np.round(interval/5,order)
+        order2=order
         while interval_2==0:
-            order+=1
-            interval_2=np.round(interval/5,order)
+            order2+=1
+            interval_2=np.round(interval/5,order2)
         if np.round(self.xlim[0],order)<=self.xlim[0]:
+
+
+
             major_ticks = np.arange(np.round(self.xlim[0],order),self.xlim[1]+10**float(-1*order), interval)
             minor_ticks = np.arange(np.round(self.xlim[0],order),self.xlim[1]+10**float(-1*order), interval_2)
         else:
+
             major_ticks = np.arange(np.round(self.xlim[0],order)-10**float(-1*order),self.xlim[1]+10**float(-1*order), interval)
             minor_ticks = np.arange(np.round(self.xlim[0],order)-10**float(-1*order),self.xlim[1]+10**float(-1*order), interval_2)
 
@@ -1296,9 +1268,12 @@ class Plot():
                 if self.y_axis=='reflectance' and self.x_axis=='wavelength':
                     
                     lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], label=legend_label,color=color,linewidth=2))
+                elif self.x_axis=='g':
+                    print(sample.data[label]['g'])
+                    print(self.x_axis)
+                    lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], 'o',label=legend_label,color=color, markersize=6))
                 else:
-                    print(color)
-                    lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], '-o',label=legend_label,color=color, markersize=4))
+                    lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], '-o',label=legend_label,color=color, markersize=5))
                 
         self.plot.set_title(self.title, fontsize=24)
         
@@ -1312,6 +1287,8 @@ class Plot():
             self.plot.set_xlabel('Incidence (degrees)',fontsize=18)
         elif self.x_axis=='e':
             self.plot.set_xlabel('Emission (degrees)',fontsize=18)
+        elif self.x_axis=='g':
+            self.plot.set_xlabel('Phase angle (degrees)',fontsize=18)
         self.plot.tick_params(labelsize=14)
         
         self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
