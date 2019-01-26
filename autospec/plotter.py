@@ -268,7 +268,7 @@ class Tab():
             self.original_samples=original
         self.samples=samples
         self.geoms=geoms
-        if title_override==False:
+        if False:#title_override==False:
             self.title=title+ ': '+samples[0].name
             #self.title=samples[0].name
         else:
@@ -288,13 +288,13 @@ class Tab():
         for sample in self.samples:
             self.legend_len+=len(sample.spectrum_labels)
         self.legend_height=self.legend_len*21+100 #21 px per legend entry.
+        self.plot_scale=(self.height-130)/21
+        self.plot_width=self.width/9#very vague character approximation of plot width
         self.oversize_legend=False
         if self.height>self.legend_height:scrollable=False
         else:
             self.oversize_legend=True
-            self.plot_scale=(self.height-130)/21
-            self.plot_width=self.width/9#very vague character approximation of plot width
-            print(self.plot_width)
+
         if scrollable: #User can specify this in edit_plot#self.legend_len>7:
             self.top=VerticalScrolledFrame(self.plotter.controller, self.plotter.notebook)
 
@@ -348,10 +348,7 @@ class Tab():
 
                 
                 ratio=event.height/self.legend_height
-                print('event height')
-                print(event.height)
-                print('legend height')
-                print(self.legend_height)
+
                 inv=self.legend_height/event.height
                 y0=y0+self.legend_height/130000
                 if y0>0.88:
@@ -470,6 +467,8 @@ class Tab():
     def get_index(self, array, val):
         index = (np.abs(array - val)).argmin()
         return index
+        
+
     def calculate_avg_reflectance(self, left, right):
         left=float(left)
         right=float(right)
@@ -493,9 +492,8 @@ class Tab():
                 
 
                 
-                i=int(label.split('i=')[1].split(' ')[0])
-                e=int(label.split('e=')[1].strip(')'))
-                g=e-i
+
+                e,i,g=self.get_e_i_g(label)
 
                 incidence=sample.name+' (i='+str(i)+')'
                 emission=sample.name+' (e='+str(e)+')'
@@ -522,6 +520,7 @@ class Tab():
         self.plot.draw_vertical_lines([left, right])
 
         return avgs
+        
     def calculate_band_centers(self, left, right):
         left=float(left)
         right=float(right)
@@ -556,9 +555,7 @@ class Tab():
                 
 
                 
-                i=int(label.split('i=')[1].split(' ')[0])
-                e=int(label.split('e=')[1].strip(')'))
-                g=e-i
+                e,i,g=self.get_e_i_g(label)
                 
                 incidence=sample.name+' (i='+str(i)+')'
                 emission=sample.name+' (e='+str(e)+')'
@@ -626,9 +623,7 @@ class Tab():
                 
                 depth=r_continuum-r_min
                 
-                i=int(label.split('i=')[1].split(' ')[0])
-                e=int(label.split('e=')[1].strip(')'))
-                g=e-i
+                e,i,g=self.get_e_i_g(label)
                 
                 incidence=sample.name+' (i='+str(i)+')'
                 emission=sample.name+' (e='+str(e)+')'
@@ -719,6 +714,53 @@ class Tab():
         self.plot.draw_vertical_lines([left, right])
 
         return slopes
+        
+    def calculate_reciprocity(self, left, right):
+        left=float(left)
+        right=float(right)
+        avgs=[]
+        self.recip_samples=[]
+        
+        for i, sample in enumerate(self.samples):
+            recip_sample=Sample(sample.name,sample.file,sample.title)
+            for label in sample.spectrum_labels: 
+                wavelengths=np.array(sample.data[label]['wavelength'])
+                reflectance=np.array(sample.data[label]['reflectance'])
+
+                index_left=self.get_index(wavelengths, left)
+                index_right=self.get_index(wavelengths, right)
+                if index_right!=index_left:
+                    avg=np.mean(reflectance[index_left:index_right])
+                else:
+                    avg=reflectance[index_left]
+
+                e,i,g=self.get_e_i_g(label)
+                recip_label=sample.name+' (i='+str(-1*e)+' e='+str(-1*i)+')'
+                
+                if label not in recip_sample.data and recip_label not in recip_sample.data:
+                    recip_sample.data[label]={'e':[],'g':[],'i':[],'average reflectance':[]}
+                    recip_sample.spectrum_labels.append(label)
+                    
+                if label in recip_sample.data:
+                    recip_sample.data[label]['e'].append(e)
+                    recip_sample.data[label]['i'].append(i)
+                    recip_sample.data[label]['g'].append(g)
+                    recip_sample.data[label]['average reflectance'].append(avg)
+                elif recip_label in recip_sample.data:
+                    recip_sample.data[recip_label]['e'].append(e)
+                    recip_sample.data[recip_label]['i'].append(i)
+                    recip_sample.data[recip_label]['g'].append(g)
+                    recip_sample.data[recip_label]['average reflectance'].append(avg)
+                    
+                avgs.append(label+': '+str(avg))
+            self.recip_samples.append(recip_sample)
+        self.plot.draw_vertical_lines([left, right])
+
+        return avgs
+        
+    def plot_reciprocity(self, x_axis):
+        tab=Tab(self.plotter, 'Reciprocity',self.recip_samples, x_axis=x_axis,y_axis='average reflectance')
+
     def plot_avg_reflectance(self, x_axis):
         if x_axis=='e':
             tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='average reflectance')
@@ -956,22 +998,25 @@ class Plot():
 
         self.x_axis=x_axis
         self.y_axis=y_axis
+        self.ylim=None #About to set based on either data limits or zoom if specified
+        self.xlim=None #same as ylim
         
         #If y limits for plot not specified, make the plot wide enough to display min and max values for all samples.
         if ylim==None and xlim==None:
-            if True:
-                for i, sample in enumerate(self.samples):
-                    for j, label in enumerate(sample.spectrum_labels):
-                        if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
-                        if i==0 and j==0:
-                            self.ylim=[np.min(sample.data[label][self.y_axis]),np.max(sample.data[label][self.y_axis])]
-                        else:
-                            sample_min=np.min(sample.data[label][self.y_axis])
-                            sample_max=np.max(sample.data[label][self.y_axis])
-                            self.ylim[0]=np.min([self.ylim[0],sample_min])
-                            self.ylim[1]=np.max([self.ylim[1],sample_max])
+            for i, sample in enumerate(self.samples):
+                for j, label in enumerate(sample.spectrum_labels):
+                    if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
+                    if i==0 and j==0:
+                        self.ylim=[np.min(sample.data[label][self.y_axis]),np.max(sample.data[label][self.y_axis])]
+                    else:
+
+                        sample_min=np.min(sample.data[label][self.y_axis])
+                        sample_max=np.max(sample.data[label][self.y_axis])
+                        self.ylim[0]=np.min([self.ylim[0],sample_min])
+                        self.ylim[1]=np.max([self.ylim[1],sample_max])
         
             #add a little margin around edges
+            if self.ylim==None: self.ylim=[0,1] #Happens if you are making a new tab with no data
             delta_y=self.ylim[1]-self.ylim[0]
             self.ylim[0]=self.ylim[0]-delta_y*.02
             self.ylim[1]=self.ylim[1]+delta_y*.02 
@@ -992,6 +1037,7 @@ class Plot():
                         self.ylim[1]=np.max([self.ylim[1],sample_max])
                             
             #add a little margin around edges
+            if self.ylim==None: self.ylim=[0,1] #Happens if you are making a new tab with no data
             delta_y=self.ylim[1]-self.ylim[0]
             self.ylim[0]=self.ylim[0]-delta_y*.02
             self.ylim[1]=self.ylim[1]+delta_y*.02 
@@ -1001,21 +1047,23 @@ class Plot():
         
         #If x limits for plot not specified, make the plot wide enough to display min and max values for all samples.
         if xlim==None:
-            if True:#x_axis=='wavelength': #For wavelength, data is stored under sample.data[label]['reflectance']. Other x values are just under sample.data[x_axis]
-                for i, sample in enumerate(self.samples):
-                    for j, label in enumerate(sample.spectrum_labels):
-                        if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
-                        
-                        if i==0 and j==0:
-                            sample_min=np.min(sample.data[label][self.x_axis][0:10])
-                            sample_min=np.min(sample.data[label][self.x_axis])
-                            sample_max=np.max(sample.data[label][self.x_axis])
-                            self.xlim=[sample_min,sample_max]
-                        else:
-                            sample_min=np.min(sample.data[label][self.x_axis])
-                            sample_max=np.max(sample.data[label][self.x_axis])
-                            self.xlim[0]=np.min([self.xlim[0],sample_min])
-                            self.xlim[1]=np.max([self.xlim[1],sample_max])
+
+            for i, sample in enumerate(self.samples):
+                for j, label in enumerate(sample.spectrum_labels):
+                    if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
+                    
+                    if i==0 and j==0:
+                        sample_min=np.min(sample.data[label][self.x_axis][0:10])
+                        sample_min=np.min(sample.data[label][self.x_axis])
+                        sample_max=np.max(sample.data[label][self.x_axis])
+                        self.xlim=[sample_min,sample_max]
+                    else:
+                        sample_min=np.min(sample.data[label][self.x_axis])
+                        sample_max=np.max(sample.data[label][self.x_axis])
+                        self.xlim[0]=np.min([self.xlim[0],sample_min])
+                        self.xlim[1]=np.max([self.xlim[1],sample_max])
+            
+            if self.xlim==None: self.xlim=[400,2400] #Happens if you are making a new tab with no data
             delta_x=self.xlim[1]-self.xlim[0]
             
             if self.x_axis!='wavelength': #add a little margin around edges
@@ -1054,10 +1102,10 @@ class Plot():
 
                 legend_label=label
                 if self.x_axis=='wavelength' and self.y_axis=='reflectance':
-                    if len(self.samples)==1:
+                    if len(self.samples)==1: #No need to specify which sample if you are only plotting one.
                         legend_label=legend_label.replace(sample.name,'').replace('(i=','i=').strip('(')
-                    if len(self.files)>1:
-                        legend_label=sample.title+': '+legend_label
+                    # if len(self.files)>1:
+                    #     legend_label=sample.title+': '+legend_label
                         
                 if len(legend_label)>self.max_legend_label_len:
                     self.max_legend_label_len=len(legend_label)
@@ -1105,11 +1153,12 @@ class Plot():
 #                 
 # =======
         
-        print('************************')
-        print(self.legend_len)
+        y0=pos1.y0
+        height=pos1.height
         if self.oversize_legend:
             height=pos1.height*self.plot_scale/self.legend_len
-            y0=1-self.plot_scale/self.legend_len+pos1.y0*self.plot_scale/(self.legend_len)*0.5        
+            y0=1-self.plot_scale/self.legend_len+pos1.y0*self.plot_scale/(self.legend_len)*0.5
+
 
         pos2 = [pos1.x0+.02, y0,  pos1.width, height] 
 
@@ -1250,8 +1299,8 @@ class Plot():
                 if len(self.samples)==1:
                     legend_label=legend_label.replace(sample.name,'').replace('(i=','i=').strip(')')
 
-                if len(self.files)>1:
-                    legend_label=sample.title+': '+legend_label
+                # if len(self.files)>1:
+                #     legend_label=sample.title+': '+legend_label
 
                 color=sample.next_color()
                 if self.y_axis=='reflectance' and self.x_axis=='wavelength':
@@ -1278,8 +1327,7 @@ class Plot():
         elif self.x_axis=='g':
             self.plot.set_xlabel('Phase angle (degrees)',fontsize=18)
         self.plot.tick_params(labelsize=14)
-        print('here is the legend anchor!')
-        print(self.legend_anchor)
+
         self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
         
         self.plot.set_xlim(*self.xlim)
