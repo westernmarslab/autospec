@@ -2969,10 +2969,11 @@ class Controller():
             elif self.analyze_var.get()=='reflectance':
                 reflectance=tab.calculate_avg_reflectance(self.left_slope_entry.get(),self.right_slope_entry.get())
                 populate_listbox(reflectance)
+            elif self.analyze_var.get()=='reciprocity':
+                reciprocity=tab.calculate_reciprocity(self.left_slope_entry.get(),self.right_slope_entry.get())
+                populate_listbox(reciprocity)
                 
-        def calculate_slopes():
-            pass
-            
+
 
         def populate_listbox(slopes):
             if len(slopes)>0:
@@ -2981,6 +2982,7 @@ class Controller():
                     self.slopes_listbox.delete(0,'end')
                 except:
                     self.slopes_listbox=ScrollableListbox(self.slope_results_frame,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
+                    self.slopes_listbox.configure(height=8)
                 for slope in slopes:
                     self.slopes_listbox.insert('end',slope)
                 self.slopes_listbox.pack(fill=BOTH, expand=True)
@@ -2996,18 +2998,9 @@ class Controller():
                tab.plot_band_centers(self.plot_slope_var.get())
             elif self.analyze_var.get()=='reflectance':
                 tab.plot_avg_reflectance(self.plot_slope_var.get())
-                print('reflectance!')
-        def calculate_band_depths():
-            pass
-        def plot_band_depths():
-            pass
-        def calculate_band_centers():
-            pass
-        def plot_band_centers():
-            pass
-        def calculate_zooms():
-            pass
-            
+            elif self.analyze_var.get()=='reciprocity':
+                tab.plot_reciprocity(self.plot_slope_var.get())
+
         def normalize():
             
             try:
@@ -3035,12 +3028,16 @@ class Controller():
             },
             'close':{}
         }
-        dialog=Dialog(self,'Analyze Data','',buttons=buttons,button_width=13)
+        try:
+            self.analysis_dialog.top.destroy()
+        except:
+            pass
+        self.analysis_dialog=Dialog(self,'Analyze Data','',buttons=buttons,button_width=13)
         
         
         
         
-        self.outer_normalize_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_normalize_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_normalize_frame.pack(expand=True,fill=BOTH)
         self.slope_title_label=Label(self.outer_normalize_frame,text='Normalize:',bg=self.bg,fg=self.textcolor)
         self.slope_title_label.pack()
@@ -3056,7 +3053,7 @@ class Controller():
         self.normalize_label.pack(side=RIGHT,padx=self.padx)
         
         
-        self.outer_outer_zoom_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_outer_zoom_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_outer_zoom_frame.pack(expand=True,fill=BOTH)
 
         self.zoom_title_frame=Frame(self.outer_outer_zoom_frame,bg=self.bg)
@@ -3101,7 +3098,7 @@ class Controller():
         self.left_zoom_entry2.pack(side=RIGHT,padx=self.padx)
         self.zoom_label3.pack(side=RIGHT,padx=self.padx)
         
-        self.outer_outer_slope_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_outer_slope_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_outer_slope_frame.pack(expand=True,fill=BOTH)
         
         self.outer_slope_frame=Frame(self.outer_outer_slope_frame,bg=self.bg,padx=self.padx)
@@ -3112,7 +3109,7 @@ class Controller():
         self.slope_title_label.pack(side=LEFT,pady=(0,4))
         self.analyze_var=StringVar()
         self.analyze_var.set('slope')
-        self.analyze_menu=OptionMenu(self.slope_title_frame,self.analyze_var,'slope','band depth','band center','reflectance')
+        self.analyze_menu=OptionMenu(self.slope_title_frame,self.analyze_var,'slope','band depth','band center','reflectance','reciprocity')
         self.analyze_menu.configure(width=10,highlightbackground=self.highlightbackgroundcolor)
         self.analyze_menu.pack(side=LEFT)
 
@@ -3153,7 +3150,7 @@ class Controller():
 
         
         # 
-        # self.outer_outer_bdepth_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        # self.outer_outer_bdepth_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         # self.outer_outer_bdepth_frame.pack(expand=True,fill=BOTH)
         # self.outer_bdepth_frame=Frame(self.outer_outer_bdepth_frame,bg=self.bg,padx=self.padx)
         # self.outer_bdepth_frame.pack(expand=True,fill=BOTH,pady=(0,10))
@@ -3194,7 +3191,7 @@ class Controller():
         # 
         # 
         # 
-        # self.outer_outer_bcenter_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        # self.outer_outer_bcenter_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         # self.outer_outer_bcenter_frame.pack(expand=True,fill=BOTH)
         # self.outer_bcenter_frame=Frame(self.outer_outer_bcenter_frame,bg=self.bg,padx=self.padx)
         # self.outer_bcenter_frame.pack(expand=True,fill=BOTH,pady=(0,10))
@@ -3233,7 +3230,7 @@ class Controller():
         # self.plot_bcenter_menu.pack(side=RIGHT,padx=self.padx)
         # self.plot_bcenter_label.pack(side=RIGHT,padx=self.padx)
         
-        # self.outer_photo_var_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15)
+        # self.outer_photo_var_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15)
         # #self.outer_photo_var_frame.pack(expand=True,fill=BOTH)
         # self.photo_var_frame=Frame(self.outer_photo_var_frame,bg=self.bg,padx=self.padx,pady=15)
         # self.photo_var_frame.pack(side=RIGHT)
@@ -3249,7 +3246,7 @@ class Controller():
         # self.photo_var_label_2.pack(side=RIGHT,padx=self.padx)
         # self.left_photo_var_entry.pack(side=RIGHT,padx=self.padx)
         # self.photo_var_label.pack(side=RIGHT,padx=self.padx)
-        # self.photo_var_results_frame=Frame(dialog.top,bg=self.bg)
+        # self.photo_var_results_frame=Frame(self.analysis_dialog.top,bg=self.bg)
         # self.photo_var_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with bcenter info in here later after calculating.
 
 
@@ -3263,18 +3260,22 @@ class Controller():
                 lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection())),self.new_plot_title_entry.get(), self.i_entry.get(),self.e_entry.get()):[]
                 }
             }
-        dialog=Dialog(self,'Edit Plot','\nPlot title:',buttons=buttons)
-        self.new_plot_title_entry=Entry(dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        try:
+            self.edit_plot_dialog.top.destroy()
+        except:
+            pass
+        self.edit_plot_dialog=Dialog(self,'Edit Plot','\nPlot title:',buttons=buttons)
+        self.new_plot_title_entry=Entry(self.edit_plot_dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.new_plot_title_entry.insert(0,current_title)
         self.new_plot_title_entry.pack()
         
-        sample_label=Label(dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='\nSamples:')
+        sample_label=Label(self.edit_plot_dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='\nSamples:')
         sample_label.pack(pady=(0,10))
-        self.plot_samples_listbox=ScrollableListbox(dialog.top,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
+        self.plot_samples_listbox=ScrollableListbox(self.edit_plot_dialog.top,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
         
-        self.geom_label=Label(dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='\nEnter incidence and emission angles to plot,\nor leave blank to plot all:\n')
+        self.geom_label=Label(self.edit_plot_dialog.top,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='\nEnter incidence and emission angles to plot,\nor leave blank to plot all:\n')
         self.geom_label.pack()
-        self.geom_frame=Frame(dialog.top)
+        self.geom_frame=Frame(self.edit_plot_dialog.top)
         self.geom_frame.pack(padx=(20,20),pady=(0,10))
         self.i_label=Label(self.geom_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='i: ')
         self.i_label.pack(side=LEFT)
