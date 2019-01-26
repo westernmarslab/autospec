@@ -1912,13 +1912,13 @@ class Controller():
                     self.next_in_queue()
                 return
             steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
-        if i==None:
-            timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i))*5+BUFFER
-            self.pi_commander.move_light(self.active_incidence_entries[0].get(),type)
-            handler=MotionHandler(self,label='Moving light...',timeout=timeout, steps=steps)
-            if type=='angle': #type will always be angle if reading from GUI
-                self.test_view.move_light(int(self.active_incidence_entries[0].get()))
-            self.set_light_geom()
+        # if i==None:
+        #     timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i))*5+BUFFER
+        #     self.pi_commander.move_light(self.active_incidence_entries[0].get(),type)
+        #     handler=MotionHandler(self,label='Moving light...',timeout=timeout, steps=steps)
+        #     if type=='angle': #type will always be angle if reading from GUI
+        #         self.test_view.move_light(int(self.active_incidence_entries[0].get()))
+        #     self.set_light_geom()
         else:
             timeout=0
             if type=='angle':
@@ -1935,14 +1935,24 @@ class Controller():
     #When from the commandline, e may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'. 
     def move_detector(self, e=None, type='angle'):
         steps=True
-        if type=='angle':steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
-        if e==None:
-            timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.e))*5+BUFFER
-            self.pi_commander.move_detector(self.active_emission_entries[0].get(),type)
-            handler=MotionHandler(self,label='Moving detector...',timeout=timeout, steps=steps)
-            if type=='angle': #Type will always be angle if we are reading from GUI
-                self.test_view.move_detector(int(self.active_emission_entries[0].get()))
-            self.set_detector_geom()
+        if type=='angle':
+            #First check whether we actually need to move at all.
+            if e==None:
+                e=int(self.active_emission_entries[0].get())
+            if e==self.e: #No change in incidence angle, no need to move
+                self.log('Goniometer remaining at an emission angle of '+str(self.i)+' degrees.')
+                self.complete_queue_item()
+                if len(self.queue)>0:
+                    self.next_in_queue()
+                return
+            steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
+        # if e==None:
+        #     timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.e))*5+BUFFER
+        #     self.pi_commander.move_detector(self.active_emission_entries[0].get(),type)
+        #     handler=MotionHandler(self,label='Moving detector...',timeout=timeout, steps=steps)
+        #     if type=='angle': #Type will always be angle if we are reading from GUI
+        #         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
+        #     self.set_detector_geom()
         else:
             timeout=0
             if type=='angle':
@@ -2819,6 +2829,7 @@ class Controller():
                 }
             }
             dialog=Dialog(self,title='Error: File Exists',label='Error: Specified output file already exists.\n\n'+full_output_path+'\n\nDo you want to overwrite this data?',buttons=buttons)
+            dialog.geometry('376x175')
             return False
         else:
             return True
@@ -4766,15 +4777,15 @@ class OptHandler(CommandHandler):
                     self.controller.next_in_queue()
                 elif self.pause:
                     self.interrupt('Error: There was a problem with\noptimizing the instrument.\n\nPaused.',retry=True)
-                    self.wait_dialog.top.geometry('376x150')
+                    self.wait_dialog.top.geometry('376x165')
                     self.controller.log('Error: There was a problem with optimizing the instrument.')
                 elif not self.cancel:
                     self.interrupt('Error: There was a problem with\noptimizing the instrument.',retry=True)
-                    self.wait_dialog.top.geometry('376x150')
+                    self.wait_dialog.top.geometry('376x165')
                     self.controller.log('Error: There was a problem with optimizing the instrument.')
                 else: #You can't retry if you already clicked cancel because we already cleared out the queue
                     self.interrupt('Error: There was a problem with\noptimizing the instrument.\n\nData acquisition canceled.',retry=False)
-                    self.wait_dialog.top.geometry('376x150')
+                    self.wait_dialog.top.geometry('376x165')
                     self.controller.log('Error: There was a problem with optimizing the instrument.')
                 return
             time.sleep(INTERVAL)
@@ -4834,14 +4845,14 @@ class WhiteReferenceHandler(CommandHandler):
                     self.controller.next_in_queue()
                 elif self.pause:
                     self.interrupt('Error: Failed to take white reference.\n\nPaused.',retry=True)
-                    self.wait_dialog.top.geometry('376x150')
+                    self.wait_dialog.top.geometry('376x175')
                     self.controller.log('Error: Failed to take white reference.')
                 elif not self.cancel:
                     self.interrupt('Error: Failed to take white reference.',retry=True)
                     self.set_text(self.controller.sample_label_entries[self.controller.current_sample_gui_index],self.controller.current_label)  
                 else: #You can't retry if you already clicked cancel because we already cleared out the queue
                     self.interrupt('Error: Failed to take white reference.\n\nData acquisition canceled.',retry=False)
-                    
+                    self.wait_dialog.top.geometry('376x175')
                     #Does nothing in automatic mode
                     self.controller.clear()
                 
@@ -4883,7 +4894,7 @@ class WhiteReferenceHandler(CommandHandler):
                     }
                         
                     self.wait_dialog.set_buttons(buttons,button_width=10)
-                self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 165, 107, 69))
+                self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 175, 107, 69))
                 return
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
@@ -5089,6 +5100,7 @@ class MotionHandler(CommandHandler):
         
         self.timeout()
     def success(self):
+        print('registered motion success')
         if 'detector' in self.label:
             try:
                 self.controller.log('Goniometer moved to an emission angle of '+str(self.controller.e)+' degrees.')
@@ -5132,7 +5144,9 @@ class MotionHandler(CommandHandler):
         else:
             self.controller.log('Something moved! Who knows what?')
         #self.controller.unfreeze()
+        print(self.controller.queue)
         super(MotionHandler,self).success()
+        print(self.controller.queue)
         
         
 class SaveConfigHandler(CommandHandler):
@@ -5368,7 +5382,7 @@ class SpectrumHandler(CommandHandler):
         dialog_string='Error: Operation timed out while waiting to save spectrum.\n\nIf it completes later, an unexpected file could be saved to the data directory.\nThis could cause errors. Restart the software to be safe.'
         log_string='Error: Operation timed out while waiting to save spectrum.\n\tIf it completes later, an unexpected file could be saved to the data directory.\n\tThis could cause errors. Restart the software to be safe.'
         self.timeout(log_string=log_string, dialog_string=dialog_string,retry=True)
-        self.wait_dialog.top.wm_geometry("680x155")
+        self.wait_dialog.top.wm_geometry("680x173")
 
         
     def success(self):
