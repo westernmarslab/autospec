@@ -126,7 +126,7 @@ if computer=='old':
     NUMLEN=3
     #Time added to timeouts to account for time to read/write files
     BUFFER=15
-    PI_BUFFER=8
+    PI_BUFFER=20
     server='melissa' #old computer
 elif computer=='new':
     #Number of digits in spectrum number for spec save config
@@ -1768,7 +1768,6 @@ class Controller():
                 if not valid_range:
                     return
                 elif type(valid_range)==str: #If there was a warning associated with the input check for the range setup e.g. interval specified as zero, then we'll log this as a warning for the user coming up.
-                    print(valid_range)
                     range_warnings=valid_range
                 
                 
@@ -1901,7 +1900,9 @@ class Controller():
     def move_light(self, i=None, type='angle'):
 
         steps=True
-        if type=='angle': 
+        if type=='angle':
+            steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
+
             #First check whether we actually need to move at all.
             if i==None:
                 i=int(self.active_incidence_entries[0].get())
@@ -1910,32 +1911,26 @@ class Controller():
                 self.complete_queue_item()
                 if len(self.queue)>0:
                     self.next_in_queue()
-                return
-            steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
-        # if i==None:
-        #     timeout=np.abs(int(self.active_incidence_entries[0].get())-int(self.i))*5+BUFFER
-        #     self.pi_commander.move_light(self.active_incidence_entries[0].get(),type)
-        #     handler=MotionHandler(self,label='Moving light...',timeout=timeout, steps=steps)
-        #     if type=='angle': #type will always be angle if reading from GUI
-        #         self.test_view.move_light(int(self.active_incidence_entries[0].get()))
-        #     self.set_light_geom()
+                return #If we're staying in the same spot, just return!
+
+        timeout=0
+        if type=='angle':
+            timeout=np.abs(int(i)-int(self.i))*8+PI_BUFFER
         else:
-            timeout=0
-            if type=='angle':
-                timeout=np.abs(int(i)-int(self.i))*5+BUFFER
-            else:
-                timeout=np.abs(int(i))/20+BUFFER
-            self.pi_commander.move_light(i,type)
-            handler=MotionHandler(self,label='Moving light...',timeout=timeout, steps=steps)
-            if type=='angle':
-                self.test_view.move_light(int(i))
-            self.set_light_geom(i,type)
+            timeout=np.abs(int(i))/15+PI_BUFFER
+        self.pi_commander.move_light(i,type)
+        handler=MotionHandler(self,label='Moving light source...',timeout=timeout,steps=steps)
+        if type=='angle':
+            self.test_view.move_light(int(i))
+        self.set_light_geom(i,type)
             
     #Move detector will either read e from the GUI (default), or if this is a text command then e will be passed as a parameter.
     #When from the commandline, e may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'. 
     def move_detector(self, e=None, type='angle'):
         steps=True
         if type=='angle':
+            steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
+
             #First check whether we actually need to move at all.
             if e==None:
                 e=int(self.active_emission_entries[0].get())
@@ -1944,26 +1939,18 @@ class Controller():
                 self.complete_queue_item()
                 if len(self.queue)>0:
                     self.next_in_queue()
-                return
-            steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
-        # if e==None:
-        #     timeout=np.abs(int(self.active_emission_entries[0].get())-int(self.e))*5+BUFFER
-        #     self.pi_commander.move_detector(self.active_emission_entries[0].get(),type)
-        #     handler=MotionHandler(self,label='Moving detector...',timeout=timeout, steps=steps)
-        #     if type=='angle': #Type will always be angle if we are reading from GUI
-        #         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
-        #     self.set_detector_geom()
+                return #If we're staying in the same spot, just return!
+
+        timeout=0
+        if type=='angle':
+            timeout=np.abs(int(e)-int(self.e))*8+PI_BUFFER
         else:
-            timeout=0
-            if type=='angle':
-                timeout=np.abs(int(e)-int(self.e))*5+BUFFER
-            else:
-                timeout=np.abs(int(e))/20+BUFFER
-            self.pi_commander.move_detector(e,type)
-            handler=MotionHandler(self,label='Moving detector...',timeout=timeout,steps=steps)
-            if type=='angle':
-                self.test_view.move_detector(int(e))
-            self.set_detector_geom(e,type)
+            timeout=np.abs(int(e))/15+PI_BUFFER
+        self.pi_commander.move_detector(e,type)
+        handler=MotionHandler(self,label='Moving detector...',timeout=timeout,steps=steps)
+        if type=='angle':
+            self.test_view.move_detector(int(e))
+        self.set_detector_geom(e,type)
         
     def move_tray(self, pos, type='position'):
         steps=False
@@ -1973,25 +1960,24 @@ class Controller():
         handler=MotionHandler(self,label='Moving sample tray...',timeout=30+BUFFER, new_sample_loc=pos, steps=steps)
         
     def build_queue(self):
-        if not self.script_running: #If we're in the middle of a script, don't clear the following commands out
-            self.queue=[]
+        script_queue=list(self.queue) #If we're running a script, the queue might have a lot of commands in it that will need to be executed after we're done acquiring. save these, we'll append them in a moment.
+        self.queue=[]
 
-        if True:#self.individual_range.get()==0:
             #For each (i, e), opt, white reference, save the white reference, move the tray, take a  spectrum, then move the tray back, then update geom to next.
+        self.queue.append({self.move_tray:['wr']})
+        for entry in self.active_incidence_entries: 
+            self.queue.append({self.opt:[]})
+            self.queue.append({self.wr:[True,True]})
+            self.queue.append({self.take_spectrum:[True,True,False]})
+            for pos in self.taken_sample_positions: #e.g. 'Sample 1'
+                self.queue.append({self.move_tray:[pos]})
+                self.queue.append({self.take_spectrum:[True,True,True]}) #Save and delete a garbage spectrum
+                self.queue.append({self.take_spectrum:[True,True,False]}) #Save a real spectrum
             self.queue.append({self.move_tray:['wr']})
-            for entry in self.active_incidence_entries:
-                self.queue.append({self.opt:[]})
-                self.queue.append({self.wr:[True,True]})
-                self.queue.append({self.take_spectrum:[True,True,False]})
-                for pos in self.taken_sample_positions: #e.g. 'Sample 1'
-                    self.queue.append({self.move_tray:[pos]})
-                    self.queue.append({self.take_spectrum:[True,True,True]}) #Save and delete a garbage spectrum
-                    self.queue.append({self.take_spectrum:[True,True,False]}) #Save a real spectrum
-                self.queue.append({self.move_tray:['wr']})
-                self.queue.append({self.next_geom:[]})
-                
-            #No update geometry call after last spectrum
-            self.queue.pop(-1)
+            self.queue.append({self.next_geom:[]})
+            
+        #No update geometry call after last spectrum
+        self.queue.pop(-1)
 
         #Put in calls to move light and detector for the first geometry (this happens in next_indv geom, or repeatedly here if you are specifying a range)
         next_i=int(self.active_incidence_entries[0].get())
@@ -2003,6 +1989,10 @@ class Controller():
         else:
             self.queue.insert(0,{self.move_light:[]})
             self.queue.insert(0,{self.move_detector:[]})
+            
+        #Now append the script queue we saved at the beginning.
+        if self.script_running:
+            self.queue=self.queue+script_queue
             
     def range_setup(self,override=False):
 
@@ -2335,8 +2325,12 @@ class Controller():
 
                 else:
                     self.log('Error: invalid arguments for control, i, e, sample_num: '+str(params))
+                    self.queue=[]
+                    self.script_running=False
             except Exception as e:
                 self.log('Error: Could not parse command '+cmd)
+                self.queue=[]
+                self.script_running=False
                 print(e)
         elif cmd=='collect_garbage()':
             if not self.script_running:
@@ -2356,6 +2350,8 @@ class Controller():
         elif 'setup_geom_range(' in cmd:
             if self.manual_automatic.get()==0:
                 self.log('Error: Not in automatic mode')
+                self.queue=[]
+                self.script_running=False
                 return False
             self.set_individual_range(force=1)
             params=cmd[0:-1].split('setup_geom_range(')[1].split(',')
@@ -2367,36 +2363,48 @@ class Controller():
                         self.light_start_entry.insert(0,get_val(param))
                     except:
                         self.log('Error: Unable to parse initial incidence angle')
+                        self.queue=[]
+                        self.script_running=False
                 elif 'i_end' in param:
                     try:
                         self.light_end_entry.delete(0,'end')
                         self.light_end_entry.insert(0,get_val(param))
                     except:
                         self.log('Error: Unable to parse final incidence angle')
+                        self.queue=[]
+                        self.script_running=False
                 elif 'e_start' in param:
                     try:
                         self.detector_start_entry.delete(0,'end')
                         self.detector_start_entry.insert(0,get_val(param))
                     except:
                         self.log('Error: Unable to parse initial emission angle')
+                        self.queue=[]
+                        self.script_running=False
                 elif 'e_end' in param:
                     try:
                         self.detector_end_entry.delete(0,'end')
                         self.detector_end_entry.insert(0,get_val(param))
                     except:
                         self.log('Error: Unable to parse final emission angle')
+                        self.queue=[]
+                        self.script_running=False
                 elif 'i_increment' in param:
                     try:
                         self.light_increment_entry.delete(0,'end')
                         self.light_increment_entry.insert(0,get_val(param))
                     except:
                         self.log('Error: Unable to parse incidence angle increment.')
+                        self.queue=[]
+                        self.script_running=False
                 elif 'e_increment' in param:
                     try:
                         self.detector_increment_entry.delete(0,'end')
                         self.detector_increment_entry.insert(0,get_val(param))
                     except:
                         self.log('Error: Unable to parse emission angle increment.')
+                        self.queue=[]
+                        self.script_running=False
             if len(self.queue)>0:
                 self.next_in_queue()
         elif 'set_samples(' in cmd:
@@ -2461,7 +2469,6 @@ class Controller():
                 
             #If the user uses the setup_only option, no commands are sent to the spec computer, but instead the GUI is just filled in for them how they want.
             setup_only=False
-            print(params)
 
                 
             if 'setup_only=True' in params: setup_only=True
@@ -2497,7 +2504,8 @@ class Controller():
                     self.next_in_queue()
             except:
                 self.log('Error: could not parse command '+cmd)
-
+                self.queue=[]
+                self.script_running=False
                     
 
         elif 'sleep' in cmd:
@@ -2517,6 +2525,8 @@ class Controller():
                     self.next_in_queue()
             except:
                 self.log('Error: could not parse command '+cmd)
+                self.queue=[]
+                self.script_running=False
             
 
         elif 'log(' in cmd:
@@ -2536,6 +2546,8 @@ class Controller():
                 param=cmd.split('move_tray(')[1][:-1]
             except:
                 self.log('Error: Could not parse command '+cmd)
+                self.queue=[]
+                self.script_running=False
                 return False
             if 'steps' in param:
                 try:
@@ -2544,6 +2556,8 @@ class Controller():
 
                 except:
                     self.log('Error: could not parse command '+cmd)
+                    self.queue=[]
+                    self.script_running=False
                     return False
                 if valid_steps:
                     if not self.script_running:
@@ -2552,6 +2566,8 @@ class Controller():
                     self.move_tray(steps,type='steps')
                 else:
                     self.log('Error: '+str(steps) +' is not a valid number of steps. Enter an integer from -800 to 800.')
+                    self.queue=[]
+                    self.script_running=False
                     return False
             else:
                 pos=param
@@ -2568,17 +2584,23 @@ class Controller():
                     self.move_tray(pos)
                 else:
                     self.log('Error: '+pos+' is an invalid tray position')
+                    self.queue=[]
+                    self.script_running=False
                     return False
                 
         elif 'set_emission(' in cmd: 
             if self.manual_automatic.get()==0:
                 self.log('Error: Not in automatic mode')
+                self.queue=[]
+                self.script_running=False
                 return False
             try:
                 param=cmd.split('set_emission(')[1][:-1]
                 
             except:
                 self.log('Error: could not parse command '+cmd)
+                self.queue=[]
+                self.script_running=False
                 return False
                 
             if 'steps' in param:
@@ -2589,6 +2611,8 @@ class Controller():
 
                 except:
                     self.log('Error: could not parse command '+cmd)
+                    self.queue=[]
+                    self.script_running=False
                     return False
                 if valid_steps:
                     if not self.script_running:
@@ -2597,33 +2621,45 @@ class Controller():
                     self.move_detector(steps,'steps')
                 else:
                     self.log('Error: '+str(steps) +' is not a valid number of steps. Enter an integer from -1000 to 1000.')
+                    self.queue=[]
+                    self.script_running=False
                     return False  
             else:
                 e=param
                 valid_e=validate_int_input(e, self.min_e, self.max_e)
                 if valid_e:
+                    print('here')
                     if int(e)<int(self.i)+15:
                         self.log('Error: Because of geometric constraints on the instrument, the emission angle must be at least 15 degrees greater than the incidence angle.')
+                        self.queue=[]
+                        self.script_running=False
                         return False
     
                     if not self.script_running:
                         self.queue=[]
                     self.queue.insert(0,{self.move_detector:[e]})
                     self.move_detector(e)
+                    print('moving detector!')
                 else:
                     self.log('Error: '+e+' is an invalid emission angle.')
+                    self.queue=[]
+                    self.script_running=False
                     return False
                     
                 
         elif 'set_incidence(' in cmd: 
             if self.manual_automatic.get()==0:
                 self.log('Error: Not in automatic mode')
+                self.queue=[]
+                self.script_running=False
                 return False
             try:
                 param=cmd.split('set_incidence(')[1][:-1]
                 
             except:
                 self.log('Error: could not parse command '+cmd)
+                self.queue=[]
+                self.script_running=False
                 return False
                 
             if 'steps' in param:
@@ -2633,6 +2669,8 @@ class Controller():
 
                 except:
                     self.log('Error: could not parse command '+cmd)
+                    self.queue=[]
+                    self.script_running=False
                     return False
                 if valid_steps:
                     if not self.script_running:
@@ -2641,6 +2679,8 @@ class Controller():
                     self.move_light(steps,'steps')
                 else:
                     self.log('Error: '+str(steps) +' is not a valid number of steps. Enter an integer from -1000 to 1000.')
+                    self.queue=[]
+                    self.script_running=False
                     return False  
             else:
                 i=param
@@ -2656,6 +2696,8 @@ class Controller():
                     self.move_light(i)
                 else:
                     self.log('Error: '+i+' is an invalid incidence angle.')
+                    self.queue=[]
+                    self.script_running=False
                     return False
 
         elif cmd=='end file':
@@ -2665,6 +2707,8 @@ class Controller():
                 
         else:
             self.log('Error: could not parse command '+cmd)
+            self.queue=[]
+            self.script_running=False
             return False
             
         # if self.script_running:
@@ -3721,8 +3765,10 @@ class Controller():
         if timeout_s<=0:
             if self.wait_dialog==None:
                 dialog=ErrorDialog(self,label='Error: Failed to configure Raspberry Pi.\nCheck connections and/or restart scripts.')
-                self.complete_queue_item()
+                self.queue=[]
+                self.script_running=False
             else: #Everything in this else clause is nonsense.
+                print('I DO NOT THINK THIS EVER OCCURS IF IT DOES LOOK INTO IT')
                 if i==None or e==None:
                     self.queue[0]={self.configure_pi:[self.i,self.e,self.sample_tray_index]} 
                 else:
@@ -3733,7 +3779,6 @@ class Controller():
                 
             self.i=None
             self.e=None
-            #Maybe this is right?
             self.set_manual_automatic(force=0)
             
             return
@@ -6195,7 +6240,9 @@ class Commander():
         self.cmdnum=0
         
     def send(self,filename):
+        print('sending')
         try:
+            print(filename)
             file=open(self.write_command_loc+filename,'w')
         except OSError as e:
             if e.errno==22 or e.errno==2:
@@ -6257,6 +6304,7 @@ class PiCommander(Commander):
         else:
             steps=num
             filename=self.encrypt('movedetector',[steps,'steps'])
+        print('sending')
         self.send(filename)
         return filename
     
