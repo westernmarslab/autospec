@@ -2999,27 +2999,39 @@ class Controller():
             artifact_warning=False
             
             if self.analyze_var.get()=='slope':
-                slopes, artifact_warning=tab.calculate_slopes(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, slopes, artifact_warning=tab.calculate_slopes(self.left_slope_entry.get(),self.right_slope_entry.get())
+                update_entries(left, right)
                 populate_listbox(slopes)
             elif self.analyze_var.get()=='band depth':
-                depths, artifact_warning=tab.calculate_band_depths(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, depths, artifact_warning=tab.calculate_band_depths(self.left_slope_entry.get(),self.right_slope_entry.get())
+                update_entries(left, right)
                 populate_listbox(depths)
             elif self.analyze_var.get()=='band center':
-                centers,artifact_warning=tab.calculate_band_centers(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, centers,artifact_warning=tab.calculate_band_centers(self.left_slope_entry.get(),self.right_slope_entry.get())
+                update_entries(left, right)
                 populate_listbox(centers)
             elif self.analyze_var.get()=='reflectance':
-                reflectance,artifact_warning=tab.calculate_avg_reflectance(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, reflectance,artifact_warning=tab.calculate_avg_reflectance(self.left_slope_entry.get(),self.right_slope_entry.get())
+                update_entries(left, right)
                 populate_listbox(reflectance)
             elif self.analyze_var.get()=='reciprocity':
-                reciprocity, artifact_warning=tab.calculate_reciprocity(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, reciprocity, artifact_warning=tab.calculate_reciprocity(self.left_slope_entry.get(),self.right_slope_entry.get())
+                update_entries(left, right)
                 populate_listbox(reciprocity)
             elif self.analyze_var.get()=='difference':
-                error, artifact_warning=tab.calculate_error(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, error, artifact_warning=tab.calculate_error(self.left_slope_entry.get(),self.right_slope_entry.get())
+                #Tab validates left and right values. If they are no good, put in min and max wavelengths available.
+                update_entries(left, right)
                 populate_listbox(error)
             if artifact_warning:
                 dialog=ErrorDialog(self, 'Warning','Warning: Excluding data potentially\ninfluenced by artifacts from 1000-1400 nm.')
 
-
+        def update_entries(left, right):
+                self.left_slope_entry.delete(0,'end')
+                self.left_slope_entry.insert(0,str(left))
+                self.right_slope_entry.delete(0,'end')
+                self.right_slope_entry.insert(0,str(right))
+                
         def populate_listbox(results):
             if len(results)>0:
                 self.slope_results_frame.pack(fill=BOTH, expand=True,pady=(10,10))
@@ -3064,6 +3076,10 @@ class Controller():
             except:
                 pass
             tab.normalize(self.normalize_entry.get())
+            
+        def offset():
+            print('yay offset!')
+            tab.offset(self.offset_sample_var.get(), self.offset_entry.get())
 
         def apply_x():
             self.view_notebook.select(tab.top)
@@ -3144,6 +3160,43 @@ class Controller():
         self.normalize_entry.pack(side=RIGHT,padx=self.padx)
         self.normalize_label.pack(side=RIGHT,padx=self.padx)
         
+        self.outer_offset_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_offset_frame.pack(expand=True,fill=BOTH)
+        self.slope_title_label=Label(self.outer_offset_frame,text='Add offset to sample:',bg=self.bg,fg=self.textcolor)
+        self.slope_title_label.pack(pady=(0,15))
+        self.offset_sample_frame=Frame(self.outer_offset_frame,bg=self.bg,padx=self.padx,pady=self.pady)
+        self.offset_sample_frame.pack()
+        self.offset_sample_label=Label(self.offset_sample_frame,text='Sample: ',bg=self.bg,fg=self.textcolor)
+        self.offset_sample_label.pack(side=LEFT)
+        self.offset_sample_var=StringVar()
+        sample_names=[]
+        repeats=False
+        max_len=0
+        for sample in tab.samples:
+            if sample.name in sample_names:
+                repeats=True
+            else:
+                sample_names.append(sample.name)
+                max_len=np.max([max_len, len(sample.name)])
+        if repeats:
+            sample_names=[]
+            for sample in tab.samples:
+                sample_names.append(sample.title+': '+sample.name)
+                max_len=np.max([max_len, len(sample_names[-1])])
+        print(max_len)
+        self.offset_sample_var.set(sample_names[0])
+        self.offset_menu=OptionMenu(self.offset_sample_frame, self.offset_sample_var,*sample_names)
+        self.offset_menu.configure(width=max_len,highlightbackground=self.highlightbackgroundcolor)
+        self.offset_menu.pack(side=LEFT)
+        self.offset_frame=Frame(self.outer_offset_frame,bg=self.bg,padx=self.padx,pady=15)
+        self.offset_frame.pack()
+        self.offset_label=Label(self.offset_frame,text='Offset:',bg=self.bg,fg=self.textcolor)
+        self.offset_entry=Entry(self.offset_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.offset_button=Button(self.offset_frame,text='Apply',  command=offset,width=6, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.offset_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.offset_button.pack(side=RIGHT,padx=(10,10))
+        self.offset_entry.pack(side=RIGHT,padx=self.padx)
+        self.offset_label.pack(side=RIGHT,padx=self.padx)
         
         self.outer_outer_zoom_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_outer_zoom_frame.pack(expand=True,fill=BOTH)
@@ -3959,7 +4012,7 @@ class Controller():
         #print(entry)
         # pos=entry.index(INSERT)
         # name=entry.get()
-        name=name.replace('(','').replace(')','').replace('i=','i').replace('e=','e')
+        name=name.replace('(','').replace(')','').replace('i=','i').replace('e=','e').replace(':','')
         return name
         # entry.delete(0,'end')
         # entry.insert(0,name)

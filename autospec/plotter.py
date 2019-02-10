@@ -271,7 +271,19 @@ class Sample():
         self.data[spectrum_label]={'reflectance':[],'wavelength':[]}
         self.data[spectrum_label]['reflectance']=reflectance
         self.data[spectrum_label]['wavelength']=wavelengths
+    
+    def add_offset(self, offset):
+        print(offset)
+        try:
+            offset=float(offset)
+        except:
+            print('invalid offset')
+            return
         
+        for spec_label in self.data:
+            if 'reflectance' in self.data[spec_label]:
+                old=np.array(self.data[spec_label]['reflectance'])
+                self.data[spec_label]['reflectance']=old+offset
     #generate a list of hex colors that are evenly distributed from dark to light across a single hue. 
     def set_colors(self, hue):
         N=len(self.spectrum_labels)/2
@@ -299,7 +311,8 @@ class Tab():
     def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}, scrollable=True,original=None,x_axis='wavelength',y_axis='reflectance',xlim=None,ylim=None, exclude_artifacts=False, exclude_specular=False, specularity_tolerance=None):
         self.plotter=plotter
         if original==None: #This is true if we're not normalizing anything. holding on to the original data lets us reset.
-            self.original_samples=samples
+            self.original_samples=list(samples)
+
         else:
             self.original_samples=original
         self.samples=samples
@@ -498,7 +511,7 @@ class Tab():
                 w=wavelengths[index]
             elif index>2:
                 r=np.mean(reflectance[-7:-1])
-                w=wavelenghts[-4]
+                w=wavelengths[-4]
             elif index<len(reflectance)-3:
                 r=np.mean(reflectance[0:6]) #Take the first 6 values if you are at the beginning
                 w=wavelengths[3]
@@ -509,10 +522,51 @@ class Tab():
         index = (np.abs(array - val)).argmin()
         return index
         
+    def offset(self, sample_name, offset):
+        if ':' in sample_name:
+            title=sample_name.split(':')[0]
+            name=sample_name.split(':')[1]
+        else:
+            title=None
+            name=sample_name
+        for i, sample in enumerate(self.samples):
+            if name==sample.name:
+                if title==None or sample.title==title:
+                    print('found it!')
+                    print(sample.name)
+                    break
+        self.samples.pop(i)
+        print(len(self.original_samples))
+        
+        new_sample=Sample(sample.name, sample.file, sample.title)
+        
+        new_sample.data={}#dict(sample.data)
+        for key in sample.data:
+            new_sample.data[key]={}
+            for key2 in sample.data[key]:
+                new_sample.data[key][key2]=list(sample.data[key][key2])
+        new_sample.spectrum_labels=list(sample.spectrum_labels)
+        print('have not added offset')
+        for sample in self.original_samples:
+            print(sample.name)
+            for label in sample.spectrum_labels:
+                print(sample.data[label]['reflectance'][0])
+        new_sample.add_offset(offset)
+        print('just added offset')
+        for sample in self.original_samples:
+            print(sample.name)
+            for label in sample.spectrum_labels:
+                print(sample.data[label]['reflectance'][0])
+        self.samples.insert(i,new_sample)
+        for sample in self.original_samples:
+            print(sample.name)
+            for label in sample.spectrum_labels:
+                print(sample.data[label]['reflectance'][0])
+        self.refresh(original=self.original_samples)
+        
 
     def calculate_avg_reflectance(self, left, right):
-        left=float(left)
-        right=float(right)
+        left, right=self.validate_left_right(left, right)
         avgs=[]
         self.incidence_samples=[]
         self.emission_samples=[]
@@ -561,11 +615,10 @@ class Tab():
             self.incidence_samples.append(incidence_sample)
         self.plot.draw_vertical_lines([left, right])
 
-        return avgs, artifact_warning
+        return left, right, avgs, artifact_warning
         
     def calculate_band_centers(self, left, right):
-        left=float(left)
-        right=float(right)
+        left, right=self.validate_left_right(left, right)
         centers=[]
         self.incidence_samples=[]
         self.emission_samples=[]
@@ -648,11 +701,10 @@ class Tab():
             self.incidence_samples.append(incidence_sample)
         self.plot.draw_vertical_lines([left, right])
 
-        return centers, artifact_warning
+        return left, right, centers, artifact_warning
         
     def calculate_band_depths(self, left, right):
-        left=float(left)
-        right=float(right)
+        left, right=self.validate_left_right(left, right)
         depths=[]
         self.incidence_samples=[]
         self.emission_samples=[]
@@ -733,7 +785,7 @@ class Tab():
             self.incidence_samples.append(incidence_sample)
         self.plot.draw_vertical_lines([left, right])
 
-        return depths, artifact_warning
+        return left, right, depths, artifact_warning
         
     def get_e_i_g(self, label): #Extract e, i, and g from a label.
         i=int(label.split('i=')[1].split(' ')[0])
@@ -746,8 +798,7 @@ class Tab():
 
         
     def calculate_slopes(self, left, right):
-        left=float(left)
-        right=float(right)
+        left, right=self.validate_left_right(left, right)
         slopes=[]
         self.incidence_samples=[]
         self.emission_samples=[]
@@ -805,12 +856,38 @@ class Tab():
             self.incidence_samples.append(incidence_sample)
         self.plot.draw_vertical_lines([left, right])
 
-        return slopes, artifact_warning
+        return left, right, slopes, artifact_warning
+    def validate_left_right(self, left, right):
+        try:
+            left=float(left)
+        except:
+            
+            for sample in self.samples:
+                for i, label in enumerate(sample.spectrum_labels): 
+                    
+                    wavelengths=np.array(sample.data[label]['wavelength'])
+                    if i==0:
+                        left=np.min(wavelengths)
+                    else:
+                        left=np.min([left, np.min(wavelengths)])
+        try:
+            right=float(right)
+        except:
+            
+            for sample in self.samples:
+                for i, label in enumerate(sample.spectrum_labels): 
+                    
+                    wavelengths=np.array(sample.data[label]['wavelength'])
+                    if i==0:
+                        right=np.max(wavelengths)
+                    else:
+                        right=np.max([right, np.max(wavelengths)])
 
+        return left, right
     def calculate_error(self, left, right):
         print('calc!')
-        left=float(left)
-        right=float(right)
+        left, right=self.validate_left_right(left, right)
+                        
         avgs=[]
         self.error_samples=[]
         error_sample_names=[]
@@ -869,11 +946,10 @@ class Tab():
             
         self.plot.draw_vertical_lines([left, right])
 
-        return avg_errs, artifact_warning
+        return left, right, avg_errs, artifact_warning
         
     def calculate_reciprocity(self, left, right):
-        left=float(left)
-        right=float(right)
+        left, right=self.validate_left_right(left, right)
         avgs=[]
         self.recip_samples=[]
         artifact_warning=False
@@ -919,7 +995,7 @@ class Tab():
             self.recip_samples.append(recip_sample)
         self.plot.draw_vertical_lines([left, right])
 
-        return avgs, artifact_warning
+        return left, right, avgs, artifact_warning
     def plot_error(self, x_axis):
                 
         tab=Tab(self.plotter, u'\u0394'+'R compared to '+self.base_sample.name,self.error_samples, x_axis='wavelength',y_axis='difference')  
@@ -1442,12 +1518,24 @@ class Plot():
         
     def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
         self.lines=[]
+        repeats=False #Find if there are samples with the exact same name. If so, put the title in the legend as well as the name.
+        names=[]
+        for sample in self.samples:
+            for label in sample.spectrum_labels:
+                if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
+            if sample.name in names:
+                repeats=True
+            else:
+                names.append(sample.name)
+                
         for sample in self.samples:
             for label in sample.spectrum_labels:
                 if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
                 
                 legend_label=label
-                if len(self.samples)==1:
+                if repeats:
+                    legend_label=sample.title+': '+legend_label
+                elif len(self.samples)==1:
                     legend_label=legend_label.replace(sample.name,'').replace('(i=','i=').replace(')','')
 
                 color=sample.next_color()
