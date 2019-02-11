@@ -95,7 +95,7 @@ elif opsys=='Mac':
     except:
         print('Developer mode!')
         dev=True
-        package_loc='/home/khoza/Python/WWU-AutoSpec/wwu-autospec/'
+        package_loc='/home/khoza/Python/AutoSpec/autospec/'
 
 sys.path.append(package_loc)
 
@@ -3072,13 +3072,12 @@ class Controller():
             
             try:
                 self.slopes_listbox.delete(0,'end')
-                calculate_slopes()
+                self.plot_slope_button.configure(state='disabled')
             except:
                 pass
             tab.normalize(self.normalize_entry.get())
             
         def offset():
-            print('yay offset!')
             tab.offset(self.offset_sample_var.get(), self.offset_entry.get())
 
         def apply_x():
@@ -3102,7 +3101,13 @@ class Controller():
         def uncheck_exclude_artifacts():
             self.exclude_artifacts.set(0)
             self.exclude_artifacts_check.deselect()
-            
+        def disable_plot(analyze_var='None'):
+            try:
+                self.slopes_listbox.delete(0,'end')
+            except:
+                pass
+            self.plot_slope_button.configure(state='disabled')
+                
         def calculate_photometric_variability():
 
             photo_var=tab.calculate_photometric_variability(self.right_photo_var_entry.get(),self.left_photo_var_entry.get())
@@ -3116,13 +3121,15 @@ class Controller():
 
         def select_tab():
             self.view_notebook.select(tab.top)
-            
+        
+        
         tab.freeze() #You have to finish dealing with this before, say, opening another analysis box.
         buttons={
             'reset':{
                 select_tab:[],
                 tab.reset:[],
-                uncheck_exclude_artifacts:[]
+                uncheck_exclude_artifacts:[],
+                disable_plot:[]
             },
             'close':{}
         }
@@ -3254,7 +3261,7 @@ class Controller():
         self.slope_title_label.pack(side=LEFT,pady=(0,4))
         self.analyze_var=StringVar()
         self.analyze_var.set('slope')
-        self.analyze_menu=OptionMenu(self.slope_title_frame,self.analyze_var,'slope','band depth','band center','reflectance','reciprocity','difference')
+        self.analyze_menu=OptionMenu(self.slope_title_frame,self.analyze_var,'slope','band depth','band center','reflectance','reciprocity','difference',command=disable_plot)
         self.analyze_menu.configure(width=10,highlightbackground=self.highlightbackgroundcolor)
         self.analyze_menu.pack(side=LEFT)
 
@@ -3284,7 +3291,7 @@ class Controller():
         self.plot_slope_label=Label(self.plot_slope_frame,text='Plot as a function of',bg=self.bg,fg=self.textcolor)
         self.plot_slope_var=StringVar()
         self.plot_slope_var.set('e')
-        self.plot_slope_menu=OptionMenu(self.plot_slope_frame,self.plot_slope_var,'e','i','g')
+        self.plot_slope_menu=OptionMenu(self.plot_slope_frame,self.plot_slope_var,'e','i','g','e,i')
         self.plot_slope_menu.configure(width=2,highlightbackground=self.highlightbackgroundcolor)
         self.plot_slope_button=Button(self.plot_slope_frame,text='Plot',  command=plot,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
         self.plot_slope_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)

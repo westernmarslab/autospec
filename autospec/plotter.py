@@ -7,6 +7,9 @@ import numpy as np
 from tkinter import *
 from tkinter import filedialog
 import colorutils
+from matplotlib import cm
+import matplotlib.tri as mtri
+
 
 import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -572,6 +575,10 @@ class Tab():
         self.emission_samples=[]
         artifact_warning=False
         
+        self.contour_sample=Sample('all samples','file','title')
+        self.contour_sample.data={'all samples':{'i':[],'e':[],'band depth':[]}}
+        self.contour_sample.spectrum_labels=['all samples']
+        
         for i, sample in enumerate(self.samples):
             incidence_sample=Sample(sample.name,sample.file,sample.title)
             emission_sample=Sample(sample.name,sample.file,sample.title)
@@ -610,6 +617,10 @@ class Tab():
                 emission_sample.data[emission]['i'].append(i)
                 emission_sample.data[emission]['average reflectance'].append(avg)
                 
+                self.contour_sample.data['all samples']['e'].append(e)
+                self.contour_sample.data['all samples']['i'].append(i)
+                self.contour_sample.data['all samples']['average reflectance'].append(avg)
+                
                 avgs.append(label+': '+str(avg))
             self.emission_samples.append(emission_sample)
             self.incidence_samples.append(incidence_sample)
@@ -623,6 +634,11 @@ class Tab():
         self.incidence_samples=[]
         self.emission_samples=[]
         artifact_warning=False
+        
+        self.contour_sample=Sample('all samples','file','title')
+        self.contour_sample.data={'all samples':{'i':[],'e':[],'band center':[]}}
+        self.contour_sample.spectrum_labels=['all samples']
+
         
         for i, sample in enumerate(self.samples):
             incidence_sample=Sample(sample.name,sample.file,sample.title)
@@ -694,6 +710,10 @@ class Tab():
                 incidence_sample.data[incidence]['band center'].append(center)
                 emission_sample.data[emission]['i'].append(i)
                 emission_sample.data[emission]['band center'].append(center)
+                
+                self.contour_sample.data['all samples']['e'].append(e)
+                self.contour_sample.data['all samples']['i'].append(i)
+                self.contour_sample.data['all samples']['band center'].append(center)
 
                 
                 centers.append(label+': '+str(center))
@@ -710,6 +730,11 @@ class Tab():
         self.emission_samples=[]
         self.phase_samples=[]
         artifact_warning=False
+        
+        self.contour_sample=Sample('all samples','file','title')
+        self.contour_sample.data={'all samples':{'i':[],'e':[],'band depth':[]}}
+        self.contour_sample.spectrum_labels=['all samples']
+    
         
         
         for i, sample in enumerate(self.samples):
@@ -778,6 +803,10 @@ class Tab():
                 incidence_sample.data[incidence]['band depth'].append(depth)
                 emission_sample.data[emission]['i'].append(i)
                 emission_sample.data[emission]['band depth'].append(depth)
+                
+                self.contour_sample.data['all samples']['e'].append(e)
+                self.contour_sample.data['all samples']['i'].append(i)
+                self.contour_sample.data['all samples']['band depth'].append(depth)
 
                 
                 depths.append(label+': '+str(depth))
@@ -803,6 +832,13 @@ class Tab():
         self.incidence_samples=[]
         self.emission_samples=[]
         self.phase_samples=[]
+        
+        self.contour_sample=Sample('all samples','file','title')
+        self.contour_sample.data={'all samples':{'i':[],'e':[],'slope':[]}}
+        self.contour_sample.spectrum_labels=['all samples']
+        
+        
+
         artifact_warning=False
 
         for i, sample in enumerate(self.samples):
@@ -849,6 +885,10 @@ class Tab():
                 incidence_sample.data[incidence]['slope'].append(slope)
                 emission_sample.data[emission]['i'].append(i)
                 emission_sample.data[emission]['slope'].append(slope)
+                
+                self.contour_sample.data['all samples']['e'].append(e)
+                self.contour_sample.data['all samples']['i'].append(i)
+                self.contour_sample.data['all samples']['slope'].append(slope)
 
                 
                 slopes.append(label+': '+str(slope))
@@ -887,11 +927,18 @@ class Tab():
     def calculate_error(self, left, right):
         print('calc!')
         left, right=self.validate_left_right(left, right)
+        
                         
         avgs=[]
         self.error_samples=[]
         error_sample_names=[]
         artifact_warning=False
+        
+        self.contour_sample=Sample('all samples','file','title')
+        self.contour_sample.data={'all samples':{'i':[],'e':[],'difference':[]}}
+        self.contour_sample.spectrum_labels=['all samples']
+
+        
         
         for i, sample in enumerate(self.samples):
             if i==0:
@@ -907,6 +954,8 @@ class Tab():
                 wavelengths=np.array(sample.data[label]['wavelength'])
                 reflectance=np.array(sample.data[label]['reflectance'])
                 e,i,g=self.plotter.get_e_i_g(label)
+                index_left=self.get_index(wavelengths, left)
+                index_right=self.get_index(wavelengths, right)
                 found=False
                 for existing_label in self.base_sample.spectrum_labels:
                     e_old,i_old,g_old=self.plotter.get_e_i_g(existing_label)
@@ -915,14 +964,28 @@ class Tab():
                         error_sample.data[label]['difference']=reflectance-self.base_sample.data[existing_label]['reflectance']
                         error_sample.data[label]['wavelength']=wavelengths
                         error_sample.spectrum_labels.append(label)
+                        
+                        self.contour_sample.data['all samples']['e'].append(e)
+                        self.contour_sample.data['all samples']['i'].append(i)
+                        if index_left!=index_right:
+                            difference=reflectance-self.base_sample.data[existing_label]['reflectance'][index_left:index_right]
+                            self.contour_sample.data['all samples']['difference'].append(np.mean(difference))
+                        else:
+                            difference=reflectance-self.base_sample.data[existing_label]['reflectance'][index_left]
+                            self.contour_sample.data['all samples']['difference'].append(difference)
+                        
                         found=True
                         break
                 if found==False:
                     print('NO MATCH!!')
                     error_sample.data[label]={}
-                    error_sample.data[label]['difference']=reflectance-self.base_sample.data[existing_label]['reflectance']
+                    error_sample.data[label]['difference']=reflectance
                     error_sample.data[label]['wavelength']=wavelengths
                     error_sample.spectrum_labels.append(label)
+                    
+                    self.contour_sample.data['all samples']['e'].append(e)
+                    self.contour_sample.data['all samples']['i'].append(i)
+                    self.contour_sample.data['all samples']['difference'].append(np.mean(reflectance))
                     
                 
                 if self.exclude_artifacts: #If we are excluding artifacts, don't calculate slopes for anything in the range that is considered to be suspect
@@ -953,6 +1016,10 @@ class Tab():
         avgs=[]
         self.recip_samples=[]
         artifact_warning=False
+        
+        self.contour_sample=Sample('all samples','file','title')
+        self.contour_sample.data={'all samples':{'i':[],'e':[],'delta R':[]}}
+        self.contour_sample.spectrum_labels=['all samples']
         
         for i, sample in enumerate(self.samples):
             recip_sample=Sample(sample.name,sample.file,sample.title)
@@ -985,23 +1052,56 @@ class Tab():
                     recip_sample.data[label]['i'].append(i)
                     recip_sample.data[label]['g'].append(g)
                     recip_sample.data[label]['average reflectance'].append(avg)
+                    
+                    if len(recip_sample.data[label]['average reflectance'])>1:
+                        print('never get here')
+                        self.contour_sample.data['all samples']['e'].append(e)
+                        self.contour_sample.data['all samples']['i'].append(i)
+                        diff=np.abs(recip_sample.data[label]['average reflectance'][0]-avg)
+                        self.contour_sample.data['all samples']['delta R'].append(diff)
+                    
                 elif recip_label in recip_sample.data:
                     recip_sample.data[recip_label]['e'].append(e)
                     recip_sample.data[recip_label]['i'].append(i)
                     recip_sample.data[recip_label]['g'].append(g)
                     recip_sample.data[recip_label]['average reflectance'].append(avg)
+                    print(recip_sample.data[recip_label]['average reflectance'])
                     
+                    if len(recip_sample.data[recip_label]['average reflectance'])>1:
+                        print('But I think we get here?')
+                        
+                        self.contour_sample.data['all samples']['e'].append(e)
+                        self.contour_sample.data['all samples']['i'].append(i)
+                        diff=np.abs(recip_sample.data[recip_label]['average reflectance'][0]-avg)
+                        self.contour_sample.data['all samples']['delta R'].append(diff)
+                        
                 avgs.append(label+': '+str(avg))
             self.recip_samples.append(recip_sample)
+            print('contour sample data points')
+            print(self.contour_sample.data['all samples']['delta R'])
+            print(self.contour_sample.data['all samples']['i'])
+            print(self.contour_sample.data['all samples']['e'])
+            
+            
         self.plot.draw_vertical_lines([left, right])
 
         return left, right, avgs, artifact_warning
     def plot_error(self, x_axis):
-                
-        tab=Tab(self.plotter, u'\u0394'+'R compared to '+self.base_sample.name,self.error_samples, x_axis='wavelength',y_axis='difference')  
+        if x_axis=='e,i': 
+            x_axis='contour'
+            tab=Tab(self.plotter, u'\u0394'+'R compared to '+self.base_sample.name,[self.contour_sample], x_axis='contour',y_axis='difference')  
+        else:
+            tab=Tab(self.plotter, u'\u0394'+'R compared to '+self.base_sample.name,self.error_samples, x_axis='wavelength',y_axis='difference')  
         return tab 
     def plot_reciprocity(self, x_axis):
-        tab=Tab(self.plotter, 'Reciprocity',self.recip_samples, x_axis=x_axis,y_axis='average reflectance')
+        if x_axis=='e,i': 
+            x_axis='contour'
+            tab=Tab(self.plotter, 'Reciprocity',[self.contour_sample], x_axis=x_axis,y_axis='delta R')
+        else:
+            for sample in self.recip_samples:
+                for label in sample.spectrum_labels:
+                    print(sample.data[label]['average reflectance'])
+            tab=Tab(self.plotter, 'Reciprocity',self.recip_samples, x_axis=x_axis,y_axis='average reflectance')
         return tab
 
     def plot_avg_reflectance(self, x_axis):
@@ -1011,6 +1111,8 @@ class Tab():
             tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='average reflectance')
         elif x_axis=='g':
             tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='average reflectance') 
+        elif x_axis=='e,i':
+            tab=Tab(self.plotter, 'Reflectance',[self.contour_sample], x_axis='contour',y_axis='average reflectance') 
     def plot_band_centers(self, x_axis):
         if x_axis=='e':
             tab=Tab(self.plotter, 'Band center vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band center')
@@ -1018,6 +1120,8 @@ class Tab():
             tab=Tab(self.plotter, 'Band center vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='band center')
         elif x_axis=='g':
             tab=Tab(self.plotter, 'Band center vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band center') 
+        elif x_axis=='e,i':
+            tab=Tab(self.plotter, 'Band center',[self.contour_sample], x_axis='contour',y_axis='band center') 
     def plot_band_depths(self, x_axis):
         if x_axis=='e':
             tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band depth')
@@ -1025,14 +1129,20 @@ class Tab():
             tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='band depth')
         elif x_axis=='g':
             tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band depth')  
+        elif x_axis=='e,i':
+            tab=Tab(self.plotter, 'Band depth',[self.contour_sample], x_axis='contour',y_axis='band depth') 
             
     def plot_slopes(self, x_axis):
-        if x_axis=='e':
+        if x_axis=='e,i':
+            tab=Tab(self.plotter, 'Slope',[self.contour_sample], x_axis='contour',y_axis='slope')
+        elif x_axis=='e':
             tab=Tab(self.plotter, 'Slope vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='slope')
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Slope vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='slope')
         elif x_axis=='g':
             tab=Tab(self.plotter, 'Slope vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='slope')
+        elif x_axis=='i,e':
+            tab=Tab(self.plotter, 'Slope',[self.contour_sample], x_axis='contour',y_axis='slope')
         
     def calculate_photometric_variability(self, left, right):
         left=float(left)
@@ -1442,6 +1552,9 @@ class Plot():
     
     def adjust_x(self, left, right):
         self.plot.set_xlim(left, right)
+        print('ADJUST')
+        print(left)
+        print(right)
         self.xlim=[left,right]
         self.set_x_ticks()
         self.fig.canvas.draw()
@@ -1481,12 +1594,12 @@ class Plot():
 
 
 
-            major_ticks = np.arange(np.round(self.xlim[0],order),self.xlim[1]+10**float(-1*order), interval)
-            minor_ticks = np.arange(np.round(self.xlim[0],order),self.xlim[1]+10**float(-1*order), interval_2)
+            major_ticks = np.arange(np.round(self.xlim[0],order),self.xlim[1]+.01**float(-1*order), interval)
+            minor_ticks = np.arange(np.round(self.xlim[0],order),self.xlim[1]+.01**float(-1*order), interval_2)
         else:
 
-            major_ticks = np.arange(np.round(self.xlim[0],order)-10**float(-1*order),self.xlim[1]+10**float(-1*order), interval)
-            minor_ticks = np.arange(np.round(self.xlim[0],order)-10**float(-1*order),self.xlim[1]+10**float(-1*order), interval_2)
+            major_ticks = np.arange(np.round(self.xlim[0],order)-10**float(-1*order),self.xlim[1]+.01**float(-1*order), interval)
+            minor_ticks = np.arange(np.round(self.xlim[0],order)-10**float(-1*order),self.xlim[1]+.01**float(-1*order), interval_2)
 
         
         
@@ -1518,6 +1631,20 @@ class Plot():
         
     def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
         self.lines=[]
+        
+        if self.x_axis=='contour':
+            # self.plot.tricontour(self.samples[0].data['all samples']['e'], self.samples[0].data['all samples']['i'], self.samples[0].data['all samples'][self.y_axis], levels=14, linewidths=0.5, colors='k')
+            x=self.samples[0].data['all samples']['e']
+            y=self.samples[0].data['all samples']['i']
+            z=self.samples[0].data['all samples'][self.y_axis]
+
+            triang = mtri.Triangulation(x, y)
+            cntr2=self.plot.tricontourf(triang, z)
+            self.adjust_x(np.min(x),np.max(x))
+            self.adjust_y(np.min(y),np.max(y))
+        
+            self.fig.colorbar(cntr2, ax=self.plot)
+        
         repeats=False #Find if there are samples with the exact same name. If so, put the title in the legend as well as the name.
         names=[]
         for sample in self.samples:
@@ -1527,6 +1654,7 @@ class Plot():
                 repeats=True
             else:
                 names.append(sample.name)
+                
                 
         for sample in self.samples:
             for label in sample.spectrum_labels:
@@ -1562,13 +1690,18 @@ class Plot():
 
                     self.lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], 'o',label=legend_label,color=color, markersize=6))
                 else:
+
+                                        
                     self.lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], '-o',label=legend_label,color=color, markersize=5))
                 
         self.plot.set_title(self.title, fontsize=24)
         
-        if self.y_axis=='reflectance':
+        if self.x_axis=='contour':
+            self.plot.set_xlabel('Emission (degrees)',fontsize=18)
+            self.plot.set_ylabel('Incidence (degrees)',fontsize=18)
+        elif self.y_axis=='reflectance':
             self.plot.set_ylabel('Reflectance',fontsize=18)
-        if self.y_axis=='difference':
+        elif self.y_axis=='difference':
             self.plot.set_ylabel('$\Delta$R',fontsize=18)
         elif self.y_axis=='slope':
             self.plot.set_ylabel('Slope',fontsize=18)
@@ -1580,9 +1713,12 @@ class Plot():
             self.plot.set_xlabel('Emission (degrees)',fontsize=18)
         elif self.x_axis=='g':
             self.plot.set_xlabel('Phase angle (degrees)',fontsize=18)
+        
         self.plot.tick_params(labelsize=14)
 
-        self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
+        if self.x_axis!='contour': #If it is a contour map, we put in the colorbar already above.
+            self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
+        
         
         self.plot.set_xlim(*self.xlim)
         self.plot.set_ylim(*self.ylim)

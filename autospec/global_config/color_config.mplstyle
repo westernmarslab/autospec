@@ -5,7 +5,6 @@ text.color: lightgray
 axes.facecolor: 333333
 axes.edgecolor: lightgray
 axes.labelcolor: lightgray
-image.cmap: 'tab20'
 
 xtick.color: white
 ytick.color: white
