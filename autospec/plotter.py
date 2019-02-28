@@ -383,7 +383,8 @@ class Tab():
         
         #self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi) 
         self.fig = mpl.figure.Figure(figsize=(self.width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi)
-        self.white_fig=mpl.figure.Figure(figsize=(self.width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi)
+        with plt.style.context(('default')):
+            self.white_fig=mpl.figure.Figure(figsize=(self.width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.top.interior)
         self.white_canvas = FigureCanvasTkAgg(self.white_fig)
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
@@ -1536,7 +1537,8 @@ class Plot():
         self.gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
 
         self.plot = fig.add_subplot(self.gs[0])
-        self.white_plot=self.white_fig.add_subplot(self.gs[0])
+        with plt.style.context(('default')):
+            self.white_plot=self.white_fig.add_subplot(self.gs[0])
         pos1 = self.plot.get_position() # get the original position 
 
         
@@ -1588,7 +1590,9 @@ class Plot():
             self.plotter.save_dir='\\'.join(path.split('\\')[0:-1])
         elif '/' in path:
             self.plotter.save_dir='/'.join(path.split('/')[0:-1])
-        self.white_fig.savefig(path)
+            
+        self.white_fig.tight_layout()
+        self.white_fig.savefig(path, facecolor=self.white_fig.get_facecolor(), edgecolor='black')
         
     def set_title(self,title):
         self.title=title
@@ -1689,17 +1693,19 @@ class Plot():
         while interval==0: #I don't think this ever happens.
             order+=1
             interval=np.round(delta_y/5,order)
-        print(str(self.ylim[0]))
-        print(str(self.ylim[1]+.01))
-        print(interval)
+
         if np.isnan(interval): #Happens if all y values are equal
             interval=.002
         y_ticks = np.arange(self.ylim[0],self.ylim[1]+.01, interval)
 
         self.plot.grid(which='minor', alpha=0.1)
-        self.white_plot.grid(which='minor', alpha=0.1)
         self.plot.grid(which='major', alpha=0.1)
-        self.white_plot.grid(which='minor', alpha=0.1)
+        with plt.style.context('default'):
+            self.white_plot.grid(which='minor', alpha=0.3)
+            self.white_plot.grid(which='major', alpha=0.3)
+            print('yep setting grid')
+        
+        
         
     def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
         self.lines=[]
@@ -1712,14 +1718,21 @@ class Plot():
 
             triang = mtri.Triangulation(x, y)
             cntr2=self.plot.tricontourf(triang, z)
-            white_cntr2=self.white_plot.tricontourf(triang, z)
+            self.fig.colorbar(cntr2, ax=self.plot)
+            self.plot.plot(x,y,'+',color='white',markersize=5,alpha=0.5)
+            
+            with plt.style.context(('default')):
+                white_cntr2=self.white_plot.tricontourf(triang, z)
+                cbar=self.white_fig.colorbar(white_cntr2, ax=self.white_plot)
+                cbar.ax.tick_params(labelsize=14) 
+                self.white_plot.plot(x,y,'+',color='white',markersize=5,alpha=0.5)
+
+        
+
+            
             self.adjust_x(np.min(x),np.max(x))
             self.adjust_y(np.min(y),np.max(y))
-        
-            self.fig.colorbar(cntr2, ax=self.plot)
-            self.white_fig.colorbar(cntr2, ax=self.white_plot)
-            self.plot.plot(x,y,'+',color='white',markersize=5,alpha=0.5)
-            self.white_plot.plot(x,y,'+',color='white',markersize=5,alpha=0.5)
+            
         
         repeats=False #Find if there are samples with the exact same name. If so, put the title in the legend as well as the name.
         names=[]
@@ -1802,10 +1815,16 @@ class Plot():
                     self.lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], '-o',label=legend_label,color=color, markersize=5))
                 
         self.plot.set_title(self.title, fontsize=24)
+        with plt.style.context(('default')):
+            print('hi!')
+            self.white_plot.set_title(self.title, fontsize=24)
         
         if self.x_axis=='contour':
             self.plot.set_xlabel('Emission (degrees)',fontsize=18)
             self.plot.set_ylabel('Incidence (degrees)',fontsize=18)
+            with plt.style.context(('default')):
+                self.white_plot.set_xlabel('Emission (degrees)',fontsize=18)
+                self.white_plot.set_ylabel('Incidence (degrees)',fontsize=18)
         elif self.y_axis=='reflectance':
             self.plot.set_ylabel('Reflectance',fontsize=18)
         elif self.y_axis=='difference':
@@ -1822,7 +1841,8 @@ class Plot():
             self.plot.set_xlabel('Phase angle (degrees)',fontsize=18)
         
         self.plot.tick_params(labelsize=14)
-
+        with plt.style.context(('default')):
+            self.white_plot.tick_params(labelsize=14)
         if self.x_axis!='contour': #If it is a contour map, we put in the colorbar already above.
             self.plot.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
         
