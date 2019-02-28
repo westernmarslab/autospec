@@ -9,6 +9,8 @@ from tkinter import filedialog
 import colorutils
 from matplotlib import cm
 import matplotlib.tri as mtri
+import pickle
+import io
 
 
 import matplotlib.backends.tkagg as tkagg
@@ -79,7 +81,7 @@ class Plotter():
                 j+=1
                 new=title+' ('+str(j)+')'
             title=new
-        self.titles.append(title)
+        #self.titles.append(title)
                 
 
         try:
@@ -120,7 +122,7 @@ class Plotter():
             new_samples.append(self.samples[file][sample])
             #tab=Tab(self, title,[self.samples[file][sample]])
         
-        tab=Tab(self,title,[new_samples[0]])
+        tab=Tab(self,title+': '+new_samples[0].name,[new_samples[0]])
 
     # def savefig(self,title, sample=None):
     #     self.draw_plot(title, 'v2.0')
@@ -191,8 +193,12 @@ class Plotter():
         
         if dist_to_edge<18:
             index = self.notebook.index("@%d,%d" % (event.x, event.y))
+            tab=self.notebook.tab("@%d,%d" % (event.x, event.y))
+            name=tab['text'][:-2]
+            print(name)
             if index!=0:
                 self.notebook.forget(index)
+                self.titles.remove(name)
                 self.notebook.event_generate("<<NotebookTabClosed>>")
                 
     #This capitalizes Xs for closing tabs when you hover over them.
@@ -203,12 +209,11 @@ class Plotter():
                 if i==0:
                     continue #Don't change text on Goniometer view tab
                 text=self.notebook.tab(tab, option='text')
-                self.notebook.tab(tab, text=text[0:-1]+'x')
+                self.notebook.tab(tab, text=text[0:-1]+'x') #Otherwise, make sure you have a lowercase 'x' at the end of each tab name.
 
-        else:
+        else: 
             tab=self.notebook.tab("@%d,%d" % (event.x, event.y))
             text=tab['text'][:-1]
-
             if 'Goniometer' in text:
                 return
             else:
@@ -276,7 +281,6 @@ class Sample():
         self.data[spectrum_label]['wavelength']=wavelengths
     
     def add_offset(self, offset):
-        print(offset)
         try:
             offset=float(offset)
         except:
@@ -320,11 +324,15 @@ class Tab():
             self.original_samples=original
         self.samples=samples
         self.geoms=geoms
-        if False:#title_override==False:
-            self.title=title+ ': '+samples[0].name
-            #self.title=samples[0].name
-        else:
-            self.title=title
+
+        self.title=title
+        base=title
+        i=1
+        while title in self.plotter.titles:
+            title=base+' ('+str(i)+')'
+            i=i+1
+        self.notebook_title=title
+        self.plotter.titles.append(self.notebook_title)
     
             
         self.x_axis=x_axis
@@ -362,7 +370,7 @@ class Tab():
         
         #If this is being created from the File -> Plot option, or from right click -> new tab, just put the tab at the end.
         if tab_index==None:
-            self.plotter.notebook.add(self.top,text=self.title+' x')
+            self.plotter.notebook.add(self.top,text=self.notebook_title+' x')
             self.plotter.notebook.select(self.plotter.notebook.tabs()[-1])
             self.index=self.plotter.notebook.index(self.plotter.notebook.select())
         #If this is being called after the user did Right click -> choose samples to plot, put it at the same index as before.
@@ -374,9 +382,10 @@ class Tab():
             
         
         #self.fig = mpl.figure.Figure(figsize=(width/self.plotter.dpi, height/self.plotter.dpi), dpi=self.plotter.dpi) 
-        self.fig = mpl.figure.Figure(figsize=(self.width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi) 
- 
+        self.fig = mpl.figure.Figure(figsize=(self.width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi)
+        self.white_fig=mpl.figure.Figure(figsize=(self.width/self.plotter.dpi, self.height/self.plotter.dpi),dpi=self.plotter.dpi)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.top.interior)
+        self.white_canvas = FigureCanvasTkAgg(self.white_fig)
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
         self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
 
@@ -428,7 +437,7 @@ class Tab():
         self.top.bind('<Configure>',resize_fig)
 
         
-        self.plot=Plot(self.plotter, self.fig, self.samples,self.title, self.oversize_legend,self.plot_scale,self.plot_width,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim, exclude_artifacts=self.exclude_artifacts)
+        self.plot=Plot(self.plotter, self.fig, self.white_fig,self.samples,self.title, self.oversize_legend,self.plot_scale,self.plot_width,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim, exclude_artifacts=self.exclude_artifacts)
 
 
 
@@ -464,10 +473,8 @@ class Tab():
         self.plotter.new_tab()
     
     def open_options(self):
-        print('Options!')
         self.plotter.controller.open_options(self, self.title)
     def set_title(self,title):
-        print(title)
         self.title=title
         self.plotter.notebook.tab(self.top, text = title+' x')
         self.plot.set_title(title)
@@ -480,7 +487,6 @@ class Tab():
 
         
     def set_exclude_artifacts(self, bool):
-        print(bool)
         for i, sample in enumerate(self.plot.samples):
             sample.set_colors(self.plot.hues[i%len(self.plot.hues)])
         self.exclude_artifacts=bool
@@ -535,11 +541,9 @@ class Tab():
         for i, sample in enumerate(self.samples):
             if name==sample.name:
                 if title==None or sample.title==title:
-                    print('found it!')
-                    print(sample.name)
+
                     break
         self.samples.pop(i)
-        print(len(self.original_samples))
         
         new_sample=Sample(sample.name, sample.file, sample.title)
         
@@ -549,22 +553,20 @@ class Tab():
             for key2 in sample.data[key]:
                 new_sample.data[key][key2]=list(sample.data[key][key2])
         new_sample.spectrum_labels=list(sample.spectrum_labels)
-        print('have not added offset')
-        for sample in self.original_samples:
-            print(sample.name)
-            for label in sample.spectrum_labels:
-                print(sample.data[label]['reflectance'][0])
+        # for sample in self.original_samples:
+        #     print(sample.name)
+        #     for label in sample.spectrum_labels:
+        #         print(sample.data[label]['reflectance'][0])
         new_sample.add_offset(offset)
-        print('just added offset')
-        for sample in self.original_samples:
-            print(sample.name)
-            for label in sample.spectrum_labels:
-                print(sample.data[label]['reflectance'][0])
+        # for sample in self.original_samples:
+        #     print(sample.name)
+        #     for label in sample.spectrum_labels:
+        #         print(sample.data[label]['reflectance'][0])
         self.samples.insert(i,new_sample)
-        for sample in self.original_samples:
-            print(sample.name)
-            for label in sample.spectrum_labels:
-                print(sample.data[label]['reflectance'][0])
+        # for sample in self.original_samples:
+        #     print(sample.name)
+        #     for label in sample.spectrum_labels:
+        #         print(sample.data[label]['reflectance'][0])
         self.refresh(original=self.original_samples)
         
 
@@ -576,7 +578,7 @@ class Tab():
         artifact_warning=False
         
         self.contour_sample=Sample('all samples','file','title')
-        self.contour_sample.data={'all samples':{'i':[],'e':[],'band depth':[]}}
+        self.contour_sample.data={'all samples':{'i':[],'e':[],'average reflectance':[]}}
         self.contour_sample.spectrum_labels=['all samples']
         
         for i, sample in enumerate(self.samples):
@@ -604,7 +606,7 @@ class Tab():
                
                 
                 if incidence not in incidence_sample.data:
-                    incidence_sample.data[incidence]={'e':[],'g':[],'average reflectance':[]}
+                    incidence_sample.data[incidence]={'e':[],'theta':[],'g':[],'average reflectance':[]}
                     incidence_sample.spectrum_labels.append(incidence)
                 if emission not in emission_sample.data:
                     emission_sample.data[emission]={'i':[],'average reflectance':[]}
@@ -612,6 +614,7 @@ class Tab():
 
                 
                 incidence_sample.data[incidence]['e'].append(e)
+                incidence_sample.data[incidence]['theta'].append(e)
                 incidence_sample.data[incidence]['g'].append(g)
                 incidence_sample.data[incidence]['average reflectance'].append(avg)
                 emission_sample.data[emission]['i'].append(i)
@@ -628,7 +631,7 @@ class Tab():
 
         return left, right, avgs, artifact_warning
         
-    def calculate_band_centers(self, left, right):
+    def calculate_band_centers(self, left, right, use_max_for_centers, center_based_on_delta_to_continuum):
         left, right=self.validate_left_right(left, right)
         centers=[]
         self.incidence_samples=[]
@@ -666,27 +669,23 @@ class Tab():
                 
                 
                 slope=(r_right-r_left)/(w_right-w_left)
-                r_min=np.min(reflectance[index_left:index_right])
-                r_max=np.max(reflectance[index_left:index_right])
+                continuum=reflectance[index_left]+slope*(wavelengths[index_left:index_right]-wavelengths[index_left])
+                diff=continuum-reflectance[index_left:index_right]
                 
-                index_r_min=self.get_index(reflectance,r_min)
-                index_r_max=self.get_index(reflectance,r_max)
-                w_min=wavelengths[index_r_min]
-                w_max=wavelengths[index_r_max]
-                delta_w_min=w_min-w_left
-                delta_w_max=w_max-w_left
-                
-                r_continuum_min=r_left+slope*delta_w_min
-                r_continuum_max=r_left+slope*delta_w_max
-
-                
-                depth_min=r_continuum_min-r_min
-                depth_max=r_continuum_max-r_max
-                
-                if np.abs(depth_min)>np.abs(depth_max):
-                    center=wavelengths[index_r_min]
+                if center_based_on_delta_to_continuum:
+                    index_peak=list(diff).index(np.min(diff)) #this is confusing, because we report an absorption band as positive depth, a local maximum in the spectrum occurs at the minimum value of diff.
+                    index_trough=list(diff).index(np.max(diff))
                 else:
-                    center=wavelengths[index_r_max]
+                    r_trough=np.min(reflectance[index_left:index_right])
+                    r_peak=np.max(reflectance[index_left:index_right])
+                    index_trough=list(reflectance[index_left:index_right]).index(r_trough)
+                    index_peak=list(reflectance[index_left:index_right]).index(r_peak)
+                
+                
+                if np.abs(diff[index_peak])>np.abs(diff[index_trough]) and use_max_for_centers:
+                    center=wavelengths[index_peak+index_left]
+                else:
+                    center=wavelengths[index_trough+index_left]
                 
                 
 
@@ -697,7 +696,7 @@ class Tab():
                
                 
                 if incidence not in incidence_sample.data:
-                    incidence_sample.data[incidence]={'e':[],'g':[],'band center':[]}
+                    incidence_sample.data[incidence]={'e':[],'theta':[],'g':[],'band center':[]}
                     incidence_sample.spectrum_labels.append(incidence)
                 if emission not in emission_sample.data:
                     emission_sample.data[emission]={'i':[],'band center':[]}
@@ -706,6 +705,7 @@ class Tab():
 
                 
                 incidence_sample.data[incidence]['e'].append(e)
+                incidence_sample.data[incidence]['theta'].append(e)
                 incidence_sample.data[incidence]['g'].append(g)
                 incidence_sample.data[incidence]['band center'].append(center)
                 emission_sample.data[emission]['i'].append(i)
@@ -723,7 +723,7 @@ class Tab():
 
         return left, right, centers, artifact_warning
         
-    def calculate_band_depths(self, left, right):
+    def calculate_band_depths(self, left, right, report_negative, center_based_on_delta_to_continuum):
         left, right=self.validate_left_right(left, right)
         depths=[]
         self.incidence_samples=[]
@@ -762,27 +762,25 @@ class Tab():
                 
                 
                 slope=(r_right-r_left)/(w_right-w_left)
-                r_min=np.min(reflectance[index_left:index_right])
-                r_max=np.max(reflectance[index_left:index_right])
+                continuum=reflectance[index_left]+slope*(wavelengths[index_left:index_right]-wavelengths[index_left])
+                diff=continuum-reflectance[index_left:index_right]
                 
-                index_r_min=self.get_index(reflectance,r_min)
-                index_r_max=self.get_index(reflectance,r_max)
-                w_min=wavelengths[index_r_min]
-                w_max=wavelengths[index_r_max]
-                delta_w_min=w_min-w_left
-                delta_w_max=w_max-w_left
                 
-                r_continuum_min=r_left+slope*delta_w_min
-                r_continuum_max=r_left+slope*delta_w_max
-
-                
-                depth_min=r_continuum_min-r_min
-                depth_max=r_continuum_max-r_max
-                
-                if np.abs(depth_min)>np.abs(depth_max):
-                    depth=depth_min
+                if center_based_on_delta_to_continuum:
+                    index_peak=list(diff).index(np.min(diff)) #this is confusing, because we report an absorption band as positive depth, a local maximum in the spectrum occurs at the minimum value of diff.
+                    index_trough=list(diff).index(np.max(diff))
                 else:
-                    depth=depth_max
+                    r_trough=np.min(reflectance[index_left:index_right])
+                    r_peak=np.max(reflectance[index_left:index_right])
+                    index_trough=list(reflectance[index_left:index_right]).index(r_trough)
+                    index_peak=list(reflectance[index_left:index_right]).index(r_peak)
+                
+                
+                if np.abs(diff[index_peak])>np.abs(diff[index_trough]) and report_negative:
+                    depth=diff[index_peak]
+                else:
+                    depth=diff[index_trough]
+                    
                 
                                 
                 incidence=sample.name+' (i='+str(i)+')'
@@ -791,7 +789,7 @@ class Tab():
                
                 
                 if incidence not in incidence_sample.data:
-                    incidence_sample.data[incidence]={'e':[],'g':[],'band depth':[]}
+                    incidence_sample.data[incidence]={'e':[],'theta':[],'g':[],'band depth':[]}
                     incidence_sample.spectrum_labels.append(incidence)
                 if emission not in emission_sample.data:
                     emission_sample.data[emission]={'i':[],'band depth':[]}
@@ -799,6 +797,7 @@ class Tab():
 
                 
                 incidence_sample.data[incidence]['e'].append(e)
+                incidence_sample.data[incidence]['theta'].append(e)
                 incidence_sample.data[incidence]['g'].append(g)
                 incidence_sample.data[incidence]['band depth'].append(depth)
                 emission_sample.data[emission]['i'].append(i)
@@ -841,6 +840,7 @@ class Tab():
 
         artifact_warning=False
 
+
         for i, sample in enumerate(self.samples):
             incidence_sample=Sample(sample.name,sample.file,sample.title)
             emission_sample=Sample(sample.name,sample.file,sample.title)
@@ -872,7 +872,7 @@ class Tab():
                
                 
                 if incidence not in incidence_sample.data:
-                    incidence_sample.data[incidence]={'e':[],'g':[],'slope':[]}
+                    incidence_sample.data[incidence]={'e':[],'theta':[],'g':[],'slope':[]}
                     incidence_sample.spectrum_labels.append(incidence)
                 if emission not in emission_sample.data:
                     emission_sample.data[emission]={'i':[],'slope':[]}
@@ -881,6 +881,7 @@ class Tab():
 
                 
                 incidence_sample.data[incidence]['e'].append(e)
+                incidence_sample.data[incidence]['theta'].append(e)
                 incidence_sample.data[incidence]['g'].append(g)
                 incidence_sample.data[incidence]['slope'].append(slope)
                 emission_sample.data[emission]['i'].append(i)
@@ -924,8 +925,8 @@ class Tab():
                         right=np.max([right, np.max(wavelengths)])
 
         return left, right
-    def calculate_error(self, left, right):
-        print('calc!')
+        
+    def calculate_error(self, left, right, abs_val):
         left, right=self.validate_left_right(left, right)
         
                         
@@ -933,65 +934,100 @@ class Tab():
         self.error_samples=[]
         error_sample_names=[]
         artifact_warning=False
+        error=False
         
         self.contour_sample=Sample('all samples','file','title')
         self.contour_sample.data={'all samples':{'i':[],'e':[],'difference':[]}}
         self.contour_sample.spectrum_labels=['all samples']
 
         
-        
         for i, sample in enumerate(self.samples):
-            if i==0:
+            if i==0 and len(self.samples)>1:
                 self.base_sample=sample#Sample(sample.name,sample.file,sample.title)
-                continue
 
-            else:
-                error_sample=Sample(sample.name,sample.file,sample.title)
-                self.error_samples.append(error_sample)
+                continue
+            elif len(self.samples)==1:
+                #if there is only one sample, we'll use the base to build an error sample with spectra showing difference from middle spectrum in list.
+                i=int(len(sample.spectrum_labels)/2)
+                self.base_spectrum_label=sample.spectrum_labels[i]
+                self.base_sample=Sample(self.base_spectrum_label,'file','title' ) #This is used for putting the title onto the new plot (delta R compared to sample (i=x, e=y))
+
+            error_sample=Sample(sample.name,sample.file,sample.title)
+            self.error_samples.append(error_sample)
 
 
             for label in sample.spectrum_labels: 
                 wavelengths=np.array(sample.data[label]['wavelength'])
                 reflectance=np.array(sample.data[label]['reflectance'])
                 e,i,g=self.plotter.get_e_i_g(label)
+                if self.exclude_artifacts: #If we are excluding artifacts, don't calculate slopes for anything in the range that is considered to be suspect
+                    if self.plotter.artifact_danger(g, left, right):
+                        artifact_warning=True #We'll return this to the controller, which will throw up a dialog warning the user that we are skipping some spectra.
+                        continue
+                
                 index_left=self.get_index(wavelengths, left)
                 index_right=self.get_index(wavelengths, right)
-                found=False
-                for existing_label in self.base_sample.spectrum_labels:
-                    e_old,i_old,g_old=self.plotter.get_e_i_g(existing_label)
-                    if e==e_old and i==i_old:
-                        error_sample.data[label]={}
-                        error_sample.data[label]['difference']=reflectance-self.base_sample.data[existing_label]['reflectance']
-                        error_sample.data[label]['wavelength']=wavelengths
-                        error_sample.spectrum_labels.append(label)
-                        
-                        self.contour_sample.data['all samples']['e'].append(e)
-                        self.contour_sample.data['all samples']['i'].append(i)
-                        if index_left!=index_right:
-                            difference=reflectance-self.base_sample.data[existing_label]['reflectance'][index_left:index_right]
-                            self.contour_sample.data['all samples']['difference'].append(np.mean(difference))
-                        else:
-                            difference=reflectance-self.base_sample.data[existing_label]['reflectance'][index_left]
-                            self.contour_sample.data['all samples']['difference'].append(difference)
-                        
-                        found=True
-                        break
-                if found==False:
-                    print('NO MATCH!!')
+                
+                if len(self.samples)==1:
                     error_sample.data[label]={}
-                    error_sample.data[label]['difference']=reflectance
+                    error_sample.data[label]['difference']=reflectance-sample.data[self.base_spectrum_label]['reflectance']
                     error_sample.data[label]['wavelength']=wavelengths
                     error_sample.spectrum_labels.append(label)
                     
                     self.contour_sample.data['all samples']['e'].append(e)
                     self.contour_sample.data['all samples']['i'].append(i)
-                    self.contour_sample.data['all samples']['difference'].append(np.mean(reflectance))
+                    if index_left!=index_right:
+                        difference=reflectance[index_left:index_right]-sample.data[self.base_spectrum_label]['reflectance'][index_left:index_right]
+                        if abs_val: 
+                            difference=np.abs(difference)
+                        self.contour_sample.data['all samples']['difference'].append(np.mean(difference))
+                    else:
+                        difference=reflectance[index_left]-sample.data[self.base_spectrum_label]['reflectance'][index_left]
+                        if abs_val: difference=np.abs(difference)
+                        self.contour_sample.data['all samples']['difference'].append(difference)
+                    
+                else:
+                    found=False
+                    for existing_label in self.base_sample.spectrum_labels:
+                        e_old,i_old,g_old=self.plotter.get_e_i_g(existing_label)
+                        if e==e_old and i==i_old:
+                            error_sample.data[label]={}
+                            error_sample.data[label]['difference']=reflectance-self.base_sample.data[existing_label]['reflectance']
+                            error_sample.data[label]['wavelength']=wavelengths
+                            error_sample.spectrum_labels.append(label)
+                            
+                            self.contour_sample.data['all samples']['e'].append(e)
+                            self.contour_sample.data['all samples']['i'].append(i)
+                            if index_left!=index_right:
+                                difference=reflectance[index_left:index_right]-self.base_sample.data[existing_label]['reflectance'][index_left:index_right]
+                                if abs_val: difference=np.abs(difference)
+                                self.contour_sample.data['all samples']['difference'].append(np.mean(difference))
+                            else:
+                                difference=reflectance[index_left]-self.base_sample.data[existing_label]['reflectance'][index_left]
+                                if abs_val: difference=np.abs(difference)
+                                self.contour_sample.data['all samples']['difference'].append(difference)
+                            
+                            found=True
+                            break
+                    if found==False:
+                        print('NO MATCH!!')
+                        print(label)
+                        if error=='':
+                            error='Error: No corresponding spectrum found.\n'
+                        error+='\n'+label
+                        error_sample.data[label]={}
+                        error_sample.data[label]['difference']=reflectance
+                        error_sample.data[label]['wavelength']=wavelengths
+                        error_sample.spectrum_labels.append(label)
+                        
+                        self.contour_sample.data['all samples']['e'].append(e)
+                        self.contour_sample.data['all samples']['i'].append(i)
+                        self.contour_sample.data['all samples']['difference'].append(np.mean(reflectance))
                     
                 
-                if self.exclude_artifacts: #If we are excluding artifacts, don't calculate slopes for anything in the range that is considered to be suspect
-                    if self.plotter.artifact_danger(g, left, right):
-                        artifact_warning=True #We'll return this to the controller, which will throw up a dialog warning the user that we are skipping some spectra.
-                        continue
+
+                        
+        print(error)
 
 
         avg_errs=[]
@@ -1002,10 +1038,14 @@ class Tab():
                 index_left=self.get_index(wavelengths, left)
                 index_right=self.get_index(wavelengths, right)
                 if index_right!=index_left:
-                    avg=np.mean(sample.data[label]['difference'][index_left:index_right])
+                    if abs_val:
+                        avg=np.mean(np.abs(sample.data[label]['difference'][index_left:index_right]))
+                    else:
+                        avg=np.mean(sample.data[label]['difference'][index_left:index_right])
                 else:
                     avg=sample.data[label]['difference'][index_right]
                 avg_errs.append(label+': '+str(avg))
+        
             
         self.plot.draw_vertical_lines([left, right])
 
@@ -1014,7 +1054,7 @@ class Tab():
     def calculate_reciprocity(self, left, right):
         left, right=self.validate_left_right(left, right)
         avgs=[]
-        self.recip_samples=[]
+        self.recip_samples=[] #for each recip_sample.data[label], there will be up to two points, which should be reciprocal measurements of each other. E.g. recip_sample.name=White Reference, recip_sample.data['White reference (i=-20,e=20)'] will contain data for both i=-30,e=-10, and also i=10, e=30.
         artifact_warning=False
         
         self.contour_sample=Sample('all samples','file','title')
@@ -1026,7 +1066,7 @@ class Tab():
             for label in sample.spectrum_labels: 
                 e,i,g=self.plotter.get_e_i_g(label)
                 
-                if self.exclude_artifacts: #If we are excluding artifacts, don't calculate slopes for anything in the range that is considered to be suspect
+                if self.exclude_artifacts: #If we are excluding artifacts, don't calculate for anything in the range that is considered to be suspect
                     if self.plotter.artifact_danger(g, left, right):
                         artifact_warning=True #We'll return this to the controller, which will throw up a dialog warning the user that we are skipping some spectra.
                         continue
@@ -1042,7 +1082,9 @@ class Tab():
                     avg=reflectance[index_left]
 
                 recip_label=sample.name+' (i='+str(-1*e)+' e='+str(-1*i)+')'
-                
+                print(label)
+                print(recip_label)
+                diff=None
                 if label not in recip_sample.data and recip_label not in recip_sample.data:
                     recip_sample.data[label]={'e':[],'g':[],'i':[],'average reflectance':[]}
                     recip_sample.spectrum_labels.append(label)
@@ -1054,39 +1096,46 @@ class Tab():
                     recip_sample.data[label]['average reflectance'].append(avg)
                     
                     if len(recip_sample.data[label]['average reflectance'])>1:
-                        print('never get here')
-                        self.contour_sample.data['all samples']['e'].append(e)
-                        self.contour_sample.data['all samples']['i'].append(i)
-                        diff=np.abs(recip_sample.data[label]['average reflectance'][0]-avg)
-                        self.contour_sample.data['all samples']['delta R'].append(diff)
+                        diff=np.abs(np.max(recip_sample.data[label]['average reflectance'])-np.min(recip_sample.data[label]['average reflectance']))
+                    
+
                     
                 elif recip_label in recip_sample.data:
                     recip_sample.data[recip_label]['e'].append(e)
                     recip_sample.data[recip_label]['i'].append(i)
                     recip_sample.data[recip_label]['g'].append(g)
                     recip_sample.data[recip_label]['average reflectance'].append(avg)
-                    print(recip_sample.data[recip_label]['average reflectance'])
-                    
                     if len(recip_sample.data[recip_label]['average reflectance'])>1:
-                        print('But I think we get here?')
-                        
-                        self.contour_sample.data['all samples']['e'].append(e)
-                        self.contour_sample.data['all samples']['i'].append(i)
-                        diff=np.abs(recip_sample.data[recip_label]['average reflectance'][0]-avg)
-                        self.contour_sample.data['all samples']['delta R'].append(diff)
-                        
-                avgs.append(label+': '+str(avg))
+                        diff=np.abs(np.max(recip_sample.data[recip_label]['average reflectance'])-np.min(recip_sample.data[recip_label]['average reflectance']))
+                
+                
+                    
+                if diff!=None:
+                    avgs.append(label+': '+str(diff))
             self.recip_samples.append(recip_sample)
-            print('contour sample data points')
-            print(self.contour_sample.data['all samples']['delta R'])
-            print(self.contour_sample.data['all samples']['i'])
-            print(self.contour_sample.data['all samples']['e'])
+            
+        for sample in self.recip_samples:
+            print('making contour data for '+sample.name)
+            for label in sample.data:
+                if len(sample.data[label]['average reflectance'])>1:
+                    e,i,g=self.get_e_i_g(label)
+
+                    diff=np.abs(sample.data[label]['average reflectance'][0]-sample.data[label]['average reflectance'][1])
+                    
+                    self.contour_sample.data['all samples']['e'].append(e)
+                    self.contour_sample.data['all samples']['i'].append(i)
+                    self.contour_sample.data['all samples']['delta R'].append(diff)
+                    self.contour_sample.data['all samples']['e'].append(-1*i)
+                    self.contour_sample.data['all samples']['i'].append(-1*e)
+                    self.contour_sample.data['all samples']['delta R'].append(diff)
+
             
             
         self.plot.draw_vertical_lines([left, right])
 
         return left, right, avgs, artifact_warning
     def plot_error(self, x_axis):
+        print(x_axis)
         if x_axis=='e,i': 
             x_axis='contour'
             tab=Tab(self.plotter, u'\u0394'+'R compared to '+self.base_sample.name,[self.contour_sample], x_axis='contour',y_axis='difference')  
@@ -1098,14 +1147,13 @@ class Tab():
             x_axis='contour'
             tab=Tab(self.plotter, 'Reciprocity',[self.contour_sample], x_axis=x_axis,y_axis='delta R')
         else:
-            for sample in self.recip_samples:
-                for label in sample.spectrum_labels:
-                    print(sample.data[label]['average reflectance'])
+
             tab=Tab(self.plotter, 'Reciprocity',self.recip_samples, x_axis=x_axis,y_axis='average reflectance')
         return tab
 
     def plot_avg_reflectance(self, x_axis):
-        if x_axis=='e':
+        if x_axis=='e' or x_axis=='theta':
+            print(x_axis)
             tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='average reflectance')
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='average reflectance')
@@ -1114,7 +1162,7 @@ class Tab():
         elif x_axis=='e,i':
             tab=Tab(self.plotter, 'Reflectance',[self.contour_sample], x_axis='contour',y_axis='average reflectance') 
     def plot_band_centers(self, x_axis):
-        if x_axis=='e':
+        if x_axis=='e' or x_axis=='theta':
             tab=Tab(self.plotter, 'Band center vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band center')
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Band center vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='band center')
@@ -1123,7 +1171,7 @@ class Tab():
         elif x_axis=='e,i':
             tab=Tab(self.plotter, 'Band center',[self.contour_sample], x_axis='contour',y_axis='band center') 
     def plot_band_depths(self, x_axis):
-        if x_axis=='e':
+        if x_axis=='e' or x_axis=='theta':
             tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='band depth')
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Band depth vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='band depth')
@@ -1135,7 +1183,7 @@ class Tab():
     def plot_slopes(self, x_axis):
         if x_axis=='e,i':
             tab=Tab(self.plotter, 'Slope',[self.contour_sample], x_axis='contour',y_axis='slope')
-        elif x_axis=='e':
+        elif x_axis=='e' or x_axis=='theta':
             tab=Tab(self.plotter, 'Slope vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='slope')
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Slope vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='slope')
@@ -1322,6 +1370,7 @@ class Tab():
     def close(self):
         tabid=self.plotter.notebook.select()
         self.plotter.notebook.forget(tabid)
+        self.plotter.titles.remove(self.notebook_title)
 
     def check_geom(self, i, e, exclude_specular=False, tolerance=None):
         if exclude_specular:
@@ -1334,6 +1383,7 @@ class Tab():
         else: return False
         
     def adjust_x(self, left, right):
+
         left=float(left)
         right=float(right)
         self.xlim=[left,right]
@@ -1349,11 +1399,12 @@ class Tab():
     
         
 class Plot():
-    def __init__(self, plotter, fig, samples,title, oversize_legend=False,plot_scale=18,plot_width=215,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None, exclude_artifacts=False):
+    def __init__(self, plotter, fig, white_fig, samples,title, oversize_legend=False,plot_scale=18,plot_width=215,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None, exclude_artifacts=False):
         
         self.plotter=plotter
         self.samples=samples
         self.fig=fig
+        self.white_fig=white_fig
         self.title='' #This will be the text to put on the notebook tab
         #self.geoms={'i':[],'e':[]} #This is a dict like this: {'i':[10,20],'e':[-10,0,10,20,30,40,50]} telling which incidence and emission angles to include on the plot. empty lists mean plot all available.
 
@@ -1482,8 +1533,10 @@ class Plot():
             ratio=int(plot_width/self.max_legend_label_len)+0.1
             self.legend_anchor=1.12+1.0/ratio*1.3
 
-        gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
-        self.plot = fig.add_subplot(gs[0])
+        self.gs = mpl.gridspec.GridSpec(1, 2, width_ratios=[ratio, 1]) 
+
+        self.plot = fig.add_subplot(self.gs[0])
+        self.white_plot=self.white_fig.add_subplot(self.gs[0])
         pos1 = self.plot.get_position() # get the original position 
 
         
@@ -1496,7 +1549,8 @@ class Plot():
 
         pos2 = [pos1.x0+.02, y0,  pos1.width, height] 
 
-        self.plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
+        self.plot.set_position(pos2)
+        self.white_plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
         
 
         
@@ -1511,6 +1565,8 @@ class Plot():
 
         
     def save(self):
+
+        
         initialdir=self.plotter.save_dir
     
         if initialdir==None:
@@ -1525,14 +1581,14 @@ class Plot():
         if initialdir!=None:
             path=filedialog.asksaveasfilename(initialdir=initialdir)
         else:
-            path=asksaveasfilename()
+            path=filedialog.asksaveasfilename()
             
         self.plotter.save_dir=path
         if '\\' in path:
             self.plotter.save_dir='\\'.join(path.split('\\')[0:-1])
         elif '/' in path:
             self.plotter.save_dir='/'.join(path.split('/')[0:-1])
-        self.fig.savefig(path)
+        self.white_fig.savefig(path)
         
     def set_title(self,title):
         self.title=title
@@ -1551,20 +1607,29 @@ class Plot():
         self.fig.canvas.draw()
     
     def adjust_x(self, left, right):
-        self.plot.set_xlim(left, right)
-        print('ADJUST')
-        print(left)
-        print(right)
-        self.xlim=[left,right]
-        self.set_x_ticks()
+        if self.x_axis!='theta':
+            self.plot.set_xlim(left, right)
+            self.xlim=[left,right]
+            self.set_x_ticks()
+        else:
+            pass
         self.fig.canvas.draw()
         
         
         
     def adjust_y(self, bottom, top):
-        self.plot.set_ylim(bottom, top)
-        self.ylim=[bottom,top]
-        self.set_y_ticks()
+        if self.x_axis=='theta':
+            pass
+            # min=bottom
+            # max=top
+            # delta=max-min
+            # self.ax.set_ylim(min-delta/10,max+delta/10)
+            # self.ax.set_yticks(np.arange(min,max+delta/10,delta/2))
+            # self.ylim=[bottom,top]
+        else:
+            self.plot.set_ylim(bottom, top)
+            self.ylim=[bottom,top]
+            self.set_y_ticks()
         self.fig.canvas.draw()
         
     def set_x_ticks(self):
@@ -1624,10 +1689,17 @@ class Plot():
         while interval==0: #I don't think this ever happens.
             order+=1
             interval=np.round(delta_y/5,order)
+        print(str(self.ylim[0]))
+        print(str(self.ylim[1]+.01))
+        print(interval)
+        if np.isnan(interval): #Happens if all y values are equal
+            interval=.002
         y_ticks = np.arange(self.ylim[0],self.ylim[1]+.01, interval)
 
         self.plot.grid(which='minor', alpha=0.1)
+        self.white_plot.grid(which='minor', alpha=0.1)
         self.plot.grid(which='major', alpha=0.1)
+        self.white_plot.grid(which='minor', alpha=0.1)
         
     def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
         self.lines=[]
@@ -1640,10 +1712,14 @@ class Plot():
 
             triang = mtri.Triangulation(x, y)
             cntr2=self.plot.tricontourf(triang, z)
+            white_cntr2=self.white_plot.tricontourf(triang, z)
             self.adjust_x(np.min(x),np.max(x))
             self.adjust_y(np.min(y),np.max(y))
         
             self.fig.colorbar(cntr2, ax=self.plot)
+            self.white_fig.colorbar(cntr2, ax=self.white_plot)
+            self.plot.plot(x,y,'+',color='white',markersize=5,alpha=0.5)
+            self.white_plot.plot(x,y,'+',color='white',markersize=5,alpha=0.5)
         
         repeats=False #Find if there are samples with the exact same name. If so, put the title in the legend as well as the name.
         names=[]
@@ -1655,9 +1731,11 @@ class Plot():
             else:
                 names.append(sample.name)
                 
-                
-        for sample in self.samples:
-            for label in sample.spectrum_labels:
+        min=None #we'll use these for setting polar r limits if we are doing a polar plot.
+        max=None                
+        for j, sample in enumerate(self.samples):
+
+            for i, label in enumerate(sample.spectrum_labels):
                 if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
                 
                 legend_label=label
@@ -1689,9 +1767,38 @@ class Plot():
                 elif self.x_axis=='g':
 
                     self.lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], 'o',label=legend_label,color=color, markersize=6))
-                else:
+                elif self.x_axis=='theta':
+                    theta=sample.data[label]['e']
+                    theta=np.array(theta)*-1*3.14159/180+3.14159/2
+                    r=sample.data[label][self.y_axis]
+                    if i==0 and j==0:
+                        self.fig.delaxes(self.plot)
+                        self.ax = self.fig.add_subplot(self.gs[0],projection='polar')
 
-                                        
+                        c = self.ax.plot(theta, np.array(r),'-o',color=color,label=legend_label)
+                        
+                        min=np.min(r)#0.9990460801637914
+                        max=np.max(r)#1.0025749009476894
+                        delta=max-min
+                        self.ax.set_ylim(min-delta/10,max+delta/10)
+                        self.ax.set_thetamin(0)
+                        self.ax.set_thetamax(180)
+                        
+                    else:
+                        c = self.ax.plot(theta, np.array(r),'-o',color=color,label=legend_label)
+                        if np.min(r)<min or np.max(r)>max:
+                            min=np.min([min, np.min(r)])
+                            max=np.max([max,np.max(r)])
+                            
+                    if i==len(sample.spectrum_labels)-1 and j==len(self.samples)-1:
+                        delta=max-min
+                        self.ax.set_ylim(min-delta/10,max+delta/10)
+                        self.ax.set_yticks(np.arange(min,max+delta/10,delta/2))
+                        self.ax.set_thetagrids(np.arange(0,180.1,30), labels=['90','60','30','0','-30','-60','-90'])
+                        self.ax.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
+                else:
+                    
+                    
                     self.lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], '-o',label=legend_label,color=color, markersize=5))
                 
         self.plot.set_title(self.title, fontsize=24)

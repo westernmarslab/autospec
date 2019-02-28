@@ -2929,14 +2929,15 @@ class Controller():
                 x2=float(self.right_zoom_entry.get())
                 tab.adjust_x(x1,x2)
             except:
-                ErrorDialog(self, title='Invalid Zoom Range',label='Error! Invalid x limits: '+self.left_zoom_entry.get()+', '+self.right_zoom_entry.get())
+                ErrorDialog(self, title='Invalid Zoom Range',label='Error: Invalid x limits: '+self.left_zoom_entry.get()+', '+self.right_zoom_entry.get())
         def apply_y():
             self.view_notebook.select(tab.top)
             try:
                 y1=float(self.left_zoom_entry2.get())
                 y2=float(self.right_zoom_entry2.get())
                 tab.adjust_y(y1,y2)
-            except:
+            except Exception as e:
+                print(e)
                 ErrorDialog(self, title='Invalid Zoom Range',label='Error! Invalid y limits: '+self.left_zoom_entry2.get()+', '+self.right_zoom_entry2.get())
         
         self.plot_options_dialog=Dialog(self,'Plot Options','\nPlot title:',buttons=buttons)
@@ -3002,29 +3003,53 @@ class Controller():
                 left, right, slopes, artifact_warning=tab.calculate_slopes(self.left_slope_entry.get(),self.right_slope_entry.get())
                 update_entries(left, right)
                 populate_listbox(slopes)
+                update_plot_menu(['e','i','g','e,i','theta'])
+                
             elif self.analyze_var.get()=='band depth':
-                left, right, depths, artifact_warning=tab.calculate_band_depths(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, depths, artifact_warning=tab.calculate_band_depths(self.left_slope_entry.get(),self.right_slope_entry.get(), self.neg_depth.get(),self.use_delta.get())
                 update_entries(left, right)
                 populate_listbox(depths)
+                update_plot_menu(['e','i','g','e,i','theta'])
+                
             elif self.analyze_var.get()=='band center':
-                left, right, centers,artifact_warning=tab.calculate_band_centers(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, centers,artifact_warning=tab.calculate_band_centers(self.left_slope_entry.get(),self.right_slope_entry.get(), self.use_max_for_centers.get(),self.use_delta.get())
                 update_entries(left, right)
                 populate_listbox(centers)
+                update_plot_menu(['e','i','g','e,i','theta'])
+                print(self.use_max_for_centers.get())
+                
             elif self.analyze_var.get()=='reflectance':
                 left, right, reflectance,artifact_warning=tab.calculate_avg_reflectance(self.left_slope_entry.get(),self.right_slope_entry.get())
                 update_entries(left, right)
                 populate_listbox(reflectance)
+                update_plot_menu(['e','i','g','e,i','theta'])
+                
             elif self.analyze_var.get()=='reciprocity':
                 left, right, reciprocity, artifact_warning=tab.calculate_reciprocity(self.left_slope_entry.get(),self.right_slope_entry.get())
                 update_entries(left, right)
                 populate_listbox(reciprocity)
+                update_plot_menu(['e','i','g','e,i'])
+                
             elif self.analyze_var.get()=='difference':
-                left, right, error, artifact_warning=tab.calculate_error(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, error, artifact_warning=tab.calculate_error(self.left_slope_entry.get(),self.right_slope_entry.get(), self.abs_val.get())
                 #Tab validates left and right values. If they are no good, put in min and max wavelengths available.
                 update_entries(left, right)
                 populate_listbox(error)
+                update_plot_menu([u'\u03bb', 'e,i'])
+                        
             if artifact_warning:
                 dialog=ErrorDialog(self, 'Warning','Warning: Excluding data potentially\ninfluenced by artifacts from 1000-1400 nm.')
+                
+        def update_plot_menu(plot_options):
+            self.plot_slope_var.set(plot_options[0])
+            self.plot_slope_menu['menu'].delete(0, 'end')
+        
+            # Insert list of new options (tk._setit hooks them up to var)
+            max_len=len(plot_options[0])
+            for option in plot_options:
+                max_len=np.max([max_len,len(option)])
+                self.plot_slope_menu['menu'].add_command(label=option, command=tk._setit(self.plot_slope_var, option))
+            self.plot_slope_menu.configure(width=max_len)
 
         def update_entries(left, right):
                 self.left_slope_entry.delete(0,'end')
@@ -3059,13 +3084,12 @@ class Controller():
                 tab.plot_reciprocity(self.plot_slope_var.get())
             elif self.analyze_var.get()=='difference':
                 new=tab.plot_error(self.plot_slope_var.get())
-    
-                try:
-                    x1=float(self.left_slope_entry.get())
-                    x2=float(self.right_slope_entry.get())
-                    new.adjust_x(x1,x2)
-                except Exception as e:
-                    print(e)
+
+            if self.plot_slope_var.get()=='\u03bb':
+                x1=float(self.left_slope_entry.get())
+                x2=float(self.right_slope_entry.get())
+                new.adjust_x(x1,x2)
+
 
         def normalize():
             self.view_notebook.select(tab.top)
@@ -3101,13 +3125,48 @@ class Controller():
         def uncheck_exclude_artifacts():
             self.exclude_artifacts.set(0)
             self.exclude_artifacts_check.deselect()
+            
         def disable_plot(analyze_var='None'):
             try:
                 self.slopes_listbox.delete(0,'end')
             except:
                 pass
             self.plot_slope_button.configure(state='disabled')
+            
+            if analyze_var=='difference':
+                self.neg_depth_check.pack_forget()
+                self.use_max_for_centers_check.pack_forget()
+                self.use_delta_check.pack_forget()
+                self.abs_val_check.pack()
+                self.extra_analysis_check_frame.pack()
+        
+            elif analyze_var=='band center':
+                self.neg_depth_check.pack_forget()
+                self.abs_val_check.pack_forget()
+                self.use_delta_check.pack_forget()
+                self.use_max_for_centers_check.pack()
+                self.use_delta_check.pack()
+                self.extra_analysis_check_frame.pack()
+        
+            elif analyze_var=='band depth':
+                self.abs_val_check.pack_forget()
+                self.use_max_for_centers_check.pack_forget()
+                self.use_delta_check.pack_forget()
+                self.neg_depth_check.pack()
+                self.use_delta_check.pack()
+                self.extra_analysis_check_frame.pack()
+            
+            else:
+                self.abs_val_check.pack_forget()
+                self.neg_depth_check.pack_forget()
+                self.use_max_for_centers_check.pack_forget()
+                self.use_delta_check.pack_forget()
                 
+                self.extra_analysis_check_frame.grid_propagate(0)
+                self.extra_analysis_check_frame.configure(height=1) #for some reason 0 doesn't work.
+                self.extra_analysis_check_frame.pack()
+                self.outer_slope_frame.pack()
+            
         def calculate_photometric_variability():
 
             photo_var=tab.calculate_photometric_variability(self.right_photo_var_entry.get(),self.left_photo_var_entry.get())
@@ -3256,7 +3315,7 @@ class Controller():
         self.outer_slope_frame=Frame(self.outer_outer_slope_frame,bg=self.bg,padx=self.padx)
         self.outer_slope_frame.pack(expand=True,fill=BOTH,pady=(0,10))
         self.slope_title_frame=Frame(self.outer_slope_frame,bg=self.bg)
-        self.slope_title_frame.pack(pady=(5,25))
+        self.slope_title_frame.pack(pady=(5,5))
         self.slope_title_label=Label(self.slope_title_frame,text='Analyze ',bg=self.bg,fg=self.textcolor)
         self.slope_title_label.pack(side=LEFT,pady=(0,4))
         self.analyze_var=StringVar()
@@ -3264,10 +3323,28 @@ class Controller():
         self.analyze_menu=OptionMenu(self.slope_title_frame,self.analyze_var,'slope','band depth','band center','reflectance','reciprocity','difference',command=disable_plot)
         self.analyze_menu.configure(width=10,highlightbackground=self.highlightbackgroundcolor)
         self.analyze_menu.pack(side=LEFT)
-
         
-        self.slope_frame=Frame(self.outer_slope_frame,bg=self.bg,padx=self.padx)
-        self.slope_frame.pack()
+        #We'll put checkboxes for additional options into this frame at the time the user selects a given option (e.g. select 'difference' from menu, add option to calculate differences based on absolute value
+        self.extra_analysis_check_frame=Frame(self.outer_slope_frame,bg=self.bg,padx=self.padx)
+        self.extra_analysis_check_frame.pack()
+        self.abs_val=IntVar()
+        #Note that we are not packing this checkbutton yet.
+        self.abs_val_check=Checkbutton(self.extra_analysis_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' Use absolute values for average differences', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.abs_val)
+        
+        self.use_max_for_centers=IntVar()
+        self.use_max_for_centers_check=Checkbutton(self.extra_analysis_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' If band max is more prominent than\nband min, use to find center.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.use_max_for_centers)
+        self.use_max_for_centers_check.select()
+        
+        self.use_delta=IntVar()
+        self.use_delta_check=Checkbutton(self.extra_analysis_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text=u' Center at max \u0394'+'R from continuum  \nrather than spectral min/max. ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.use_delta)
+        self.use_delta_check.select()
+        
+        self.neg_depth=IntVar()
+        self.neg_depth_check=Checkbutton(self.extra_analysis_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' If band max is more prominent than \nband min, report negative depth.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.neg_depth)
+        self.neg_depth_check.select()
+        
+        self.slope_frame=Frame(self.outer_slope_frame,bg=self.bg,padx=self.padx, highlightthickness=0)
+        self.slope_frame.pack(pady=(15,0))
         
         self.slope_label=Label(self.slope_frame,text='x1:',bg=self.bg,fg=self.textcolor)
         self.left_slope_entry=Entry(self.slope_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
@@ -3282,7 +3359,7 @@ class Controller():
         self.left_slope_entry.pack(side=RIGHT,padx=self.padx)
         self.slope_label.pack(side=RIGHT,padx=self.padx)
         self.slope_results_frame=Frame(self.outer_slope_frame,bg=self.bg)
-        self.slope_results_frame.pack(fill=BOTH, expand=True,pady=(10,10)) #We'll put a listbox with slope info in here later after calculating.
+        self.slope_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with slope info in here later after calculating.
         
         self.outer_plot_slope_frame=Frame(self.outer_outer_slope_frame,bg=self.bg,padx=self.padx,pady=10)
         self.outer_plot_slope_frame.pack(expand=True,fill=BOTH)
@@ -3291,7 +3368,7 @@ class Controller():
         self.plot_slope_label=Label(self.plot_slope_frame,text='Plot as a function of',bg=self.bg,fg=self.textcolor)
         self.plot_slope_var=StringVar()
         self.plot_slope_var.set('e')
-        self.plot_slope_menu=OptionMenu(self.plot_slope_frame,self.plot_slope_var,'e','i','g','e,i')
+        self.plot_slope_menu=OptionMenu(self.plot_slope_frame,self.plot_slope_var,'e','i','g','e,i','theta')
         self.plot_slope_menu.configure(width=2,highlightbackground=self.highlightbackgroundcolor)
         self.plot_slope_button=Button(self.plot_slope_frame,text='Plot',  command=plot,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
         self.plot_slope_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
@@ -3303,7 +3380,7 @@ class Controller():
         self.exclude_artifacts_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.exclude_artifacts_frame.pack(fill=BOTH,expand=True)
         self.exclude_artifacts=IntVar()
-        self.exclude_artifacts_check=Checkbutton(self.exclude_artifacts_frame, selectcolor=self.check_bg,fg=self.textcolor,text='Exclude wavelengths susceptible to\n  polarization artifacts (1000-1400 nm)  ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.exclude_artifacts, command=lambda x='foo',: tab.set_exclude_artifacts(self.exclude_artifacts.get()))
+        self.exclude_artifacts_check=Checkbutton(self.exclude_artifacts_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' Exclude data susceptible to artifacts\n (high g, 1000-1400 nm)  ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.exclude_artifacts, command=lambda x='foo',: tab.set_exclude_artifacts(self.exclude_artifacts.get()))
         self.exclude_artifacts_check.pack()
         if tab.exclude_artifacts:
             self.exclude_artifacts_check.select()
