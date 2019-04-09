@@ -11,21 +11,23 @@ def main():
     x2,y2,p2=get_data('AutoSpec/autospec/spec_correction_i0_405nm.csv')
     fit=fit_data(x, p)
     correction_coefficients.append({0:p})
-    plot_data(x,y,fit,'i=0','Emission (degrees)','Reflectance')
+    ax=plot_data(x,y,fit,'i=0','Emission (degrees)','Reflectance')
 
     
 
     x,y,p=get_data('AutoSpec/autospec/spec_correction_i30.csv')
     fit=fit_data(x, p)
     correction_coefficients.append({-30:p})
-    plot_data(x,y,fit,'i=-30','Emission (degrees)','Reflectance')
+    #plot_data(x,y,fit,'i=-30','Emission (degrees)','Reflectance')
+    ax.plot(x,fit,label='incidence=-30 degrees')
     
 
     
     x,y,p=get_data('AutoSpec/autospec/spec_correction_i45.csv')
     fit=fit_data(x, p)
     correction_coefficients.append({-45:p})
-    plot_data(x,y,fit,'i=-45','Emission (degrees)','Reflectance')
+    #plot_data(x,y,fit,'i=-45','Emission (degrees)','Reflectance')
+    ax.plot(x,fit,label='incidence=-45 degrees')
     
 
     
@@ -35,7 +37,9 @@ def main():
     x2,y2,p2=get_data('AutoSpec/autospec/spec_correction_i60_405nm.csv')
     fit=fit_data(x, p)
     correction_coefficients.append({-60:p})
-    plot_data(x,y,fit,'i=-60','Emission (degrees)','Reflectance', image='AutoSpec/autospec/ineg_60.png')
+    #plot_data(x,y,fit,'i=-60','Emission (degrees)','Reflectance', image='AutoSpec/autospec/ineg_60.png')
+    ax.plot(x,fit,label='incidence=-60 degrees')
+    ax.legend()
     # 
     # plt.figure()
     # ax=plt.axes()
@@ -47,7 +51,7 @@ def main():
     # ax.legend()
     plt.show()
     
-  
+    return
     file='/home/khoza/Spectroscopy/data/003_unaltered_coated_full_sweep.csv'
     file2='/home/khoza/Spectroscopy/003_unaltered_coated_full_sweep_corrected.csv'
     wavelengths, reflectance, labels=load_csv(file)
@@ -56,6 +60,7 @@ def main():
     corrected_data.append(wavelengths)
     j=0
     k=0
+    
     while k<len(labels):
         if 'White Reference' in labels[k] and 'Uncorrected' not in labels[k]:
             corrected_data.insert(j+1,reflectance[k])
@@ -214,14 +219,17 @@ def plot_data(x,y,y2, title,xlabel,ylabel,image=None):
     # if image!=None:
     #     im = plt.imread(image)
     #     ax.imshow(im,extent=[-60,60,-60,60])
-    ax.plot(x,y)
-    ax.plot(x,y2)
+    #ax.plot(x,y)
+    ax.plot(x,y2,label='incidence=0 degrees')
     ax.grid()
     ax.set_title(title,fontsize=14)
     ax.set_ylabel(ylabel,fontsize=12)
     ax.set_xlabel(xlabel,fontsize=12)
+    return ax
     plt.tight_layout()
-    fig.savefig('AutoSpec/autospec/'+title+'.png', transparent=True)
+    #fig.savefig('AutoSpec/autospec/'+title+'.png', transparent=True)
+    
+
     
 def get_data(file):
     data=np.genfromtxt(file,delimiter=',')

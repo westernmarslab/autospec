@@ -47,8 +47,24 @@ class Plotter():
         self.notebook.bind('<Motion>',lambda event: self.mouseover_tab(event))
         self.menus=[]
         
-        self.save_dir=None #This will get set if the user saves a plot so that the next time they click save plot, the save dialog opens into the same directory where they just saved.
-    
+        self.save_dir=None #This will get set 1)when the user plots data for the first time to be that folder. 2) if the user saves a plot so that the next time they click save plot, the save dialog opens into the same directory where they just saved.
+        
+    def get_path(self):
+        initialdir=self.save_dir
+                
+        path=None
+        if initialdir!=None:
+            path=filedialog.asksaveasfilename(initialdir=initialdir)
+        else:
+            path=filedialog.asksaveasfilename()
+            
+        self.save_dir=path
+        if '\\' in path:
+            self.save_dir='\\'.join(path.split('\\')[0:-1])
+        elif '/' in path:
+            self.save_dir='/'.join(path.split('/')[0:-1])
+        return path
+        
     def get_index(self, array, val):
         index = (np.abs(array - val)).argmin()
         return index
@@ -264,10 +280,8 @@ class Plotter():
         else: #If we're at a safe phase angle
             return False
 class Sample():
-    def __init__(self, name, file, title):#colors):
-        #self.colors=colors
-        # self.index=-1
-        # self.__next_color=self.colors[0]
+    def __init__(self, name, file, title):
+
         self.title=title
         self.name=name
         self.file=file
@@ -280,7 +294,7 @@ class Sample():
         self.data[spectrum_label]['reflectance']=reflectance
         self.data[spectrum_label]['wavelength']=wavelengths
     
-    def add_offset(self, offset):
+    def add_offset(self, offset, y_axis):
         try:
             offset=float(offset)
         except:
@@ -288,27 +302,30 @@ class Sample():
             return
         
         for spec_label in self.data:
-            if 'reflectance' in self.data[spec_label]:
-                old=np.array(self.data[spec_label]['reflectance'])
-                self.data[spec_label]['reflectance']=old+offset
+            if y_axis in self.data[spec_label]:
+                old=np.array(self.data[spec_label][y_axis])
+                self.data[spec_label][y_axis]=old+offset
     #generate a list of hex colors that are evenly distributed from dark to light across a single hue. 
     def set_colors(self, hue):
         N=len(self.spectrum_labels)/2
         if len(self.spectrum_labels)%2!=0:
             N+=1
         N=int(N)+2
+
         
         hsv_tuples = [(hue, 1, x*1.0/N) for x in range(4,N)]
         hsv_tuples=hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N)]
         self.colors=[]
         for tuple in hsv_tuples:
             self.colors.append(colorutils.hsv_to_hex(tuple))
-            
-        white_hsv_tuples=[(hue, 1, x*1.0/N) for x in range(0,N)]
+        
+        N=N+2
+        white_hsv_tuples=[(hue, 1, x*1.0/N) for x in range(2,N)]
         white_hsv_tuples=white_hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N-4)]
         self.white_colors=[]
         for tuple in white_hsv_tuples:
             self.white_colors.append(colorutils.hsv_to_hex(tuple))
+    
         self.index=-1
         self.white_index=-1
         #self.__next_color=self.colors[0]
@@ -415,7 +432,7 @@ class Tab():
         
 
         self.popup_menu = Menu(self.top.interior, tearoff=0)
-        if self.x_axis=='wavelength' and self.y_axis=='reflectance':
+        if self.x_axis=='wavelength' and (self.y_axis=='reflectance' or self.y_axis=='normalized reflectance'):
             self.popup_menu.add_command(label="Edit plot",
                                         command=self.ask_which_samples)
             self.popup_menu.add_command(label="Open analysis tools",
@@ -451,6 +468,13 @@ class Tab():
         self.plot.save(self.white_fig)
     
     def export(self):
+        path=self.plotter.get_path()
+        if not path: return
+        
+        if path[-4:len(path)]!='.csv':
+            print(str(path)[-4:len(path)])
+            path+='.csv'
+        
         headers=self.plot.visible_data_headers
         data=self.plot.visible_data
 
@@ -464,8 +488,10 @@ class Tab():
                     data_lines[j]+=','+str(val)
                 else:
                     data_lines.append(str(val))
+                    
+        
     
-        with open ('/home/khoza/Python/test.csv','w+') as f:
+        with open (path,'w+') as f:
             f.write(headers+'\n')
             for line in data_lines:
                 f.write(line+'\n')
@@ -509,9 +535,15 @@ class Tab():
                 self.plot.plot.lines[j].remove()
             else:
                 j+=1
+        for x in range(i):
+            if self.plot.white_plot.lines[j] not in self.plot.white_annotations:
+                self.plot.white_plot.lines[j].remove()
+            else:
+                j+=1
         self.plot.exclude_artifacts=bool
         self.plot.draw()
         self.canvas.draw()
+        self.white_canvas.draw()
 
     def on_visibility(self, event):
         self.close_right_click_menu(event)
@@ -568,7 +600,7 @@ class Tab():
         #     print(sample.name)
         #     for label in sample.spectrum_labels:
         #         print(sample.data[label]['reflectance'][0])
-        new_sample.add_offset(offset)
+        new_sample.add_offset(offset, self.y_axis)
         # for sample in self.original_samples:
         #     print(sample.name)
         #     for label in sample.spectrum_labels:
@@ -578,7 +610,7 @@ class Tab():
         #     print(sample.name)
         #     for label in sample.spectrum_labels:
         #         print(sample.data[label]['reflectance'][0])
-        self.refresh(original=self.original_samples)
+        self.refresh(original=self.original_samples, y_axis=self.y_axis)
         
 
     def calculate_avg_reflectance(self, left, right):
@@ -604,7 +636,7 @@ class Tab():
                         continue
                         
                 wavelengths=np.array(sample.data[label]['wavelength'])
-                reflectance=np.array(sample.data[label]['reflectance'])
+                reflectance=np.array(sample.data[label][self.y_axis])
 
                 index_left=self.get_index(wavelengths, left)
                 index_right=self.get_index(wavelengths, right)
@@ -666,7 +698,7 @@ class Tab():
                         continue
                         
                 wavelengths=np.array(sample.data[label]['wavelength'])
-                reflectance=np.array(sample.data[label]['reflectance'])
+                reflectance=np.array(sample.data[label][self.y_axis])
                 
                 #find reflectance at left and right wavelengths.
                 #if we're on the edges, average out a few values.
@@ -760,7 +792,7 @@ class Tab():
                         continue
                         
                 wavelengths=np.array(sample.data[label]['wavelength'])
-                reflectance=np.array(sample.data[label]['reflectance'])
+                reflectance=np.array(sample.data[label][self.y_axis])
                 
                 #find reflectance at left and right wavelengths.
                 #if we're on the edges, average out a few values.
@@ -774,7 +806,7 @@ class Tab():
                 
                 slope=(r_right-r_left)/(w_right-w_left)
                 continuum=reflectance[index_left]+slope*(wavelengths[index_left:index_right]-wavelengths[index_left])
-                diff=continuum-reflectance[index_left:index_right]
+                diff=(continuum-reflectance[index_left:index_right])/continuum
                 
                 
                 if center_based_on_delta_to_continuum:
@@ -864,9 +896,9 @@ class Tab():
                         artifact_warning=True #We'll return this to the controller, which will throw up a dialog warning the user that we are skipping some spectra.
                         continue
 
-                        
+                    
                 wavelengths=np.array(sample.data[label]['wavelength'])
-                reflectance=np.array(sample.data[label]['reflectance'])
+                reflectance=np.array(sample.data[label][self.y_axis]) #y_axis is either reflectance or normalized reflectance
                 
                 #find reflectance at left and right wavelengths.
                 #if we're on the edges, average out a few values.
@@ -969,7 +1001,7 @@ class Tab():
 
             for label in sample.spectrum_labels: 
                 wavelengths=np.array(sample.data[label]['wavelength'])
-                reflectance=np.array(sample.data[label]['reflectance'])
+                reflectance=np.array(sample.data[label][self.y_axis])
                 e,i,g=self.plotter.get_e_i_g(label)
                 if self.exclude_artifacts: #If we are excluding artifacts, don't calculate slopes for anything in the range that is considered to be suspect
                     if self.plotter.artifact_danger(g, left, right):
@@ -1083,7 +1115,7 @@ class Tab():
                         continue
 
                 wavelengths=np.array(sample.data[label]['wavelength'])
-                reflectance=np.array(sample.data[label]['reflectance'])
+                reflectance=np.array(sample.data[label][self.y_axis])
 
                 index_left=self.get_index(wavelengths, left)
                 index_right=self.get_index(wavelengths, right)
@@ -1093,8 +1125,7 @@ class Tab():
                     avg=reflectance[index_left]
 
                 recip_label=sample.name+' (i='+str(-1*e)+' e='+str(-1*i)+')'
-                print(label)
-                print(recip_label)
+
                 diff=None
                 if label not in recip_sample.data and recip_label not in recip_sample.data:
                     recip_sample.data[label]={'e':[],'g':[],'i':[],'average reflectance':[]}
@@ -1117,12 +1148,13 @@ class Tab():
                     recip_sample.data[recip_label]['g'].append(g)
                     recip_sample.data[recip_label]['average reflectance'].append(avg)
                     if len(recip_sample.data[recip_label]['average reflectance'])>1:
-                        diff=np.abs(np.max(recip_sample.data[recip_label]['average reflectance'])-np.min(recip_sample.data[recip_label]['average reflectance']))
+                        diff=np.abs(np.max(recip_sample.data[recip_label]['average reflectance'])-np.min(recip_sample.data[recip_label]['average reflectance'])) #This works fine if for some reason there are multiple measurements for the same sample at the same geometry. It just takes the min and max.
+                        recip=diff/np.mean(recip_sample.data[recip_label]['average reflectance'])
                 
                 
                     
                 if diff!=None:
-                    avgs.append(label+': '+str(diff))
+                    avgs.append(label+': '+str(recip)) #I don't think this is the average of anything
             self.recip_samples.append(recip_sample)
             
         for sample in self.recip_samples:
@@ -1131,14 +1163,15 @@ class Tab():
                 if len(sample.data[label]['average reflectance'])>1:
                     e,i,g=self.get_e_i_g(label)
 
-                    diff=np.abs(sample.data[label]['average reflectance'][0]-sample.data[label]['average reflectance'][1])
+                    diff=np.abs(np.max(sample.data[label]['average reflectance'])-np.min(sample.data[label]['average reflectance'])) #This works fine if for some reason there are multiple measurements for the same sample at the same geometry. It just takes the min and max.
+                    recip=diff/np.mean(sample.data[label]['average reflectance'])
                     
                     self.contour_sample.data['all samples']['e'].append(e)
                     self.contour_sample.data['all samples']['i'].append(i)
-                    self.contour_sample.data['all samples']['delta R'].append(diff)
+                    self.contour_sample.data['all samples']['delta R'].append(recip)
                     self.contour_sample.data['all samples']['e'].append(-1*i)
                     self.contour_sample.data['all samples']['i'].append(-1*e)
-                    self.contour_sample.data['all samples']['delta R'].append(diff)
+                    self.contour_sample.data['all samples']['delta R'].append(recip)
 
             
             
@@ -1260,11 +1293,19 @@ class Tab():
                 
                 reflectance=reflectance*multiplier
                 reflectance=list(reflectance)
-                normalized_sample.add_spectrum(label, reflectance,sample.data[label]['wavelength'])
+                #if label not in normalized_sample.data:
+                normalized_sample.data[label]={'wavelength':[],'normalized reflectance':[]}
+
+                normalized_sample.spectrum_labels.append(label)
+                normalized_sample.data[label]['wavelength']=wavelengths
+                normalized_sample.data[label]['normalized reflectance']=reflectance
+
+                
+                #normalized_sample.add_spectrum(label, reflectance,sample.data[label]['wavelength'])
             normalized_samples.append(normalized_sample)
         self.samples=normalized_samples
 
-        self.refresh(original=self.original_samples,xlim=self.xlim) #Let the tab know this data has been modified and we want to hold on to a separate set of original samples. If we're zoomed in, save the xlim but not the ylim (since y scale will be changing)
+        self.refresh(original=self.original_samples,xlim=self.xlim,y_axis='normalized reflectance') #Let the tab know this data has been modified and we want to hold on to a separate set of original samples. If we're zoomed in, save the xlim but not the ylim (since y scale will be changing)
         
     def reset(self):
         self.samples=self.original_samples
@@ -1368,10 +1409,10 @@ class Tab():
         self.title=title
         self.refresh()
 
-    def refresh(self,original=None,xlim=None,ylim=None): #Gets called when data is updated, either from edit plot or analysis tools. We set original = False if calling from normalize, that way we will still hold on to the unchanged data.
+    def refresh(self,original=None,xlim=None,ylim=None,x_axis='wavelength',y_axis='reflectance'): #Gets called when data is updated, either from edit plot or analysis tools. We set original = False if calling from normalize, that way we will still hold on to the unchanged data.
         tab_index=self.plotter.notebook.index(self.plotter.notebook.select())
         self.plotter.notebook.forget(self.plotter.notebook.select())
-        self.__init__(self.plotter,self.title,self.samples, tab_index=tab_index,title_override=True, geoms=self.geoms,original=original,xlim=xlim,ylim=ylim,exclude_artifacts=self.exclude_artifacts, exclude_specular=self.exclude_specular, specularity_tolerance=self.specularity_tolerance)
+        self.__init__(self.plotter,self.title,self.samples, tab_index=tab_index,title_override=True, geoms=self.geoms,original=original,xlim=xlim,ylim=ylim,y_axis=y_axis,exclude_artifacts=self.exclude_artifacts, exclude_specular=self.exclude_specular, specularity_tolerance=self.specularity_tolerance)
         
 
     def open_right_click_menu(self, event):
@@ -1415,6 +1456,8 @@ class Tab():
         
 class Plot():
     def __init__(self, plotter, fig, white_fig, samples,title, oversize_legend=False,plot_scale=18,plot_width=215,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None, exclude_artifacts=False):
+        
+
         
         self.plotter=plotter
         self.samples=samples
@@ -1476,7 +1519,7 @@ class Plot():
         
         #If x limits for plot not specified, make the plot wide enough to display min and max values for all samples.
         if xlim==None:
-
+            print(self.x_axis)
             for i, sample in enumerate(self.samples):
                 for j, label in enumerate(sample.spectrum_labels):
                     if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
@@ -1584,31 +1627,14 @@ class Plot():
         
     def save(self, fig):
 
+        path=self.plotter.get_path()
+        if not path: return
+        if '.' in path:
+            available_formats=['eps', 'pdf', 'pgf', 'png', 'ps', 'raw', 'rgba', 'svg', 'svgz']
+            format=path.split('.')[-1]
+            if format not in available_formats:
+                path=path+'.png'
         
-        initialdir=self.plotter.save_dir
-    
-        if initialdir==None:
-            if len(self.files)>0:
-                if '\\' in self.files[0]:
-                    initialdir='\\'.join(self.files[0].split('\\')[0:-1])
-                    
-                elif '/' in self.files[0]:
-                    initialdir='/'.join(self.files[0].split('/')[0:-1])
-                
-        path=None
-        if initialdir!=None:
-            path=filedialog.asksaveasfilename(initialdir=initialdir)
-        else:
-            path=filedialog.asksaveasfilename()
-            
-        self.plotter.save_dir=path
-        if '\\' in path:
-            self.plotter.save_dir='\\'.join(path.split('\\')[0:-1])
-        elif '/' in path:
-            self.plotter.save_dir='/'.join(path.split('/')[0:-1])
-            
-        #self.white_fig.tight_layout()
-
         fig.savefig(path, facecolor=fig.get_facecolor())
         
     def set_title(self,title):
@@ -1644,13 +1670,15 @@ class Plot():
     
     def adjust_x(self, left, right):
         if self.x_axis!='theta':
+            print('hi!')
             self.plot.set_xlim(left, right)
+            self.white_plot.set_xlim(left,right)
             self.xlim=[left,right]
             self.set_x_ticks()
         else:
             pass
         self.fig.canvas.draw()
-        
+        self.white_fig.canvas.draw()
         
         
     def adjust_y(self, bottom, top):
@@ -1664,9 +1692,11 @@ class Plot():
             # self.ylim=[bottom,top]
         else:
             self.plot.set_ylim(bottom, top)
+            self.white_plot.set_ylim(bottom,top)
             self.ylim=[bottom,top]
             self.set_y_ticks()
         self.fig.canvas.draw()
+        self.white_fig.canvas.draw()
         
     def adjust_z(self, low, high):
         plot_pos=self.plot.get_position()
@@ -1777,7 +1807,6 @@ class Plot():
         with plt.style.context('default'):
             self.white_plot.grid(which='minor', alpha=0.3)
             self.white_plot.grid(which='major', alpha=0.3)
-            print('yep setting grid')
         
     
         
@@ -1852,7 +1881,7 @@ class Plot():
                         self.visible_data_headers.append(self.x_axis)
                         self.visible_data.append(sample.data[label][self.x_axis])
                     
-                    if (self.y_axis=='reflectance' or self.y_axis=='difference') and self.x_axis=='wavelength':
+                    if (self.y_axis=='reflectance' or self.y_axis=='difference' or self.y_axis=='normalized reflectance') and self.x_axis=='wavelength':
                         wavelengths=sample.data[label][self.x_axis]
                         reflectance=sample.data[label][self.y_axis]
     
@@ -1870,7 +1899,8 @@ class Plot():
                                 self.lines.append(self.plot.plot(w_3,r_3, color=color, linewidth=2))
                                 
                                 self.visible_data_headers.append(legend_label)
-                                self.visible_data.append(r_1+r_2+r_3)
+                                self.visible_data.append(list(r_1)+list(r_2)+list(r_3))
+
                                 
                                 with plt.style.context('default'):
                                     self.white_lines.append(self.white_plot.plot(w_1,r_1, label=legend_label,color=color,linewidth=2))
@@ -1906,7 +1936,8 @@ class Plot():
                         theta=sample.data[label]['e']
                         theta=np.array(theta)*-1*3.14159/180+3.14159/2
                         r=sample.data[label][self.y_axis]
-                        if i==0 and j==0:
+                        if i==0 and j==0: #If this is the first line we are plotting, we'll need to create the polar axis.
+                            print('hello!')
                             self.fig.delaxes(self.plot)
                             self.ax = self.fig.add_subplot(self.gs[0],projection='polar')
                             c = self.ax.plot(theta, np.array(r),'-o',color=color,label=legend_label)
@@ -1923,7 +1954,17 @@ class Plot():
                             self.ax.set_thetamin(0)
                             self.ax.set_thetamax(180)
                             
-                        else: #This is an r, theta plot. No option to export this data.
+                            self.white_ax.set_ylim(min-delta/10,max+delta/10)
+                            self.white_ax.set_thetamin(0)
+                            self.white_ax.set_thetamax(180)
+                            
+                            self.ax.set_title(self.title, fontsize=24)
+                            self.ax.title.set_position([0.5,1.02])
+                            
+                            with plt.style.context(('default')):
+                                self.white_ax.set_title(self.title, fontsize=24)
+                                self.white_ax.title.set_position([0.5,1.02])
+                        else: #if this is not the first line being plotted on this radial plot, we can just add on
                             
                             c = self.ax.plot(theta, np.array(r),'-o',color=color,label=legend_label)
                             with plt.style.context('default'):
@@ -1932,20 +1973,21 @@ class Plot():
                                 min=np.min([min, np.min(r)])
                                 max=np.max([max,np.max(r)])
                                 
-                        if i==len(sample.spectrum_labels)-1 and j==len(self.samples)-1:
+                        if i==len(sample.spectrum_labels)-1 and j==len(self.samples)-1: #On the last sample, set the range of the value being plotted on the radial axis.
                             delta=max-min
                             self.ax.set_ylim(min-delta/10,max+delta/10)
-                            self.ax.set_yticks(np.arange(min,max+delta/10,delta/2))
+                            self.ax.set_yticks(np.round(np.arange(min,max+delta/10,delta/2),3))
                             self.ax.set_thetagrids(np.arange(0,180.1,30), labels=['90','60','30','0','-30','-60','-90'])
                             self.ax.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
                             
                             with plt.style.context('default'):
+                                print('hello!')
                                 self.white_ax.set_ylim(min-delta/10,max+delta/10)
-                                self.white_ax.set_yticks(np.arange(min,max+delta/10,delta/2))
+                                self.white_ax.set_rgrids(np.round(np.arange(min,max+delta/10,delta/2),3))
+                                #self.white_ax.tick_params(axis='r', colors='red')
                                 self.white_ax.set_thetagrids(np.arange(0,180.1,30), labels=['90','60','30','0','-30','-60','-90'])
                                 self.white_ax.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
                     else:
-                        print('hi!')
                         self.visible_data_headers.append(legend_label)
                         self.visible_data.append(sample.data[label][self.y_axis])
                         
@@ -1958,7 +2000,7 @@ class Plot():
         
         with plt.style.context(('default')):
             self.white_plot.set_title(self.title, fontsize=24)
-            self.plot.title.set_position([0.5,1.02])
+            self.white_plot.title.set_position([0.5,1.02])
         
         if self.x_axis=='contour':
             self.plot.set_xlabel('Emission (degrees)',fontsize=18)
@@ -1970,15 +2012,23 @@ class Plot():
             self.plot.set_ylabel('Reflectance',fontsize=18)
             with plt.style.context('default'):
                 self.white_plot.set_ylabel('Reflectance',fontsize=18)
+                
+        elif self.y_axis=='normalized reflectance':
+            self.plot.set_ylabel('Normalized Reflectance',fontsize=18)
+            with plt.style.context('default'):
+                self.white_plot.set_ylabel('Normalized Reflectance',fontsize=18)
         elif self.y_axis=='difference':
             self.plot.set_ylabel('$\Delta$R',fontsize=18)
             with plt.style.context('default'):
                 self.white_plot.set_ylabel('$\Delta$R',fontsize=18)
         elif self.y_axis=='slope':
             self.plot.set_ylabel('Slope',fontsize=18)
-            self.plot.set_ylabel('$\Delta$R',fontsize=18)
             with plt.style.context('default'):
                 self.white_plot.set_ylabel('Slope',fontsize=18)
+        elif self.y_axis=='band depth':
+            self.plot.set_ylabel('Band Depth',fontsize=18)
+            with plt.style.context('default'):
+                self.white_plot.set_ylabel('Band Depth',fontsize=18)
         if self.x_axis=='wavelength':
             self.plot.set_xlabel('Wavelength (nm)',fontsize=18)
             with plt.style.context('default'):

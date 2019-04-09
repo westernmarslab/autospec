@@ -1891,7 +1891,7 @@ class Controller():
     #Move light will either read i from the GUI (default, i=None), or if this is a text command then i will be passed as a parameter.
     #When from the commandline, i may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'.
     def move_light(self, i=None, type='angle'):
-
+        print('move light!')
         steps=True
         if type=='angle': 
             #First check whether we actually need to move at all.
@@ -1911,17 +1911,17 @@ class Controller():
         #     if type=='angle': #type will always be angle if reading from GUI
         #         self.test_view.move_light(int(self.active_incidence_entries[0].get()))
         #     self.set_light_geom()
+        #else:
+        timeout=0
+        if type=='angle':
+            timeout=np.abs(int(i)-int(self.i))*5+BUFFER
         else:
-            timeout=0
-            if type=='angle':
-                timeout=np.abs(int(i)-int(self.i))*5+BUFFER
-            else:
-                timeout=np.abs(int(i))/20+BUFFER
-            self.pi_commander.move_light(i,type)
-            handler=MotionHandler(self,label='Moving light...',timeout=timeout, steps=steps)
-            if type=='angle':
-                self.test_view.move_light(int(i))
-            self.set_light_geom(i,type)
+            timeout=np.abs(int(i))/20+BUFFER
+        self.pi_commander.move_light(i,type)
+        handler=MotionHandler(self,label='Moving light...',timeout=timeout, steps=steps)
+        if type=='angle':
+            self.test_view.move_light(int(i))
+        self.set_light_geom(i,type)
             
     #Move detector will either read e from the GUI (default), or if this is a text command then e will be passed as a parameter.
     #When from the commandline, e may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'. 
@@ -1945,17 +1945,17 @@ class Controller():
         #     if type=='angle': #Type will always be angle if we are reading from GUI
         #         self.test_view.move_detector(int(self.active_emission_entries[0].get()))
         #     self.set_detector_geom()
+        #else:
+        timeout=0
+        if type=='angle':
+            timeout=np.abs(int(e)-int(self.e))*5+BUFFER
         else:
-            timeout=0
-            if type=='angle':
-                timeout=np.abs(int(e)-int(self.e))*5+BUFFER
-            else:
-                timeout=np.abs(int(e))/20+BUFFER
-            self.pi_commander.move_detector(e,type)
-            handler=MotionHandler(self,label='Moving detector...',timeout=timeout,steps=steps)
-            if type=='angle':
-                self.test_view.move_detector(int(e))
-            self.set_detector_geom(e,type)
+            timeout=np.abs(int(e))/20+BUFFER
+        self.pi_commander.move_detector(e,type)
+        handler=MotionHandler(self,label='Moving detector...',timeout=timeout,steps=steps)
+        if type=='angle':
+            self.test_view.move_detector(int(e))
+        self.set_detector_geom(e,type)
         
     def move_tray(self, pos, type='position'):
         steps=False
@@ -2635,6 +2635,7 @@ class Controller():
                     self.log('Error: '+str(steps) +' is not a valid number of steps. Enter an integer from -1000 to 1000.')
                     return False  
             else:
+                print('not steps!')
                 i=param
                 valid_i=validate_int_input(i, self.min_i, self.max_i)
                 if valid_i:
@@ -2645,6 +2646,8 @@ class Controller():
                     if not self.script_running:
                         self.queue=[]
                     self.queue.insert(0,{self.move_light:[i]})
+                    print('move light!')
+                    print(i)
                     self.move_light(i)
                 else:
                     self.log('Error: '+i+' is an invalid incidence angle.')
@@ -3628,7 +3631,12 @@ class Controller():
             last=len(self.view_notebook.tabs())-1
     
             self.view_notebook.select(last)
- 
+            if self.plotter.save_dir==None: #If the user hasn't specified a folder where they want to save plots yet, set the default folder to be the same one they got the data from. Otherwise, leave it as is.
+                if self.opsys=='Windows':
+                    self.plotter.save_dir='\\'.join(filename.split('\\')[0:-1])
+                else:
+                    self.plotter.save_dir='/'.join(filename.split('/')[0:-1])
+    
 
             
             
@@ -5323,7 +5331,6 @@ class MotionHandler(CommandHandler):
         
         self.timeout()
     def success(self):
-        print('registered motion success')
         if 'detector' in self.label:
             try:
                 self.controller.log('Goniometer moved to an emission angle of '+str(self.controller.e)+' degrees.')
@@ -5367,9 +5374,7 @@ class MotionHandler(CommandHandler):
         else:
             self.controller.log('Something moved! Who knows what?')
         #self.controller.unfreeze()
-        print(self.controller.queue)
         super(MotionHandler,self).success()
-        print(self.controller.queue)
         
         
 class SaveConfigHandler(CommandHandler):
@@ -6453,9 +6458,7 @@ class PiCommander(Commander):
         super().__init__(write_command_loc,listener)
     
     def configure(self,i,e,pos):
-        print(i)
-        print(e)
-        print(pos)
+
         self.remove_from_listener_queue(['piconfigsuccess'])
         filename=self.encrypt('configure',[i,e,pos])
         self.send(filename)
@@ -6467,9 +6470,11 @@ class PiCommander(Commander):
         if type=='angle':
             incidence=num
             filename=self.encrypt('movelight',[incidence])
+            print(filename)
         else:
             steps=num
             filename=self.encrypt('movelight',[steps,'steps'])
+        print('sending!')
         self.send(filename)
         return filename
     
