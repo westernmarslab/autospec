@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='AutoSpec',
-    version='0.0.6',
+    version='0.0.8',
     packages=['autospec'],
     license='Creative Commons Attribution-Noncommercial-Share Alike license',
     description='Control software for spectroscopy using ASD RS3 and ViewSpec Pro',

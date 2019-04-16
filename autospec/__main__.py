@@ -152,8 +152,10 @@ data_share='users' #Not used. Maybe later?
 data_share_Mac='Users'
 pi_share='pishare'
 pi_share_Mac='PiShare'
+home_loc=os.path.expanduser('~')
 
 if opsys=='Linux':
+    home_loc+='/'
     spec_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+spec_share+'/'
     data_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+data_share+'/'
     pi_share_loc='/run/user/1000/gvfs/smb-share:server='+pi_server+',share='+pi_share+'/'
@@ -164,10 +166,11 @@ if opsys=='Linux':
     pi_write_loc=pi_share_loc+'commands/from_control/'
     spec_read_loc=spec_share_loc+'commands/from_spec/'
     pi_read_loc=pi_share_loc+'/commands/from_pi/'
-    local_config_loc=package_loc+'local_config/'
+    local_config_loc=home_loc+'.autospec_config/' #package_loc+'local_config/'
     global_config_loc=package_loc+'global_config/'
     log_loc=package_loc+'log/'
 elif opsys=='Windows':
+    home_loc+='\\'
     spec_share_loc='\\\\'+server.upper()+'\\'+spec_share+'\\'
     pi_share_loc='\\\\'+pi_server.upper()+'\\'+pi_share.upper()+'\\'
 
@@ -178,11 +181,12 @@ elif opsys=='Windows':
     pi_write_loc=pi_share_loc+'commands\\from_control\\'
     spec_read_loc=spec_share_loc+'commands\\from_spec\\'
     pi_read_loc=pi_share_loc+'commands\\from_pi\\'
-    local_config_loc=package_loc+'local_config\\'
+    local_config_loc=home_loc+'.autospec_config\\' #package_loc+'local_config\\'
     global_config_loc=package_loc+'global_config\\'
     log_loc=package_loc+'log\\'
     
 elif opsys=='Mac':
+    home_loc+='/'
     spec_share_loc='/Volumes/'+spec_share_Mac+'/'
     pi_share_loc='/Volumes/'+pi_share_Mac+'/'
     data_share_loc='/Volumes/'+data_share_Mac+'/'
@@ -193,7 +197,7 @@ elif opsys=='Mac':
     pi_write_loc=pi_share_loc+'commands/from_control/'
     spec_read_loc=spec_share_loc+'commands/from_spec/'
     pi_read_loc=pi_share_loc+'commands/from_spec/'
-    local_config_loc=package_loc+'local_config/'
+    local_config_loc=home_loc+'.autospec_config/' #package_loc+'local_config/'
     global_config_loc=package_loc+'global_config/'
     log_loc=package_loc+'log/'
     
@@ -6833,5 +6837,4 @@ class StringVarWithEntry(StringVar):
         self.entry=None
 
 if __name__=='__main__':
-    print('foo')
     main()
