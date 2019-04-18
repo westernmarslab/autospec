@@ -6059,7 +6059,7 @@ class IntInputDialog(Dialog):
             else:
                 self.entries[val]=StringVar()
                 self.entries[val].set('White reference')
-                menu = OptionMenu(frame, self.entries[val],'{0:18}'.format('White reference'), '{0:18}'.format('1'),'2          ','3          ','4          ','5          ')
+                menu = OptionMenu(frame, self.entries[val],'{0:15}'.format('White reference'), '{0:18}'.format('1'),'2          ','3          ','4          ','5          ')
                 menu.configure(width=15,highlightbackground=self.controller.highlightbackgroundcolor)
                 menu.pack()
                 
@@ -6072,28 +6072,36 @@ class IntInputDialog(Dialog):
             self.mins[val]=self.values[val][1]
             self.maxes[val]=self.values[val][2]
             valid=validate_int_input(self.entries[val].get(),self.mins[val],self.maxes[val]) #Weird for tray position - not valid for white reference
+
+                
             valid_sep=True
             if valid:
                 #self.values[val][0]=self.entries[val].get()
                 if val=='Incidence':
                     valid_sep=self.controller.validate_distance(self.entries['Incidence'].get(),self.entries['Emission'].get())
-                    if valid_sep:
-                        self.controller.i=int(self.entries[val].get())
                         
                 elif val=='Emission':
                     valid_sep=self.controller.validate_distance(self.entries['Incidence'].get(),self.entries['Emission'].get())
-                    if valid_sep:
-                        self.controller.e=int(self.entries[val].get())
+                        
                 elif val=='Tray position':
                     self.controller.sample_tray_index=int(self.entries[val].get())-1
                     
             elif val=='Tray position': #This is a weird way of handling this. Happens whenever the user selects White Reference from drop down list.
-                if self.entries[val].get()=='White reference':
+                if 'White reference' in self.entries[val].get():
                     self.controller.sample_tray_index=-1
                 else: #We should never get here
+                    print(self.entries[val].get())
                     self.controller.sample_tray_index=int(self.entries[val].get())-1
             else:
                 bad_vals.append(val)
+        if len(bad_vals)==0 and valid_sep:
+            incidence=int(self.entries['Incidence'].get())
+            emission=int(self.entries['Emission'].get())
+            if int(incidence)>int(emission)-15: 
+                valid_sep=False
+            else:
+                self.controller.e=emission
+                self.controller.i=incidence
         if len(bad_vals)==0 and valid_sep:
             self.top.destroy()
             dict=self.buttons['ok']
@@ -6110,7 +6118,7 @@ class IntInputDialog(Dialog):
                 for val in bad_vals:
                     err_str+=val+' from '+str(self.mins[val])+' to '+str(self.maxes[val])+'\n'
             else:
-                err_str+='angular separation\n(must be at least '+str(self.controller.required_angular_separation)+' degrees).'
+                err_str+='angular separation.\nEmission must be at least '+str(self.controller.required_angular_separation)+' degrees greater than incidence.'
             dialog=ErrorDialog(self.controller,title='Error: Invalid Input',label=err_str)
         
             
