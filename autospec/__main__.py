@@ -17,11 +17,12 @@ PI_OFFLINE=False
 
 from tkinter import *
 from tkinter import messagebox
-importlib=True
+#importlib=True
 try:
     import importlib
 except:
-    importlib=False
+    #importlib=False
+    pass
 import tkinter as tk
 from tkinter import ttk
 #import pygame
@@ -94,7 +95,7 @@ elif opsys=='Mac':
     except:
         print('Developer mode!')
         dev=True
-        package_loc='/home/khoza/Python/WWU-AutoSpec/wwu-autospec/'
+        package_loc='/home/khoza/Python/AutoSpec/autospec/'
 
 sys.path.append(package_loc)
 
@@ -151,8 +152,10 @@ data_share='users' #Not used. Maybe later?
 data_share_Mac='Users'
 pi_share='pishare'
 pi_share_Mac='PiShare'
+home_loc=os.path.expanduser('~')
 
 if opsys=='Linux':
+    home_loc+='/'
     spec_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+spec_share+'/'
     data_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+data_share+'/'
     pi_share_loc='/run/user/1000/gvfs/smb-share:server='+pi_server+',share='+pi_share+'/'
@@ -163,10 +166,11 @@ if opsys=='Linux':
     pi_write_loc=pi_share_loc+'commands/from_control/'
     spec_read_loc=spec_share_loc+'commands/from_spec/'
     pi_read_loc=pi_share_loc+'/commands/from_pi/'
-    local_config_loc=package_loc+'local_config/'
+    local_config_loc=home_loc+'.autospec_config/' #package_loc+'local_config/'
     global_config_loc=package_loc+'global_config/'
     log_loc=package_loc+'log/'
 elif opsys=='Windows':
+    home_loc+='\\'
     spec_share_loc='\\\\'+server.upper()+'\\'+spec_share+'\\'
     pi_share_loc='\\\\'+pi_server.upper()+'\\'+pi_share.upper()+'\\'
 
@@ -177,11 +181,12 @@ elif opsys=='Windows':
     pi_write_loc=pi_share_loc+'commands\\from_control\\'
     spec_read_loc=spec_share_loc+'commands\\from_spec\\'
     pi_read_loc=pi_share_loc+'commands\\from_pi\\'
-    local_config_loc=package_loc+'local_config\\'
+    local_config_loc=home_loc+'.autospec_config\\' #package_loc+'local_config\\'
     global_config_loc=package_loc+'global_config\\'
     log_loc=package_loc+'log\\'
     
 elif opsys=='Mac':
+    home_loc+='/'
     spec_share_loc='/Volumes/'+spec_share_Mac+'/'
     pi_share_loc='/Volumes/'+pi_share_Mac+'/'
     data_share_loc='/Volumes/'+data_share_Mac+'/'
@@ -192,7 +197,7 @@ elif opsys=='Mac':
     pi_write_loc=pi_share_loc+'commands/from_control/'
     spec_read_loc=spec_share_loc+'commands/from_spec/'
     pi_read_loc=pi_share_loc+'commands/from_spec/'
-    local_config_loc=package_loc+'local_config/'
+    local_config_loc=home_loc+'.autospec_config/' #package_loc+'local_config/'
     global_config_loc=package_loc+'global_config/'
     log_loc=package_loc+'log/'
     
@@ -392,27 +397,27 @@ class Controller():
         self.master.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.tk_master=self.master #this gets used when deciding whether to open a new master when giving a no connection dialog or something. I can't remember. Maybe could be deleted, but I don't think so
 
-        menubar = Menu(self.master)
+        self.menubar = Menu(self.master)
         
 
 
         # create a pulldown menu, and add it to the menu bar
-        filemenu = Menu(menubar, tearoff=0)
-        filemenu.add_command(label="Load script", command=self.load_script)
-        filemenu.add_command(label="Process and export data", command=self.show_process_frame)
-        filemenu.add_command(label="Plot processed data", command=self.show_plot_frame)
-        filemenu.add_command(label='Clear plotted data cache',command=self.reset_plot_data)
+        self.filemenu = Menu(self.menubar, tearoff=0)
+        self.filemenu.add_command(label="Load script", command=self.load_script)
+        self.filemenu.add_command(label="Process and export data", command=self.show_process_frame)
+        self.filemenu.add_command(label="Plot processed data", command=self.show_plot_frame)
+        self.filemenu.add_command(label='Clear plotted data cache',command=self.reset_plot_data)
 
-        filemenu.add_separator()
-        filemenu.add_command(label="Exit", command=self.on_closing)
+        self.filemenu.add_separator()
+        self.filemenu.add_command(label="Exit", command=self.on_closing)
 
-        menubar.add_cascade(label="File", menu=filemenu)
+        self.menubar.add_cascade(label="File", menu=self.filemenu)
         
         # create more pulldown menus
-        editmenu = Menu(menubar, tearoff=0)
+        editmenu = Menu(self.menubar, tearoff=0)
         editmenu.add_command(label="Failsafes...", command=self.show_settings_frame)
         editmenu.add_command(label="Plot settings...", command=self.show_plot_settings_frame)
-        menubar.add_cascade(label="Settings", menu=editmenu)
+        self.menubar.add_cascade(label="Settings", menu=editmenu)
         
 
         
@@ -426,12 +431,12 @@ class Controller():
         self.geommenu.add_command(label='  Range (Automatic only)', command=lambda:self.set_individual_range(1),state=DISABLED)
         editmenu.add_cascade(label='Geometry specification', menu=self.geommenu)
         
-        helpmenu = Menu(menubar, tearoff=0)
+        helpmenu = Menu(self.menubar, tearoff=0)
         #helpmenu.add_command(label="About", command=hello)
-        menubar.add_cascade(label="Help", menu=helpmenu)
+        self.menubar.add_cascade(label="Help", menu=helpmenu)
         
         # display the menu
-        self.master.config(menu=menubar)
+        self.master.config(menu=self.menubar)
         
         self.notebook_frame=Frame(self.master)
         self.notebook_frame.pack(side=LEFT,fill=BOTH, expand=True)
@@ -439,6 +444,8 @@ class Controller():
         self.tk_buttons=[]
         self.entries=[]
         self.radiobuttons=[]
+        self.tk_check_buttons=[]
+        self.option_menus=[]
         
         self.view_frame = Frame(self.master, width=1800, height=1200,bg=self.bg)
         self.view_frame.pack(side=RIGHT,fill=BOTH,expand=True)
@@ -911,13 +918,15 @@ class Controller():
         
         thread = Thread(target =self.scrollbar_check) #Waits for everything to get packed, then checks if you need a scrollbar on the control frame.
         thread.start()
-
+        if opsys=='Windows':
+            self.master.wm_state('zoomed')
         self.master.mainloop()
         
         #self.view.join()
     def scrollbar_check(self):
         time.sleep(0.5)
         self.control_frame.update()
+
     def show_process_frame(self):
         #********************** Process frame ******************************
         self.process_top=Toplevel(self.master)
@@ -934,6 +943,7 @@ class Controller():
         self.process_input_browse_button=Button(self.input_frame,text='Browse',command=self.choose_process_input_dir)
         self.process_input_browse_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.process_input_browse_button.pack(side=RIGHT, padx=self.padx)
+        self.tk_buttons.append(self.process_input_browse_button)
         
         
         self.input_dir_var = StringVar()
@@ -942,6 +952,7 @@ class Controller():
         self.input_dir_entry=Entry(self.input_frame, width=50,bd=self.bd, textvariable=self.input_dir_var,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.input_dir_entry.insert(0, self.process_input_dir)
         self.input_dir_entry.pack(side=RIGHT,padx=self.padx, pady=self.pady)
+        self.entries.append(self.input_dir_entry)
         
 
         self.proc_local_remote_frame=Frame(self.process_frame, bg=self.bg)
@@ -954,6 +965,7 @@ class Controller():
         self.proc_local_check.pack(side=LEFT,pady=(5,0),padx=(5,5))
         if self.proc_local_remote=='local':
             self.proc_local_check.select()
+        self.tk_check_buttons.append(self.proc_local_check)
 
         
         #self.remote=IntVar()
@@ -961,6 +973,7 @@ class Controller():
         self.proc_remote_check.pack(side=LEFT, pady=(5,0),padx=(5,5))
         if self.proc_local_remote=='remote':
             self.proc_remote_check.select()
+        self.tk_check_buttons.append(self.proc_remote_check)
         
 
         self.process_output_frame=Frame(self.process_frame, bg=self.bg)
@@ -968,51 +981,36 @@ class Controller():
         self.process_output_browse_button=Button(self.process_output_frame,text='Browse',command=self.choose_process_output_dir)
         self.process_output_browse_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.process_output_browse_button.pack(side=RIGHT, padx=self.padx)
+        self.tk_buttons.append(self.process_output_browse_button)
         
         self.output_dir_entry=Entry(self.process_output_frame, width=50,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.output_dir_entry.insert(0, self.process_output_dir)
         self.output_dir_entry.pack(side=RIGHT,padx=self.padx,pady=self.pady)
-
-#*****************************************************
-        
-        # self.output_frame=Frame(self.process_frame, bg=self.bg)
-        # self.output_frame.pack()
-        # self.process_output_browse_button=Button(self.output_frame,text='Browse',command=self.choose_process_output_dir)
-        # self.process_output_browse_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
-        # self.process_output_browse_button.pack(side=RIGHT, padx=self.padx)
-        
-        # self.output_dir_entry=Entry(self.output_frame, width=50,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.output_dir_entry.insert(0, self.spec_save_dir_entry.get())
-        # self.output_dir_entry.pack(side=RIGHT,padx=self.padx)
-        
-        # self.output_file_frame=Frame(self.process_frame, bg=self.bg)
-        # self.output_file_frame.pack()
+        self.entries.append(self.output_dir_entry)
         
         self.output_file_label=Label(self.process_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text='Output file name:')
         self.output_file_label.pack(padx=self.padx,pady=self.pady)
         self.output_file_entry=Entry(self.process_frame, width=50,bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.output_file_entry.pack()
+        self.entries.append(self.output_file_entry)
         
 
         self.process_check_frame=Frame(self.process_frame, bg=self.bg)
         self.process_check_frame.pack(pady=(15,5))
         self.process_save_dir=IntVar()
         self.process_save_dir_check=Checkbutton(self.process_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text='Save file configuration', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.process_save_dir)
-        #self.process_save_dir_check.pack(side=LEFT, pady=(5,15))
         self.process_save_dir_check.select()
-        # self.process_plot=IntVar()
-        # self.process_plot_check=Checkbutton(self.process_check_frame, fg=self.textcolor,text='Plot spectra', bg=self.bg, pady=self.pady,highlightthickness=0)
-        # self.process_plot_check.pack(side=LEFT, pady=(5,15))
-        
         
         self.process_button_frame=Frame(self.process_frame, bg=self.bg)
         self.process_button_frame.pack()  
         self.process_button=Button(self.process_button_frame, fg=self.textcolor,text='Process', padx=self.padx, pady=self.pady, width=int(self.button_width*1.3),bg='light gray', command=self.process_cmd)
         self.process_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.process_button.pack(padx=(15,15),side=LEFT)
+        self.tk_buttons.append(self.process_button)
         
         self.process_close_button=Button(self.process_button_frame,fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,text='Close',padx=self.padx,pady=self.pady,width=int(self.button_width*1.3),bg=self.buttonbackgroundcolor,command=self.close_process)
         self.process_close_button.pack(padx=(15,15),side=LEFT)
+        self.tk_buttons.append(self.process_close_button)
         
     def close_process(self):
         self.process_top.destroy()
@@ -1174,11 +1172,11 @@ class Controller():
         self.select_proc_logfile_button=Button(self.proc_logfile_frame, fg=self.textcolor,text='Browse',command=self.chooseplotlogfile, height=1,bg=self.buttonbackgroundcolor)
         self.select_proc_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor)
         self.proc_logfile_entry=Entry(self.proc_logfile_frame, width=50,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.proc_logfile_entry.insert(0,self.proc_logfile)
+        #self.proc_logfile_entry.insert(0,self.proc_logfile)
         
         self.no_wr=IntVar()
         self.no_wr_check=Checkbutton(self.plot_frame,selectcolor=self.check_bg, fg=self.textcolor,text='Exclude white references', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.no_wr, command=self.no_wr_cmd)
-        self.no_wr_check.pack(pady=(5,5))
+        #self.no_wr_check.pack(pady=(5,5))
         self.no_wr_check.select()
         
 
@@ -1566,8 +1564,8 @@ class Controller():
 
         if self.logfile_entry.get()=='':
             self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
-            with open(self.log_filename,'w+') as log:
-                log.write(str(datetime.datetime.now())+'\n')
+            #with open(self.log_filename,'w+') as log:
+            #    log.write(str(datetime.datetime.now())+'\n')
             if opsys=='Linux':
                 self.logfile_entry.insert(0,os.getcwd()+'/'+self.log_filename)
             elif opsys=='Windows':
@@ -1903,7 +1901,7 @@ class Controller():
     #Move light will either read i from the GUI (default, i=None), or if this is a text command then i will be passed as a parameter.
     #When from the commandline, i may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'.
     def move_light(self, i=None, type='angle'):
-
+        print('move light!')
         steps=True
         if type=='angle':
             steps=False #We will need to tell the motionhandler whether we're specifying steps or an angle
@@ -1927,6 +1925,7 @@ class Controller():
         print('light timeout = ')
         print(timeout)
         handler=MotionHandler(self,label='Moving light source...',timeout=timeout,steps=steps)
+
         if type=='angle':
             self.test_view.move_light(int(i))
         self.set_light_geom(i,type)
@@ -1946,6 +1945,7 @@ class Controller():
                 self.complete_queue_item()
                 if len(self.queue)>0:
                     self.next_in_queue()
+
                 return #If we're staying in the same spot, just return!
 
         timeout=0
@@ -1953,6 +1953,7 @@ class Controller():
             timeout=np.abs(int(e)-int(self.e))*8+PI_BUFFER
         else:
             timeout=np.abs(int(e))/15+PI_BUFFER
+
         self.pi_commander.move_detector(e,type)
         handler=MotionHandler(self,label='Moving detector...',timeout=timeout,steps=steps)
         if type=='angle':
@@ -2705,6 +2706,7 @@ class Controller():
                     self.script_running=False
                     return False  
             else:
+                print('not steps!')
                 i=param
                 valid_i=validate_int_input(i, self.min_i, self.max_i)
                 if valid_i:
@@ -2715,6 +2717,8 @@ class Controller():
                     if not self.script_running:
                         self.queue=[]
                     self.queue.insert(0,{self.move_light:[i]})
+                    print('move light!')
+                    print(i)
                     self.move_light(i)
                 else:
                     self.log('Error: '+i+' is an invalid incidence angle.')
@@ -2977,17 +2981,65 @@ class Controller():
         shutil.move(self.spec_temp_loc+'proc_temp.csv',final_data_destination)
         shutil.move(self.spec_temp_loc+'proc_temp_log.txt',final_log_destination)
     def open_options(self, tab,current_title):
+        #If the user already has dialogs open for editing the plot, close the extras to avoid confusion.
+        try:
+            self.analysis_dialog.top.destroy()
+        except:
+            pass
+        try:
+            self.edit_plot_dialog.top.destroy()
+        except:
+            pass        
+        try:
+            self.plot_options_dialog.top.destroy()
+        except:
+            pass
+        def select_tab():
+            self.view_notebook.select(tab.top)
         buttons={
             'ok':{
+                select_tab:[],
                 lambda: tab.set_title(self.new_plot_title_entry.get()):[]
             }
         }
-        dialog=Dialog(self,'Plot Options','\nPlot title:',buttons=buttons)
-        self.new_plot_title_entry=Entry(dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        
+        def apply_x():
+            self.view_notebook.select(tab.top)
+
+            try:
+                x1=float(self.left_zoom_entry.get())
+                x2=float(self.right_zoom_entry.get())
+                tab.adjust_x(x1,x2)
+            except:
+                ErrorDialog(self, title='Invalid Zoom Range',label='Error: Invalid x limits: '+self.left_zoom_entry.get()+', '+self.right_zoom_entry.get())
+                
+        def apply_y():
+            self.view_notebook.select(tab.top)
+            try:
+                y1=float(self.left_zoom_entry2.get())
+                y2=float(self.right_zoom_entry2.get())
+                tab.adjust_y(y1,y2)
+            except Exception as e:
+                print(e)
+                ErrorDialog(self, title='Invalid Zoom Range',label='Error! Invalid y limits: '+self.left_zoom_entry2.get()+', '+self.right_zoom_entry2.get())
+                
+        def apply_z():
+            self.view_notebook.select(tab.top)
+
+            try:
+                z1=float(self.left_zoom_entry_z.get())
+                z2=float(self.right_zoom_entry_z.get())
+                tab.adjust_z(z1,z2)
+            except Exception as e:
+                print(e)
+                ErrorDialog(self, title='Invalid Zoom Range',label='Error: Invalid z limits: '+self.left_zoom_entry.get()+', '+self.right_zoom_entry.get())
+        
+        self.plot_options_dialog=Dialog(self,'Plot Options','\nPlot title:',buttons=buttons)
+        self.new_plot_title_entry=Entry(self.plot_options_dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.new_plot_title_entry.insert(0,current_title)
         self.new_plot_title_entry.pack()
         
-        self.outer_outer_zoom_frame=Frame(dialog.top,bg=self.bg,padx=self.padx,pady=15)
+        self.outer_outer_zoom_frame=Frame(self.plot_options_dialog.top,bg=self.bg,padx=self.padx,pady=15)
         self.outer_outer_zoom_frame.pack(expand=True,fill=BOTH)
 
         self.zoom_title_frame=Frame(self.outer_outer_zoom_frame,bg=self.bg)
@@ -3004,7 +3056,7 @@ class Controller():
         self.left_zoom_entry=Entry(self.zoom_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.zoom_label2=Label(self.zoom_frame,text='x2:',bg=self.bg,fg=self.textcolor)
         self.right_zoom_entry=Entry(self.zoom_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.zoom_button=Button(self.zoom_frame,text='Apply',  command=lambda:tab.adjust_x(self.left_zoom_entry.get(),self.right_zoom_entry.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button=Button(self.zoom_frame,text='Apply',  command=apply_x,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
         self.zoom_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.zoom_button.pack(side=RIGHT,padx=(10,10))
         self.right_zoom_entry.pack(side=RIGHT,padx=self.padx)
@@ -3021,10 +3073,8 @@ class Controller():
         self.left_zoom_entry2=Entry(self.zoom_frame2, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.zoom_label4=Label(self.zoom_frame2,text='y2:',bg=self.bg,fg=self.textcolor)
         self.right_zoom_entry2=Entry(self.zoom_frame2, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.zoom_button2=Button(self.zoom_frame2,text='Apply',  command=lambda:tab.adjust_y(self.left_zoom_entry2.get(),self.right_zoom_entry2.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button2=Button(self.zoom_frame2,text='Apply',  command=apply_y,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
         self.zoom_button2.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
-
-
         
         self.zoom_button2.pack(side=RIGHT,padx=(10,10))
         self.right_zoom_entry2.pack(side=RIGHT,padx=self.padx)
@@ -3032,40 +3082,102 @@ class Controller():
         self.left_zoom_entry2.pack(side=RIGHT,padx=self.padx)
         self.zoom_label3.pack(side=RIGHT,padx=self.padx)
         
+        self.outer_zoom_frame_z=Frame(self.outer_outer_zoom_frame,bg=self.bg,padx=self.padx)
+        self.outer_zoom_frame_z.pack(expand=True,fill=BOTH,pady=(0,10))
+        self.zoom_frame_z=Frame(self.outer_zoom_frame_z,bg=self.bg,padx=self.padx)
+        self.zoom_frame_z.pack()
+        self.zoom_label_z1=Label(self.zoom_frame_z,text='z1:',bg=self.bg,fg=self.textcolor)
+        self.left_zoom_entry_z=Entry(self.zoom_frame_z, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_label_z2=Label(self.zoom_frame_z,text='z2:',bg=self.bg,fg=self.textcolor)
+        self.right_zoom_entry_z=Entry(self.zoom_frame_z, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.zoom_button_z=Button(self.zoom_frame_z,text='Apply',  command=apply_z,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button_z.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+
+
+        
+        self.zoom_button_z.pack(side=RIGHT,padx=(10,10))
+        self.right_zoom_entry_z.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label_z2.pack(side=RIGHT,padx=self.padx)
+        self.left_zoom_entry_z.pack(side=RIGHT,padx=self.padx)
+        self.zoom_label_z1.pack(side=RIGHT,padx=self.padx)
+        
         
         
     def open_analysis_tools(self, tab):
+
+        #tab.set_exclude_artifacts(True)
         def calculate():
-            print('yay calculate!')
-            print(self.analyze_var.get())
+            self.view_notebook.select(tab.top)
+            artifact_warning=False
+            
             if self.analyze_var.get()=='slope':
-                slopes=tab.calculate_slopes(self.left_slope_entry.get(),self.right_slope_entry.get())
+                left, right, slopes, artifact_warning=tab.calculate_slopes(self.left_slope_entry.get(),self.right_slope_entry.get())
+                update_entries(left, right)
                 populate_listbox(slopes)
-            elif self.analyze_var.get()=='band depth':
-                depths=tab.calculate_band_depths(self.left_slope_entry.get(),self.right_slope_entry.get())
-                populate_listbox(depths)
-            elif self.analyze_var.get()=='band center':
-                centers=tab.calculate_band_centers(self.left_slope_entry.get(),self.right_slope_entry.get())
-                populate_listbox(centers)
-            elif self.analyze_var.get()=='reflectance':
-                reflectance=tab.calculate_avg_reflectance(self.left_slope_entry.get(),self.right_slope_entry.get())
-                populate_listbox(reflectance)
-            elif self.analyze_var.get()=='reciprocity':
-                reciprocity=tab.calculate_reciprocity(self.left_slope_entry.get(),self.right_slope_entry.get())
-                populate_listbox(reciprocity)
+                update_plot_menu(['e','i','g','e,i','theta'])
                 
+            elif self.analyze_var.get()=='band depth':
+                left, right, depths, artifact_warning=tab.calculate_band_depths(self.left_slope_entry.get(),self.right_slope_entry.get(), self.neg_depth.get(),self.use_delta.get())
+                update_entries(left, right)
+                populate_listbox(depths)
+                update_plot_menu(['e','i','g','e,i','theta'])
+                
+            elif self.analyze_var.get()=='band center':
+                left, right, centers,artifact_warning=tab.calculate_band_centers(self.left_slope_entry.get(),self.right_slope_entry.get(), self.use_max_for_centers.get(),self.use_delta.get())
+                update_entries(left, right)
+                populate_listbox(centers)
+                update_plot_menu(['e','i','g','e,i','theta'])
+                print(self.use_max_for_centers.get())
+                
+            elif self.analyze_var.get()=='reflectance':
+                left, right, reflectance,artifact_warning=tab.calculate_avg_reflectance(self.left_slope_entry.get(),self.right_slope_entry.get())
+                update_entries(left, right)
+                populate_listbox(reflectance)
+                update_plot_menu(['e','i','g','e,i','theta'])
+                
+            elif self.analyze_var.get()=='reciprocity':
+                left, right, reciprocity, artifact_warning=tab.calculate_reciprocity(self.left_slope_entry.get(),self.right_slope_entry.get())
+                update_entries(left, right)
+                populate_listbox(reciprocity)
+                update_plot_menu(['e','i','g','e,i'])
+                
+            elif self.analyze_var.get()=='difference':
+                left, right, error, artifact_warning=tab.calculate_error(self.left_slope_entry.get(),self.right_slope_entry.get(), self.abs_val.get())
+                #Tab validates left and right values. If they are no good, put in min and max wavelengths available.
+                update_entries(left, right)
+                populate_listbox(error)
+                update_plot_menu([u'\u03bb', 'e,i'])
+                        
+            if artifact_warning:
+                dialog=ErrorDialog(self, 'Warning','Warning: Excluding data potentially\ninfluenced by artifacts from 1000-1400 nm.')
+                
+        def update_plot_menu(plot_options):
+            self.plot_slope_var.set(plot_options[0])
+            self.plot_slope_menu['menu'].delete(0, 'end')
+        
+            # Insert list of new options (tk._setit hooks them up to var)
+            max_len=len(plot_options[0])
+            for option in plot_options:
+                max_len=np.max([max_len,len(option)])
+                self.plot_slope_menu['menu'].add_command(label=option, command=tk._setit(self.plot_slope_var, option))
+            self.plot_slope_menu.configure(width=max_len)
 
-
-        def populate_listbox(slopes):
-            if len(slopes)>0:
+        def update_entries(left, right):
+                self.left_slope_entry.delete(0,'end')
+                self.left_slope_entry.insert(0,str(left))
+                self.right_slope_entry.delete(0,'end')
+                self.right_slope_entry.insert(0,str(right))
+                
+        def populate_listbox(results):
+            if len(results)>0:
                 self.slope_results_frame.pack(fill=BOTH, expand=True,pady=(10,10))
                 try:
                     self.slopes_listbox.delete(0,'end')
                 except:
                     self.slopes_listbox=ScrollableListbox(self.slope_results_frame,self.bg,self.entry_background, self.listboxhighlightcolor,selectmode=EXTENDED)
                     self.slopes_listbox.configure(height=8)
-                for slope in slopes:
-                    self.slopes_listbox.insert('end',slope)
+                for result in results:
+                    self.slopes_listbox.insert('end',result)
                 self.slopes_listbox.pack(fill=BOTH, expand=True)
                 self.plot_slope_button.configure(state=NORMAL)
                 
@@ -3081,15 +3193,91 @@ class Controller():
                 tab.plot_avg_reflectance(self.plot_slope_var.get())
             elif self.analyze_var.get()=='reciprocity':
                 tab.plot_reciprocity(self.plot_slope_var.get())
+            elif self.analyze_var.get()=='difference':
+                new=tab.plot_error(self.plot_slope_var.get())
+
+            if self.plot_slope_var.get()=='\u03bb':
+                x1=float(self.left_slope_entry.get())
+                x2=float(self.right_slope_entry.get())
+                new.adjust_x(x1,x2)
+
 
         def normalize():
+            self.view_notebook.select(tab.top)
             
             try:
                 self.slopes_listbox.delete(0,'end')
-                calculate_slopes()
+                self.plot_slope_button.configure(state='disabled')
             except:
                 pass
             tab.normalize(self.normalize_entry.get())
+            
+        def offset():
+            tab.offset(self.offset_sample_var.get(), self.offset_entry.get())
+
+        def apply_x():
+            self.view_notebook.select(tab.top)
+
+            try:
+                x1=float(self.left_zoom_entry.get())
+                x2=float(self.right_zoom_entry.get())
+                tab.adjust_x(x1,x2)
+            except:
+                ErrorDialog(self, title='Invalid Zoom Range',label='Error! Invalid x limits: '+self.left_zoom_entry.get()+', '+self.right_zoom_entry.get())
+        def apply_y():
+            self.view_notebook.select(tab.top)
+            try:
+                y1=float(self.left_zoom_entry2.get())
+                y2=float(self.right_zoom_entry2.get())
+                tab.adjust_y(y1,y2)
+            except:
+                ErrorDialog(self, title='Invalid Zoom Range',label='Error! Invalid y limits: '+self.left_zoom_entry2.get()+', '+self.right_zoom_entry2.get())
+            
+        def uncheck_exclude_artifacts():
+            self.exclude_artifacts.set(0)
+            self.exclude_artifacts_check.deselect()
+            
+        def disable_plot(analyze_var='None'):
+            try:
+                self.slopes_listbox.delete(0,'end')
+            except:
+                pass
+            self.plot_slope_button.configure(state='disabled')
+            
+            if analyze_var=='difference':
+                self.neg_depth_check.pack_forget()
+                self.use_max_for_centers_check.pack_forget()
+                self.use_delta_check.pack_forget()
+                self.abs_val_check.pack()
+                self.extra_analysis_check_frame.pack()
+        
+            elif analyze_var=='band center':
+                self.neg_depth_check.pack_forget()
+                self.abs_val_check.pack_forget()
+                self.use_delta_check.pack_forget()
+                self.use_max_for_centers_check.pack()
+                self.use_delta_check.pack()
+                self.extra_analysis_check_frame.pack()
+        
+            elif analyze_var=='band depth':
+                self.abs_val_check.pack_forget()
+                self.use_max_for_centers_check.pack_forget()
+                self.use_delta_check.pack_forget()
+                self.neg_depth_check.pack()
+                self.use_delta_check.pack()
+                self.extra_analysis_check_frame.pack()
+            
+            else:
+                self.abs_val_check.pack_forget()
+                self.neg_depth_check.pack_forget()
+                self.use_max_for_centers_check.pack_forget()
+                self.use_delta_check.pack_forget()
+                
+                self.extra_analysis_check_frame.grid_propagate(0)
+                self.extra_analysis_check_frame.configure(height=1) #for some reason 0 doesn't work.
+                self.extra_analysis_check_frame.pack()
+                self.outer_slope_frame.pack()
+            
         def calculate_photometric_variability():
 
             photo_var=tab.calculate_photometric_variability(self.right_photo_var_entry.get(),self.left_photo_var_entry.get())
@@ -3101,16 +3289,32 @@ class Controller():
                 self.photo_var_listbox.insert('end',var)
             self.photo_var_listbox.pack(fill=BOTH, expand=True)
 
+        def select_tab():
+            self.view_notebook.select(tab.top)
+        
         
         tab.freeze() #You have to finish dealing with this before, say, opening another analysis box.
         buttons={
             'reset':{
-                tab.reset:[]
+                select_tab:[],
+                tab.reset:[],
+                uncheck_exclude_artifacts:[],
+                disable_plot:[]
             },
             'close':{}
         }
+        
+        #If the user already has analysis tools or a plot editing dialog open, close the extra to avoid confusion.
         try:
             self.analysis_dialog.top.destroy()
+        except:
+            pass
+        try:
+            self.edit_plot_dialog.top.destroy()
+        except:
+            pass
+        try:
+            self.plot_options_dialog.top.destroy()
         except:
             pass
         self.analysis_dialog=Dialog(self,'Analyze Data','',buttons=buttons,button_width=13)
@@ -3133,6 +3337,43 @@ class Controller():
         self.normalize_entry.pack(side=RIGHT,padx=self.padx)
         self.normalize_label.pack(side=RIGHT,padx=self.padx)
         
+        self.outer_offset_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_offset_frame.pack(expand=True,fill=BOTH)
+        self.slope_title_label=Label(self.outer_offset_frame,text='Add offset to sample:',bg=self.bg,fg=self.textcolor)
+        self.slope_title_label.pack(pady=(0,15))
+        self.offset_sample_frame=Frame(self.outer_offset_frame,bg=self.bg,padx=self.padx,pady=self.pady)
+        self.offset_sample_frame.pack()
+        self.offset_sample_label=Label(self.offset_sample_frame,text='Sample: ',bg=self.bg,fg=self.textcolor)
+        self.offset_sample_label.pack(side=LEFT)
+        self.offset_sample_var=StringVar()
+        sample_names=[]
+        repeats=False
+        max_len=0
+        for sample in tab.samples:
+            if sample.name in sample_names:
+                repeats=True
+            else:
+                sample_names.append(sample.name)
+                max_len=np.max([max_len, len(sample.name)])
+        if repeats:
+            sample_names=[]
+            for sample in tab.samples:
+                sample_names.append(sample.title+': '+sample.name)
+                max_len=np.max([max_len, len(sample_names[-1])])
+        print(max_len)
+        self.offset_sample_var.set(sample_names[0])
+        self.offset_menu=OptionMenu(self.offset_sample_frame, self.offset_sample_var,*sample_names)
+        self.offset_menu.configure(width=max_len,highlightbackground=self.highlightbackgroundcolor)
+        self.offset_menu.pack(side=LEFT)
+        self.offset_frame=Frame(self.outer_offset_frame,bg=self.bg,padx=self.padx,pady=15)
+        self.offset_frame.pack()
+        self.offset_label=Label(self.offset_frame,text='Offset:',bg=self.bg,fg=self.textcolor)
+        self.offset_entry=Entry(self.offset_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        self.offset_button=Button(self.offset_frame,text='Apply',  command=offset,width=6, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.offset_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.offset_button.pack(side=RIGHT,padx=(10,10))
+        self.offset_entry.pack(side=RIGHT,padx=self.padx)
+        self.offset_label.pack(side=RIGHT,padx=self.padx)
         
         self.outer_outer_zoom_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_outer_zoom_frame.pack(expand=True,fill=BOTH)
@@ -3151,7 +3392,7 @@ class Controller():
         self.left_zoom_entry=Entry(self.zoom_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.zoom_label2=Label(self.zoom_frame,text='x2:',bg=self.bg,fg=self.textcolor)
         self.right_zoom_entry=Entry(self.zoom_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.zoom_button=Button(self.zoom_frame,text='Apply',  command=lambda:tab.adjust_x(self.left_zoom_entry.get(),self.right_zoom_entry.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button=Button(self.zoom_frame,text='Apply',  command=apply_x,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
         self.zoom_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
         self.zoom_button.pack(side=RIGHT,padx=(10,10))
         self.right_zoom_entry.pack(side=RIGHT,padx=self.padx)
@@ -3168,7 +3409,7 @@ class Controller():
         self.left_zoom_entry2=Entry(self.zoom_frame2, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.zoom_label4=Label(self.zoom_frame2,text='y2:',bg=self.bg,fg=self.textcolor)
         self.right_zoom_entry2=Entry(self.zoom_frame2, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.zoom_button2=Button(self.zoom_frame2,text='Apply',  command=lambda:tab.adjust_y(self.left_zoom_entry2.get(),self.right_zoom_entry2.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
+        self.zoom_button2=Button(self.zoom_frame2,text='Apply',  command=apply_y,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
         self.zoom_button2.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
 
 
@@ -3185,18 +3426,36 @@ class Controller():
         self.outer_slope_frame=Frame(self.outer_outer_slope_frame,bg=self.bg,padx=self.padx)
         self.outer_slope_frame.pack(expand=True,fill=BOTH,pady=(0,10))
         self.slope_title_frame=Frame(self.outer_slope_frame,bg=self.bg)
-        self.slope_title_frame.pack(pady=(5,25))
+        self.slope_title_frame.pack(pady=(5,5))
         self.slope_title_label=Label(self.slope_title_frame,text='Analyze ',bg=self.bg,fg=self.textcolor)
         self.slope_title_label.pack(side=LEFT,pady=(0,4))
         self.analyze_var=StringVar()
         self.analyze_var.set('slope')
-        self.analyze_menu=OptionMenu(self.slope_title_frame,self.analyze_var,'slope','band depth','band center','reflectance','reciprocity')
+        self.analyze_menu=OptionMenu(self.slope_title_frame,self.analyze_var,'slope','band depth','band center','reflectance','reciprocity','difference',command=disable_plot)
         self.analyze_menu.configure(width=10,highlightbackground=self.highlightbackgroundcolor)
         self.analyze_menu.pack(side=LEFT)
-
         
-        self.slope_frame=Frame(self.outer_slope_frame,bg=self.bg,padx=self.padx)
-        self.slope_frame.pack()
+        #We'll put checkboxes for additional options into this frame at the time the user selects a given option (e.g. select 'difference' from menu, add option to calculate differences based on absolute value
+        self.extra_analysis_check_frame=Frame(self.outer_slope_frame,bg=self.bg,padx=self.padx)
+        self.extra_analysis_check_frame.pack()
+        self.abs_val=IntVar()
+        #Note that we are not packing this checkbutton yet.
+        self.abs_val_check=Checkbutton(self.extra_analysis_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' Use absolute values for average differences', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.abs_val)
+        
+        self.use_max_for_centers=IntVar()
+        self.use_max_for_centers_check=Checkbutton(self.extra_analysis_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' If band max is more prominent than\nband min, use to find center.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.use_max_for_centers)
+        self.use_max_for_centers_check.select()
+        
+        self.use_delta=IntVar()
+        self.use_delta_check=Checkbutton(self.extra_analysis_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text=u' Center at max \u0394'+'R from continuum  \nrather than spectral min/max. ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.use_delta)
+        self.use_delta_check.select()
+        
+        self.neg_depth=IntVar()
+        self.neg_depth_check=Checkbutton(self.extra_analysis_check_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' If band max is more prominent than \nband min, report negative depth.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.neg_depth)
+        self.neg_depth_check.select()
+        
+        self.slope_frame=Frame(self.outer_slope_frame,bg=self.bg,padx=self.padx, highlightthickness=0)
+        self.slope_frame.pack(pady=(15,0))
         
         self.slope_label=Label(self.slope_frame,text='x1:',bg=self.bg,fg=self.textcolor)
         self.left_slope_entry=Entry(self.slope_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
@@ -3211,7 +3470,7 @@ class Controller():
         self.left_slope_entry.pack(side=RIGHT,padx=self.padx)
         self.slope_label.pack(side=RIGHT,padx=self.padx)
         self.slope_results_frame=Frame(self.outer_slope_frame,bg=self.bg)
-        self.slope_results_frame.pack(fill=BOTH, expand=True,pady=(10,10)) #We'll put a listbox with slope info in here later after calculating.
+        self.slope_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with slope info in here later after calculating.
         
         self.outer_plot_slope_frame=Frame(self.outer_outer_slope_frame,bg=self.bg,padx=self.padx,pady=10)
         self.outer_plot_slope_frame.pack(expand=True,fill=BOTH)
@@ -3220,7 +3479,7 @@ class Controller():
         self.plot_slope_label=Label(self.plot_slope_frame,text='Plot as a function of',bg=self.bg,fg=self.textcolor)
         self.plot_slope_var=StringVar()
         self.plot_slope_var.set('e')
-        self.plot_slope_menu=OptionMenu(self.plot_slope_frame,self.plot_slope_var,'e','i','g')
+        self.plot_slope_menu=OptionMenu(self.plot_slope_frame,self.plot_slope_var,'e','i','g','e,i','theta')
         self.plot_slope_menu.configure(width=2,highlightbackground=self.highlightbackgroundcolor)
         self.plot_slope_button=Button(self.plot_slope_frame,text='Plot',  command=plot,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
         self.plot_slope_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
@@ -3229,122 +3488,54 @@ class Controller():
         self.plot_slope_label.pack(side=RIGHT,padx=self.padx)
         
 
+        self.exclude_artifacts_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.exclude_artifacts_frame.pack(fill=BOTH,expand=True)
+        self.exclude_artifacts=IntVar()
+        self.exclude_artifacts_check=Checkbutton(self.exclude_artifacts_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' Exclude data susceptible to artifacts\n (high g, 1000-1400 nm)  ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.exclude_artifacts, command=lambda x='foo',: tab.set_exclude_artifacts(self.exclude_artifacts.get()))
+        self.exclude_artifacts_check.pack()
+        if tab.exclude_artifacts:
+            self.exclude_artifacts_check.select()
+
+
+
+
+        self.analysis_dialog.top.configure(highlightthickness=1,highlightcolor='white')
         
-        # 
-        # self.outer_outer_bdepth_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
-        # self.outer_outer_bdepth_frame.pack(expand=True,fill=BOTH)
-        # self.outer_bdepth_frame=Frame(self.outer_outer_bdepth_frame,bg=self.bg,padx=self.padx)
-        # self.outer_bdepth_frame.pack(expand=True,fill=BOTH,pady=(0,10))
-        # self.bdepth_title_label=Label(self.outer_bdepth_frame,text='Analyze band depths:',bg=self.bg,fg=self.textcolor)
-        # self.bdepth_title_label.pack(pady=(0,10))
-        # self.bdepth_frame=Frame(self.outer_bdepth_frame,bg=self.bg,padx=self.padx)
-        # self.bdepth_frame.pack(side=RIGHT)
-        # 
-        # self.bdepth_label=Label(self.bdepth_frame,text='x1:',bg=self.bg,fg=self.textcolor)
-        # self.left_bdepth_entry=Entry(self.bdepth_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.bdepth_label_2=Label(self.bdepth_frame,text='x2:',bg=self.bg,fg=self.textcolor)
-        # self.right_bdepth_entry=Entry(self.bdepth_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.bdepth_button=Button(self.bdepth_frame,text='Calculate',  command=calculate_band_centers,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
-        # self.bdepth_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
-        # 
-        # self.bdepth_button.pack(side=RIGHT,padx=(10,10))
-        # self.right_bdepth_entry.pack(side=RIGHT,padx=self.padx)
-        # self.bdepth_label_2.pack(side=RIGHT,padx=self.padx)
-        # self.left_bdepth_entry.pack(side=RIGHT,padx=self.padx)
-        # self.bdepth_label.pack(side=RIGHT,padx=self.padx)
-        # self.bdepth_results_frame=Frame(self.outer_outer_bdepth_frame,bg=self.bg)
-        # self.bdepth_results_frame.pack(fill=BOTH, expand=True)
-        # 
-        # self.outer_plot_bdepth_frame=Frame(self.outer_outer_bdepth_frame,bg=self.bg,padx=self.padx)
-        # self.outer_plot_bdepth_frame.pack(side=BOTTOM,expand=True,fill=BOTH)
-        # self.plot_bdepth_frame=Frame(self.outer_plot_bdepth_frame,bg=self.bg,padx=self.padx)
-        # self.plot_bdepth_frame.pack(side=RIGHT)
-        # self.plot_bdepth_label=Label(self.plot_bdepth_frame,text='Plot as a function of',bg=self.bg,fg=self.textcolor)
-        # self.plot_bdepth_var=StringVar()
-        # self.plot_bdepth_var.set('e')
-        # self.plot_bdepth_menu=OptionMenu(self.plot_bdepth_frame,self.plot_bdepth_var,'e','i','g')
-        # self.plot_bdepth_menu.configure(width=2,highlightbackground=self.highlightbackgroundcolor)
-        # self.plot_bdepth_button=Button(self.plot_bdepth_frame,text='Plot',  command=lambda:tab.plot_band_depths(self.plot_bcenters_var.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
-        # self.plot_bdepth_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
-        # self.plot_bdepth_button.pack(side=RIGHT,padx=(10,10))
-        # self.plot_bdepth_menu.pack(side=RIGHT,padx=self.padx)
-        # self.plot_bdepth_label.pack(side=RIGHT,padx=self.padx)
-        # 
-        # 
-        # 
-        # self.outer_outer_bcenter_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
-        # self.outer_outer_bcenter_frame.pack(expand=True,fill=BOTH)
-        # self.outer_bcenter_frame=Frame(self.outer_outer_bcenter_frame,bg=self.bg,padx=self.padx)
-        # self.outer_bcenter_frame.pack(expand=True,fill=BOTH,pady=(0,10))
-        # self.bcenter_title_label=Label(self.outer_bcenter_frame,text='Analyze band centers:',bg=self.bg,fg=self.textcolor)
-        # self.bcenter_title_label.pack(pady=(0,10))
-        # self.bcenter_frame=Frame(self.outer_bcenter_frame,bg=self.bg,padx=self.padx)
-        # self.bcenter_frame.pack(side=RIGHT)
-        # 
-        # self.bcenter_label=Label(self.bcenter_frame,text='x1:',bg=self.bg,fg=self.textcolor)
-        # self.left_bcenter_entry=Entry(self.bcenter_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.bcenter_label_2=Label(self.bcenter_frame,text='x2:',bg=self.bg,fg=self.textcolor)
-        # self.right_bcenter_entry=Entry(self.bcenter_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.bcenter_button=Button(self.bcenter_frame,text='Calculate',  command=calculate_band_centers,width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
-        # self.bcenter_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
-
-        #   self.bcenter_button.pack(side=RIGHT,padx=(10,10))
-        # self.right_bcenter_entry.pack(side=RIGHT,padx=self.padx)
-        # self.bcenter_label_2.pack(side=RIGHT,padx=self.padx)
-        # self.left_bcenter_entry.pack(side=RIGHT,padx=self.padx)
-        # self.bcenter_label.pack(side=RIGHT,padx=self.padx)
-        # self.bcenter_results_frame=Frame(self.outer_outer_bcenter_frame,bg=self.bg)
-        # self.bcenter_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with bcenter info in here later after calculating.
-        # 
-        # self.outer_plot_bcenter_frame=Frame(self.outer_outer_bcenter_frame,bg=self.bg,padx=self.padx,pady=10)
-        # self.outer_plot_bcenter_frame.pack(expand=True,fill=BOTH)
-        # self.plot_bcenter_frame=Frame(self.outer_plot_bcenter_frame,bg=self.bg,padx=self.padx)
-        # self.plot_bcenter_frame.pack(side=RIGHT)
-        # self.plot_bcenter_label=Label(self.plot_bcenter_frame,text='Plot as a function of',bg=self.bg,fg=self.textcolor)
-        # self.plot_bcenter_var=StringVar()
-        # self.plot_bcenter_var.set('e')
-        # self.plot_bcenter_menu=OptionMenu(self.plot_bcenter_frame,self.plot_bcenter_var,'e','i','g')
-        # self.plot_bcenter_menu.configure(width=2,highlightbackground=self.highlightbackgroundcolor)
-        # self.plot_bcenter_button=Button(self.plot_bcenter_frame,text='Plot',  command=lambda:tab.plot_band_centers(self.plot_bcenter_var.get()),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
-        # self.plot_bcenter_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor,state=DISABLED)
-        # self.plot_bcenter_button.pack(side=RIGHT,padx=(10,10))
-        # self.plot_bcenter_menu.pack(side=RIGHT,padx=self.padx)
-        # self.plot_bcenter_label.pack(side=RIGHT,padx=self.padx)
-        
-        # self.outer_photo_var_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15)
-        # #self.outer_photo_var_frame.pack(expand=True,fill=BOTH)
-        # self.photo_var_frame=Frame(self.outer_photo_var_frame,bg=self.bg,padx=self.padx,pady=15)
-        # self.photo_var_frame.pack(side=RIGHT)
-
-        #   self.photo_var_label=Label(self.photo_var_frame,text='Calculate photometric variability from',bg=self.bg,fg=self.textcolor)
-        # self.left_photo_var_entry=Entry(self.photo_var_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.photo_var_label_2=Label(self.photo_var_frame,text='to',bg=self.bg,fg=self.textcolor)
-        # self.right_photo_var_entry=Entry(self.photo_var_frame, width=7, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        # self.photo_var_button=Button(self.photo_var_frame,text='Apply',  command=calculate_photometric_variability,width=6, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd)
-        # self.photo_var_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
-        # self.photo_var_button.pack(side=RIGHT,padx=(10,10))
-        # self.right_photo_var_entry.pack(side=RIGHT,padx=self.padx)
-        # self.photo_var_label_2.pack(side=RIGHT,padx=self.padx)
-        # self.left_photo_var_entry.pack(side=RIGHT,padx=self.padx)
-        # self.photo_var_label.pack(side=RIGHT,padx=self.padx)
-        # self.photo_var_results_frame=Frame(self.analysis_dialog.top,bg=self.bg)
-        # self.photo_var_results_frame.pack(fill=BOTH, expand=True) #We'll put a listbox with bcenter info in here later after calculating.
-
 
         
     #This gets called when the user clicks 'Edit plot' from the right-click menu on a plot.
     #Pops up a scrollable listbox with sample options.
     def ask_plot_samples(self, tab, existing_sample_indices, sample_options, existing_geoms, current_title):
+        def config_tol_entry():
+            return #Decided againsta having the tolerance entry disabled if you don't have exclude specular angles checked.
+            if self.exclude_specular.get():
+                self.spec_tolerance_entry.configure(state=NORMAL)
+            else:
+                self.spec_tolerance_entry.configure(state=DISABLED)
+
+            
+        def select_tab():
+            self.view_notebook.select(tab.top)
         buttons={
             'ok':{
+                select_tab:[],
                 #The lambda sends a list of the currently selected samples back to the tab along with the new title and selected incidence/emission angles
-                lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection())),self.new_plot_title_entry.get(), self.i_entry.get(),self.e_entry.get()):[]
+                lambda: tab.set_samples(list(map(lambda y:sample_options[y],self.plot_samples_listbox.curselection())),self.new_plot_title_entry.get(), self.i_entry.get(),self.e_entry.get(), self.exclude_specular.get(), self.spec_tolerance_entry.get()):[]
                 }
             }
         try:
-            self.edit_plot_dialog.top.destroy()
+            self.analysis_dialog.top.destroy()
         except:
             pass
+        try:
+            self.edit_plot_dialog.top.destroy()
+        except:
+            pass        
+        try:
+            self.plot_options_dialog.top.destroy()
+        except:
+            pass
+            
         self.edit_plot_dialog=Dialog(self,'Edit Plot','\nPlot title:',buttons=buttons)
         self.new_plot_title_entry=Entry(self.edit_plot_dialog.top, width=20, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
         self.new_plot_title_entry.insert(0,current_title)
@@ -3378,6 +3569,26 @@ class Controller():
             else:
                 self.e_entry.insert('end',','+emission)
         self.e_entry.pack(side=LEFT)
+        
+        self.exclude_specular_frame=Frame(self.edit_plot_dialog.top,bg=self.bg,padx=self.padx, pady=self.pady)
+        self.exclude_specular_frame.pack()
+        self.exclude_specular=IntVar()
+        self.exclude_specular_check=Checkbutton(self.exclude_specular_frame, selectcolor=self.check_bg,fg=self.textcolor,text='  Exclude specular angles (+/-', bg=self.bg, pady=self.pady,highlightthickness=0, command=config_tol_entry, variable=self.exclude_specular)
+        self.exclude_specular_check.pack(side=LEFT)
+        # self.spec_tolerance_frame=Frame(self.exclude_specular_frame,bg=self.bg,padx=self.padx, pady=self.pady)
+        # self.spec_tolerance_frame.pack()
+
+        self.spec_tolerance_entry=Entry(self.exclude_specular_frame, width=4, bd=self.bd,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
+        
+        self.spec_tolerance_entry.pack(side=LEFT)
+        self.spec_tolerance_label=Label(self.exclude_specular_frame,padx=self.padx,pady=self.pady,bg=self.bg,fg=self.textcolor,text=u'\u00B0)')
+        self.spec_tolerance_label.pack(side=LEFT)
+        
+        if tab.exclude_specular:
+            self.exclude_specular_check.select()
+            self.spec_tolerance_entry.insert(0,tab.specularity_tolerance)
+        
+
 
         sample_files=[]
         for option in sample_options:
@@ -3499,7 +3710,12 @@ class Controller():
             last=len(self.view_notebook.tabs())-1
     
             self.view_notebook.select(last)
- 
+            if self.plotter.save_dir==None: #If the user hasn't specified a folder where they want to save plots yet, set the default folder to be the same one they got the data from. Otherwise, leave it as is.
+                if self.opsys=='Windows':
+                    self.plotter.save_dir='\\'.join(filename.split('\\')[0:-1])
+                else:
+                    self.plotter.save_dir='/'.join(filename.split('/')[0:-1])
+    
 
             
             
@@ -3638,6 +3854,7 @@ class Controller():
         self.pos_menus.append(OptionMenu(self.sample_frames[-1],self.sample_pos_vars[-1],*menu_positions))
         self.pos_menus[-1].configure(width=8,highlightbackground=self.highlightbackgroundcolor)
         self.pos_menus[-1].pack(side=LEFT)
+        self.option_menus.append(self.pos_menus[-1])
         
         self.sample_labels.append(Label(self.sample_frames[-1],bg=self.bg,fg=self.textcolor,text='Label:',padx=self.padx,pady=self.pady))
         self.sample_labels[-1].pack(side=LEFT, padx=(5,0))
@@ -3651,6 +3868,7 @@ class Controller():
           
         self.sample_removal_buttons.append(Button(self.sample_frames[-1], text='Remove', command=lambda x=len(self.sample_removal_buttons):self.remove_sample(x),width=7, fg=self.buttontextcolor, bg=self.buttonbackgroundcolor,bd=self.bd))
         self.sample_removal_buttons[-1].config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor)
+        self.tk_buttons.append(self.sample_removal_buttons[-1])
         if len(self.sample_label_entries)>1:
             for button in self.sample_removal_buttons:
                 button.pack(side=LEFT,padx=(5,5))
@@ -3819,7 +4037,6 @@ class Controller():
                 self.unfreeze()
         
     def set_manual_automatic(self,override=False,force=-1,known_goniometer_state=False):
-        #TODO: save individually specified angles to config file
         menu=self.goniometermenu
         if force==0:
             self.manual_automatic.set(0)
@@ -3871,7 +4088,20 @@ class Controller():
                 self.geommenu.entryconfigure(1,state=NORMAL, label='  Range (Automatic only)')
                 #self.queue.append({self.set_manual_automatic:[True]})
             else:
-                dialog=IntInputDialog(self,title='Setup Required',label='Setup required: Unknown goniometer state.\n\nPlease enter the current viewing geometry and tray position,\nor click \'Cancel\' to use the goniometer in manual mode.',values={'Incidence':[self.i,self.min_i,self.max_i],'Emission':[self.e,self.min_e,self.max_e],'Tray position':[self.sample_tray_index,0,self.num_samples-1]},buttons={'ok':{self.next_in_queue:[]},'cancel':{self.set_manual_automatic:[override,0], self.clear_queue:[]}})
+                self.freeze()
+                buttons={
+                    'ok':{
+                        self.next_in_queue:[],
+                        self.unfreeze:[],
+                    },
+                    'cancel':{
+                        self.set_manual_automatic:[override,0], 
+                        self.clear_queue:[],
+                        self.unfreeze:[],
+                    }
+                }
+                dialog=IntInputDialog(self,title='Setup Required',label='Setup required: Unknown goniometer state.\n\nPlease enter the current viewing geometry and tray position,\nor click \'Cancel\' to use the goniometer in manual mode.',values={'Incidence':[self.i,self.min_i,self.max_i],'Emission':[self.e,self.min_e,self.max_e],'Tray position':[self.sample_tray_index,0,self.num_samples-1]},buttons=buttons)
+                
             menu.entryconfigure(0,label='  Manual')
             menu.entryconfigure(1,label='X Automatic')
             self.geommenu.entryconfigure(1,state=NORMAL, label='  Range (Automatic only)')
@@ -3983,7 +4213,7 @@ class Controller():
         #print(entry)
         # pos=entry.index(INSERT)
         # name=entry.get()
-        name=name.replace('(','').replace(')','').replace('i=','i').replace('e=','e')
+        name=name.replace('(','').replace(')','').replace('i=','i').replace('e=','e').replace(':','')
         return name
         # entry.delete(0,'end')
         # entry.insert(0,name)
@@ -4194,8 +4424,30 @@ class Controller():
                 radio.configure(state='disabled')
             except:
                 pass
+        
+        for button in self.tk_check_buttons:
+            try:
+                button.configure(state='disabled')
+            except:
+                pass
+    
+        for menu in self.option_menus:
+            try:
+                menu.configure(state='disabled')
+            except:
+                pass
+        
+        
+        self.menubar.entryconfig('Settings', state='disabled')
+        self.filemenu.entryconfig(0,state=DISABLED)
+        self.filemenu.entryconfig(1,state=DISABLED)
+
+        
 
     def unfreeze(self):
+        self.menubar.entryconfig('Settings', state='normal')
+        self.filemenu.entryconfig(0,state=NORMAL)
+        self.filemenu.entryconfig(1,state=NORMAL)
         for button in self.tk_buttons:
             try:
                 button.configure(state='normal')
@@ -4211,6 +4463,18 @@ class Controller():
                 radio.configure(state='normal')
             except Exception as e:
                 print(e)
+        
+        for button in self.tk_check_buttons:
+            try:
+                button.configure(state='normal')
+            except:
+                pass
+                
+        for menu in self.option_menus:
+            try:
+                menu.configure(state='normal')
+            except:
+                pass
             
         if self.manual_automatic.get()==0:
             self.range_radio.configure(state='disabled')
@@ -4267,30 +4531,6 @@ class Controller():
                 self.view_notebook.forget(index)
                 self.view_notebook.event_generate("<<NotebookTabClosed>>")
         
-
-                
-
-
-            #print(tab)
-            
-            
-    # def dist_to_edge(self,event):
-    #     id_str='@'+str(event.x)+','+str(event.y)
-    #     try:
-    #         tab0=self.view_notebook.tab(id_str)
-    #         tab=self.view_notebook.tab(id_str)
-    #     except:
-    #         return None
-    #     dist_to_edge=0
-    #     while tab==tab0:
-    #         dist_to_edge+=1
-    #         id_str='@'+str(event.x+dist_to_edge)+','+str(event.y)
-    #         try:
-    #             tab=self.view_notebook.tab(id_str)
-    #         except: #If this didn't work, we were off the right edge of any tabs.
-    #             break
-    #         
-    #     return(dist_to_edge)
         
 
     
@@ -5174,8 +5414,7 @@ class MotionHandler(CommandHandler):
         
         self.timeout()
     def success(self):
-        #print('registered motion success')
-        #print(self.controller.queue)
+
         if 'detector' in self.label:
             try:
                 self.controller.log('Goniometer moved to an emission angle of '+str(self.controller.e)+' degrees.')
@@ -5900,9 +6139,10 @@ class IntInputDialog(Dialog):
             else:
                 self.entries[val]=StringVar()
                 self.entries[val].set('White reference')
-                menu = OptionMenu(frame, self.entries[val],'{0:18}'.format('White reference'), '{0:18}'.format('1'),'2          ','3          ','4          ','5          ')
+                menu = OptionMenu(frame, self.entries[val],'{0:15}'.format('White reference'), '{0:18}'.format('1'),'2          ','3          ','4          ','5          ')
                 menu.configure(width=15,highlightbackground=self.controller.highlightbackgroundcolor)
                 menu.pack()
+                
             
         self.set_buttons(buttons)
             
@@ -5912,28 +6152,36 @@ class IntInputDialog(Dialog):
             self.mins[val]=self.values[val][1]
             self.maxes[val]=self.values[val][2]
             valid=validate_int_input(self.entries[val].get(),self.mins[val],self.maxes[val]) #Weird for tray position - not valid for white reference
+
+                
             valid_sep=True
             if valid:
                 #self.values[val][0]=self.entries[val].get()
                 if val=='Incidence':
                     valid_sep=self.controller.validate_distance(self.entries['Incidence'].get(),self.entries['Emission'].get())
-                    if valid_sep:
-                        self.controller.i=int(self.entries[val].get())
                         
                 elif val=='Emission':
                     valid_sep=self.controller.validate_distance(self.entries['Incidence'].get(),self.entries['Emission'].get())
-                    if valid_sep:
-                        self.controller.e=int(self.entries[val].get())
+                        
                 elif val=='Tray position':
                     self.controller.sample_tray_index=int(self.entries[val].get())-1
                     
             elif val=='Tray position': #This is a weird way of handling this. Happens whenever the user selects White Reference from drop down list.
-                if self.entries[val].get()=='White reference':
+                if 'White reference' in self.entries[val].get():
                     self.controller.sample_tray_index=-1
                 else: #We should never get here
+                    print(self.entries[val].get())
                     self.controller.sample_tray_index=int(self.entries[val].get())-1
             else:
                 bad_vals.append(val)
+        if len(bad_vals)==0 and valid_sep:
+            incidence=int(self.entries['Incidence'].get())
+            emission=int(self.entries['Emission'].get())
+            if int(incidence)>int(emission)-15: 
+                valid_sep=False
+            else:
+                self.controller.e=emission
+                self.controller.i=incidence
         if len(bad_vals)==0 and valid_sep:
             self.top.destroy()
             dict=self.buttons['ok']
@@ -5950,7 +6198,7 @@ class IntInputDialog(Dialog):
                 for val in bad_vals:
                     err_str+=val+' from '+str(self.mins[val])+' to '+str(self.maxes[val])+'\n'
             else:
-                err_str+='angular separation\n(must be at least '+str(self.controller.required_angular_separation)+' degrees).'
+                err_str+='angular separation.\nEmission must be at least '+str(self.controller.required_angular_separation)+' degrees greater than incidence.'
             dialog=ErrorDialog(self.controller,title='Error: Invalid Input',label=err_str)
         
             
@@ -6316,9 +6564,7 @@ class PiCommander(Commander):
         super().__init__(write_command_loc,listener)
     
     def configure(self,i,e,pos):
-        print(i)
-        print(e)
-        print(pos)
+
         self.remove_from_listener_queue(['piconfigsuccess'])
         filename=self.encrypt('configure',[i,e,pos])
         self.send(filename)
@@ -6330,9 +6576,11 @@ class PiCommander(Commander):
         if type=='angle':
             incidence=num
             filename=self.encrypt('movelight',[incidence])
+            print(filename)
         else:
             steps=num
             filename=self.encrypt('movelight',[steps,'steps'])
+        print('sending!')
         self.send(filename)
         return filename
     
@@ -6692,5 +6940,4 @@ class StringVarWithEntry(StringVar):
         self.entry=None
 
 if __name__=='__main__':
-    print('foo')
     main()
