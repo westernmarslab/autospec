@@ -3804,23 +3804,9 @@ class Controller():
         r=RemoteFileExplorer(self,label='Select the directory containing the data you want to process.\nThis must be on a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data',target=self.input_dir_entry)
         
     def choose_process_output_dir(self):
+        print('hi')
         r=RemoteFileExplorer(self,label='Select the directory where you want to save your processed data.\nThis must be to a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data',target=self.output_dir_entry)
     
-    # def validate_basename(self,*args):
-    #     basename=limit_len(self.spec_basename_entry.get())
-    #     basename=rm_reserved_chars(basename)
-    #     self.spec_basename_entry.set(basename)
-    # 
-    # def validate_startnum(self,*args):
-    #     num=spec_startnum.get()
-    #     valid=validate_int_input(num,999,0)
-    #     if not valid:
-    #         spec_startnum.set('')
-    #     else:
-    #         while len(num)<NUMLEN:
-    #             num=0+num
-    #     self.spec_startnum_entry.delete(0,'end')
-    #     self.spec_startnum_entry.insert(0,num)
     def add_sample(self):
         try:
             self.add_sample_button.pack_forget()
@@ -4330,6 +4316,7 @@ class Controller():
         if self.proc_remote.get():
             process_file_explorer=RemoteFileExplorer(self, target=self.output_dir_entry,title='Select a directory',label='Select an output directory for processed data.',directories_only=True)
         else:
+            self.process_top.lift()
             if os.path.isdir(init_dir):
                 dir = askdirectory(initialdir=init_dir,title='Select an output directory')
             else:
@@ -4337,6 +4324,7 @@ class Controller():
             if dir!=():
                 self.output_dir_entry.delete(0,'end')
                 self.output_dir_entry.insert(0, dir)
+        self.process_top.lift()
                 
     def choose_plot_file(self):
         init_file=self.plot_input_dir_entry.get()
@@ -4352,6 +4340,7 @@ class Controller():
             if file!=():
                 self.plot_input_dir_entry.delete(0,'end')
                 self.plot_input_dir_entry.insert(0, file)
+        self.plot_top.lift()
             
     def log(self, info_string, write_to_file=False):
         self.check_logfile()
