@@ -5339,11 +5339,13 @@ class ProcessHandler(CommandHandler):
         #self.controller.complete_queue_item()
         self.interrupt('Data processed successfully')
         self.wait_dialog.top.wm_geometry('376x130')
+        
         # if len(self.controller.queue)>0:
         #     self.controller.next_in_queue()
         while len(self.controller.queue)>0:
             self.controller.complete_queue_item()
         self.controller.process_top.destroy()
+        self.wait_dialog.top.lift()
         
     
         
