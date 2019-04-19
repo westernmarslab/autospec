@@ -918,13 +918,15 @@ class Controller():
         
         thread = Thread(target =self.scrollbar_check) #Waits for everything to get packed, then checks if you need a scrollbar on the control frame.
         thread.start()
-
+        if opsys=='Windows':
+            self.master.wm_state('zoomed')
         self.master.mainloop()
         
         #self.view.join()
     def scrollbar_check(self):
         time.sleep(0.5)
         self.control_frame.update()
+
     def show_process_frame(self):
         #********************** Process frame ******************************
         self.process_top=Toplevel(self.master)
@@ -1170,11 +1172,11 @@ class Controller():
         self.select_proc_logfile_button=Button(self.proc_logfile_frame, fg=self.textcolor,text='Browse',command=self.chooseplotlogfile, height=1,bg=self.buttonbackgroundcolor)
         self.select_proc_logfile_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor)
         self.proc_logfile_entry=Entry(self.proc_logfile_frame, width=50,bg=self.entry_background,selectbackground=self.selectbackground,selectforeground=self.selectforeground)
-        self.proc_logfile_entry.insert(0,self.proc_logfile)
+        #self.proc_logfile_entry.insert(0,self.proc_logfile)
         
         self.no_wr=IntVar()
         self.no_wr_check=Checkbutton(self.plot_frame,selectcolor=self.check_bg, fg=self.textcolor,text='Exclude white references', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.no_wr, command=self.no_wr_cmd)
-        self.no_wr_check.pack(pady=(5,5))
+        #self.no_wr_check.pack(pady=(5,5))
         self.no_wr_check.select()
         
 
@@ -1563,8 +1565,8 @@ class Controller():
 
         if self.logfile_entry.get()=='':
             self.log_filename='log_'+datetime.datetime.now().strftime('%Y-%m-%d-%H-%M')+'.txt'
-            with open(self.log_filename,'w+') as log:
-                log.write(str(datetime.datetime.now())+'\n')
+            #with open(self.log_filename,'w+') as log:
+            #    log.write(str(datetime.datetime.now())+'\n')
             if opsys=='Linux':
                 self.logfile_entry.insert(0,os.getcwd()+'/'+self.log_filename)
             elif opsys=='Windows':
