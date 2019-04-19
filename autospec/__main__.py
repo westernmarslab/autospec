@@ -133,7 +133,7 @@ elif computer=='new':
     NUMLEN=5
     #Time added to timeouts to account for time to read/write files
     BUFFER=15
-    PI_BUFFER=10
+    PI_BUFFER=20
     server='geol-chzc5q2' #new computer
     
 elif computer=='desktop':
@@ -141,7 +141,7 @@ elif computer=='desktop':
     NUMLEN=5
     #Time added to timeouts to account for time to read/write files
     BUFFER=15
-    PI_BUFFER=10
+    PI_BUFFER=20
     server='marsinsight' #new computer
 
 pi_server='hozapi'
@@ -1324,16 +1324,15 @@ class Controller():
                 cmd=script.readline().strip('\n')
                 
                 continue
-        # print('here is the queue I am setting up:')
-        # for item in self.queue:
-        #     print(item)
+        print('here is the queue I built!')
+        print(self.queue)
         self.queue.append({self.next_script_line:['end file']})
         self.next_in_queue()
 
     
     def next_script_line(self,cmd):
-        print('********************')
-        print(cmd)
+        # print('********NEXT SCRIPT LINE************')
+        # print(cmd)
         self.script_running=True
         if cmd=='end file':
             self.log('Script complete')
@@ -1721,6 +1720,8 @@ class Controller():
         if self.check_save_config()=='not_set':
 
             self.complete_queue_item()
+            print('ADDING TO QUEUE')
+            print(nextaction)
             self.queue.insert(0,nextaction)
             self.queue.insert(0,{self.set_save_config:[]})
             self.set_save_config()#self.take_spectrum,[True])
@@ -1731,6 +1732,8 @@ class Controller():
         if self.spec_config_count==None or str(new_spec_config_count) !=str(self.spec_config_count):
             print('SPEC_CONFIG')
             self.complete_queue_item()
+            print('ADDING TO QUEUE')
+            print(nextaction)
             self.queue.insert(0,nextaction)
             self.queue.insert(0,{self.configure_instrument:[]})
             self.configure_instrument()
@@ -1762,7 +1765,9 @@ class Controller():
         range_warnings=''
         if action==None: #If this was called by the user clicking acquire. otherwise, it will be take_spectrum or wr?
             action=self.acquire
-            self.queue.append({self.acquire:[]})
+            print('*************************************')
+            print('APPEND ACQUIRE!!')
+            self.queue.insert(0,{self.acquire:[]})
             if self.individual_range.get()==1:
                 valid_range=self.range_setup(override)
                 if not valid_range:
@@ -1919,6 +1924,8 @@ class Controller():
         else:
             timeout=np.abs(int(i))/15+PI_BUFFER
         self.pi_commander.move_light(i,type)
+        print('light timeout = ')
+        print(timeout)
         handler=MotionHandler(self,label='Moving light source...',timeout=timeout,steps=steps)
         if type=='angle':
             self.test_view.move_light(int(i))
@@ -1961,6 +1968,8 @@ class Controller():
         
     def build_queue(self):
         script_queue=list(self.queue) #If we're running a script, the queue might have a lot of commands in it that will need to be executed after we're done acquiring. save these, we'll append them in a moment.
+        print('here is the existing queue!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+        print(script_queue)
         self.queue=[]
 
             #For each (i, e), opt, white reference, save the white reference, move the tray, take a  spectrum, then move the tray back, then update geom to next.
@@ -1990,8 +1999,14 @@ class Controller():
             self.queue.insert(0,{self.move_light:[]})
             self.queue.insert(0,{self.move_detector:[]})
             
-        #Now append the script queue we saved at the beginning.
+        #Now append the script queue we saved at the beginning. But check if acquire is the first command in the script queue and if it is, complete that item.
         if self.script_running:
+            if len(script_queue)>0:
+                while self.acquire in script_queue[0]:
+                    print('DELETING ACQUIRE!')
+                    script_queue.pop(0)
+                print('ok here is my abridged queue:')
+                print(script_queue)
             self.queue=self.queue+script_queue
             
     def range_setup(self,override=False):
@@ -2005,14 +2020,14 @@ class Controller():
         first_i=self.light_start_entry.get()
         valid=validate_int_input(first_i,self.min_i,self.max_i)
         if not valid: 
-            incidence_err_str+='Incidence must be a number from '+str(self.min_i)+' to '+str(self.max_i)+'.\n'
+            incidence_err_str='Incidence must be a number from '+str(self.min_i)+' to '+str(self.max_i)+'.\n'
         else:
             first_i=int(first_i)
         final_i=self.light_end_entry.get()
         valid=validate_int_input(final_i,self.min_i,self.max_i)
         
-        if not valid and incidence_err_str=='': 
-            incidence_err_str+='Incidence must be a number from '+str(self.min_i)+' to '+str(self.max_i)+'.\n'
+        if not valid: 
+            incidence_err_str='Incidence must be a number from '+str(self.min_i)+' to '+str(self.max_i)+'.\n'
         else:
             final_i=int(final_i)
             
@@ -2045,14 +2060,14 @@ class Controller():
         first_e=self.detector_start_entry.get()
         valid=validate_int_input(first_e,self.min_e,self.max_e)
         if not valid: 
-            emission_err_str+='Emission must be a number from '+str(self.min_e)+' to '+str(self.max_e)+'.\n'
+            emission_err_str='Emission must be a number from '+str(self.min_e)+' to '+str(self.max_e)+'.\n'
         else:
             first_e=int(first_e)
         final_e=self.detector_end_entry.get()
         valid=validate_int_input(final_e,self.min_e,self.max_e)
         
-        if not valid and emission_err_str=='': 
-            emission_err_str+='Emission must be a number from '+str(self.min_e)+' to '+str(self.max_e)+'.\n'
+        if not valid: 
+            emission_err_str='Emission must be a number from '+str(self.min_e)+' to '+str(self.max_e)+'.\n'
         else:
             final_e=int(final_e)
             
@@ -2255,7 +2270,10 @@ class Controller():
         
     def execute_cmd(self,event):
         if self.script_running:
+            print('completed!')
+            print(self.queue[0])
             self.complete_queue_item()
+            
         self.cmd_complete=False
 
             
@@ -2270,6 +2288,7 @@ class Controller():
         thread.start()
     
     def execute_cmd_2(self,cmd): #In a separate method because that allows it to be spun off in a new thread, so tkinter mainloop continues, which means that the console log gets updated immediately e.g. if you say sleep(10) it will say sleep up in the log while it is sleeping.
+
         def get_val(param):
             return param.split('=')[1].strip(' ').strip('"').strip("'")
             
@@ -2447,6 +2466,8 @@ class Controller():
                 self.next_in_queue()
                 
         elif 'set_spec_save(' in cmd:
+            self.unfreeze()
+            print('TRYING TO SET SAVE!!')
             params=cmd[0:-1].split('set_spec_save(')[1].split(',')
             
             for i, param in enumerate(params):
@@ -2516,7 +2537,7 @@ class Controller():
                 while elapsed<num-10:
                     time.sleep(10)
                     elapsed+=10
-                    self.console_log.insert('\t'+str(elapsed))
+                    self.console_log.insert(END,'\t'+str(elapsed))
                 remaining=num-elapsed
                 time.sleep(remaining)
                 self.cmd_complete==True
@@ -2524,6 +2545,7 @@ class Controller():
                 if len(self.queue)>0:
                     self.next_in_queue()
             except:
+                print('h!')
                 self.log('Error: could not parse command '+cmd)
                 self.queue=[]
                 self.script_running=False
@@ -2703,6 +2725,10 @@ class Controller():
         elif cmd=='end file':
             self.script_running=False
             self.queue=[]
+            try:
+                self.wait_dialog.interrupt('Success!') #If there is a wait dialog up, make it say success. There may never have been one that was made though.
+            except:
+                pass
             return True
                 
         else:
@@ -4724,6 +4750,8 @@ class CommandHandler():
             self.interrupt('Paused.')
             self.wait_dialog.set_buttons(buttons)
         elif len(self.controller.queue)>0:
+
+            
             self.controller.next_in_queue()
         elif self.controller.script_running:
             self.controller.log('Success!')
@@ -4767,6 +4795,7 @@ class InstrumentConfigHandler(CommandHandler):
         self.controller.spec_config_count=self.controller.instrument_config_entry.get()
 
         self.controller.log('Instrument configured to average '+str(self.controller.spec_config_count)+' spectra.',write_to_file=True)
+        
 
         super(InstrumentConfigHandler, self).success()
         
@@ -5145,7 +5174,8 @@ class MotionHandler(CommandHandler):
         
         self.timeout()
     def success(self):
-        print('registered motion success')
+        #print('registered motion success')
+        #print(self.controller.queue)
         if 'detector' in self.label:
             try:
                 self.controller.log('Goniometer moved to an emission angle of '+str(self.controller.e)+' degrees.')
@@ -5188,10 +5218,8 @@ class MotionHandler(CommandHandler):
 
         else:
             self.controller.log('Something moved! Who knows what?')
-        #self.controller.unfreeze()
-        print(self.controller.queue)
+
         super(MotionHandler,self).success()
-        print(self.controller.queue)
         
         
 class SaveConfigHandler(CommandHandler):
@@ -5979,11 +6007,19 @@ class PiListener(Listener):
             time.sleep(INTERVAL)
             
     def listen(self):
-        self.cmdfiles=os.listdir(self.read_command_loc)  
+        try:
+            self.cmdfiles=os.listdir(self.read_command_loc)  
+        except:#Happens if there is a network disconnect that hasn't been registered yet.
+            self.cmd_files=self.cmdfiles0
         if self.cmdfiles==self.cmdfiles0:
             pass
         else:
             for cmdfile in self.cmdfiles:
+                try:
+                    os.remove(self.read_command_loc+'/'+cmdfile)
+                except:
+                    print('failed to remove '+self.read_command_loc+'/'+cmdfile)
+                    pass #happens if the file is still in use, e.g. not done writing
                 if cmdfile not in self.cmdfiles0:
                     cmd, params=decrypt(cmdfile)
 
@@ -6017,7 +6053,11 @@ class SpecListener(Listener):
 
             
     def listen(self):
-        self.cmdfiles=os.listdir(self.read_command_loc)  
+        try:
+            self.cmdfiles=os.listdir(self.read_command_loc)  
+        except:
+            print('Warning! Error finding files. Lost connection?')
+            self.cmdfiles=self.cmdfiles0
         if self.cmdfiles==self.cmdfiles0:
             # for file in self.cmdfiles:
             #     if 'lostconnection' in cmdfile:
