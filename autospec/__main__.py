@@ -3162,6 +3162,9 @@ class Controller():
             if artifact_warning:
                 dialog=ErrorDialog(self, 'Warning','Warning: Excluding data potentially\ninfluenced by artifacts from 1000-1400 nm.')
                 
+            self.analysis_dialog.min_height=1000
+            self.analysis_dialog.update()
+                
         def update_plot_menu(plot_options):
             self.plot_slope_var.set(plot_options[0])
             self.plot_slope_menu['menu'].delete(0, 'end')
@@ -3328,7 +3331,7 @@ class Controller():
             self.plot_options_dialog.top.destroy()
         except:
             pass
-        self.analysis_dialog=Dialog(self,'Analyze Data','',buttons=buttons,button_width=13)
+        self.analysis_dialog=VerticalScrolledDialog(self,'Analyze Data','',buttons=buttons,button_width=13)
         
         
         
@@ -3638,7 +3641,7 @@ class Controller():
 
     def actually_plot(self, filename):
         if len(self.queue)>0:
-            print('why is there a queue here?')
+            print('There is a queue here if and only if we are transferring data from a remote location.')
             for item in self.queue:
                 print(item)
             self.complete_queue_item()
@@ -4533,6 +4536,7 @@ class Controller():
         
         
 
+        
     
 class Dialog:
     def __init__(self, controller, title, label, buttons, width=None, height=None,allow_exit=True, button_width=20, info_string=None, grab=True):
@@ -4795,6 +4799,19 @@ class Dialog:
         self.execute(dict,close=False)
         
     
+class VerticalScrolledDialog(Dialog):
+    def __init__(self, controller, title, label, buttons={}, button_width=None, min_height=820, width=300, height=600):
+
+        super().__init__(controller, title, label, buttons, button_width=button_width, width=width, height=height)
+
+        self.frame=VerticalScrolledFrame(controller, self.top, width=width, min_height=min_height, height=height)
+        self.frame.config(height=height)
+        self.frame.canvas.config(height=height)
+        self.frame.pack()
+        self.top=self.frame.interior
+        
+    def update(self):
+        self.frame.update(controller_resize=False)
         
 class WaitDialog(Dialog):
     def __init__(self, controller, title='Working...', label='Working...', buttons={}):
@@ -5933,7 +5950,6 @@ class RemoteFileExplorer(Dialog):
                     self.listbox.itemconfig(END, fg='darkblue')
                 else:
                     self.listbox.insert(END,dir)
-            print('SETTING! 1')
             self.current_parent=newparent
             
             self.path_entry.delete(0,'end')
@@ -6541,9 +6557,7 @@ class Commander():
         self.cmdnum=0
         
     def send(self,filename):
-        print('sending')
         try:
-            print(filename)
             file=open(self.write_command_loc+filename,'w')
         except OSError as e:
             if e.errno==22 or e.errno==2:
@@ -6890,17 +6904,16 @@ from tkinter import ttk
 # http://tkinter.unpythonic.net/wiki/VerticalScrolledFrame
 
 class VerticalScrolledFrame(Frame):
-    """A pure Tkinter scrollable frame that actually works!
-    * Use the 'interior' attribute to place widgets inside the scrollable frame
-    * Construct and pack/place/grid normally
-    * This frame only allows vertical scrolling
 
-    """
-    def __init__(self, controller, parent, *args, **kw):
+    #Use the 'interior' attribute to place widgets inside the scrollable frame
+    #Construct and pack/place/grid normally
+    #This frame only allows vertical scrolling
+
+    def __init__(self, controller, parent, min_height=600, width=468,*args, **kw):
         self.controller=controller
         Frame.__init__(self, parent, *args, **kw)        
         
-        self.min_height=600 #Miniumum height for interior frame to show all elements. Changes as new samples or viewing geometries are added.    
+        self.min_height=min_height #Miniumum height for interior frame to show all elements. Changes as new samples or viewing geometries are added.    
 
         # create a canvas object and a vertical scrollbar for scrolling it
         self.scrollbar = Scrollbar(self, orient=VERTICAL)
@@ -6908,7 +6921,8 @@ class VerticalScrolledFrame(Frame):
         self.canvas=canvas = Canvas(self, bd=0, highlightthickness=0,
                         yscrollcommand=self.scrollbar.set)
         canvas.pack(side=LEFT, fill=BOTH, expand=TRUE)
-        canvas.config(width=468)
+        canvas.config(width=width)
+        #canvas.config(height=height)        
         self.scrollbar.config(command=canvas.yview)
 
         # reset the view
@@ -6926,13 +6940,11 @@ class VerticalScrolledFrame(Frame):
 
 
     def _configure_canvas(self,event):
-
         if self.canvas.winfo_height()>self.min_height:
             self.interior.config(height=self.canvas.winfo_height())
             if self.scrollbar.winfo_ismapped():
                 self.scrollbar.pack_forget()
         else:
-
             self.interior.config(height=self.min_height)
             self.scrollbar.pack(fill=Y, side=RIGHT, expand=FALSE)
             #canvas.itemconfigure(interior_id, height=900)
@@ -6941,9 +6953,10 @@ class VerticalScrolledFrame(Frame):
             # update the inner frame's width to fill the canvas
             self.canvas.itemconfigure(self.interior_id, width=self.canvas.winfo_width())
     
-    def update(self):
+    def update(self, controller_resize=True):
         self._configure_canvas(None)
-        self.controller.resize()
+        if controller_resize:
+            self.controller.resize()
         
 class StringVarWithEntry(StringVar):
     def __init__(self):
