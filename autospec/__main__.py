@@ -4789,7 +4789,7 @@ class Dialog:
         
     
 class VerticalScrolledDialog(Dialog):
-    def __init__(self, controller, title, label, buttons={}, button_width=None, min_height=820, width=300, height=600):
+    def __init__(self, controller, title, label, buttons={}, button_width=None, min_height=820, width=350, height=600):
 
         super().__init__(controller, title, label, buttons, button_width=button_width, width=width, height=height)
 
