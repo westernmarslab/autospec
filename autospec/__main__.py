@@ -2893,16 +2893,16 @@ class Controller():
             if directory[-1]!='\\':
                 directory+='\\'
                 
-        full_output_path=directory+file
-        if os.path.exists(full_output_path):
+        self.full_process_output_path=directory+file
+        if os.path.exists(self.full_process_output_path):
             buttons={
                 'yes':{
-                    remove_retry:[full_output_path,next_action]
+                    remove_retry:[self.full_process_output_path,next_action]
                     },
                 'no':{
                 }
             }
-            dialog=Dialog(self,title='Error: File Exists',label='Error: Specified output file already exists.\n\n'+full_output_path+'\n\nDo you want to overwrite this data?',buttons=buttons)
+            dialog=Dialog(self,title='Error: File Exists',label='Error: Specified output file already exists.\n\n'+self.full_process_output_path+'\n\nDo you want to overwrite this data?',buttons=buttons)
             dialog.geometry('376x175')
             return False
         else:
@@ -2920,7 +2920,7 @@ class Controller():
         if '.' not in output_file: 
             output_file=output_file+'.csv'
         
-        full_output_path=output_file
+        self.full_process_output_path=output_file
             
     
         if self.proc_local.get()==1:
@@ -5274,9 +5274,16 @@ class DataHandler(CommandHandler):
 
 class ProcessHandler(CommandHandler):
     def __init__(self, controller, title='Processing...', label='Processing...'):
+        
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=200+BUFFER)
-        
+        self.outputfile=self.controller.output_file_entry.get()
+        dir=self.controller.output_dir_entry.get()
+        if (self.controller.opsys=='Linux' or self.controller.opsys=='Mac') and self.controller.plot_local_remote=='local':
+            if dir[-1]!='/':dir+='/'
+        else:
+            if dir[-1]!='\\': dir+='\\'
+        self.outputfile=dir+self.outputfile
         self.wait_dialog.set_buttons({})
         self.wait_dialog.top.wm_geometry('376x130')
          #Normally we have a pause and a cancel option if there are additional items in the queue, but it doesn't make much sense to cancel processing halfway through, so let's just not have the option.
@@ -5289,15 +5296,11 @@ class ProcessHandler(CommandHandler):
 
                 self.listener.queue.remove('processsuccess')
                 
-                outputfile=self.controller.output_file_entry.get()
-                if '.' not in outputfile:
-                    outputfile+='.csv'
-                dir=self.controller.output_dir_entry.get()
-                if self.controller.opsys=='Linux' or self.controller.opsys=='Mac':
-                    if dir[-1]!='/':dir+='/'
-                else:
-                    if dir[-1]!='\\': dir+='\\'
-                self.controller.log('Files processed.\n\t'+dir+outputfile)
+                
+                if '.' not in self.outputfile:
+                    self.outputfile+='.csv'
+
+                self.controller.log('Files processed.\n\t'+self.outputfile)
                 if self.controller.proc_local_remote=='local': #Move on to finishing the process by transferring the data from temp to final destination
                     try:
                         self.controller.complete_queue_item()
@@ -5355,6 +5358,13 @@ class ProcessHandler(CommandHandler):
     def success(self):
         #self.controller.complete_queue_item()
         self.interrupt('Data processed successfully')
+        self.controller.plot_input_file=self.outputfile
+        print(self.controller.proc_local_remote)
+        print(self.controller.plot_local_remote)
+        if self.controller.proc_local_remote=='remote':
+            self.controller.plot_local_remote='remote'
+        else:
+            self.controller.plot_local_remote='local'
         self.wait_dialog.top.wm_geometry('376x130')
         
         # if len(self.controller.queue)>0:
