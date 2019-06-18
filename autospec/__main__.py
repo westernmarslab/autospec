@@ -3336,7 +3336,7 @@ class Controller():
         
         
         
-        self.outer_normalize_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_normalize_frame=Frame(self.analysis_dialog.interior,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_normalize_frame.pack(expand=True,fill=BOTH)
         self.slope_title_label=Label(self.outer_normalize_frame,text='Normalize:',bg=self.bg,fg=self.textcolor)
         self.slope_title_label.pack()
@@ -3351,7 +3351,7 @@ class Controller():
         self.normalize_entry.pack(side=RIGHT,padx=self.padx)
         self.normalize_label.pack(side=RIGHT,padx=self.padx)
         
-        self.outer_offset_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_offset_frame=Frame(self.analysis_dialog.interior,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_offset_frame.pack(expand=True,fill=BOTH)
         self.slope_title_label=Label(self.outer_offset_frame,text='Add offset to sample:',bg=self.bg,fg=self.textcolor)
         self.slope_title_label.pack(pady=(0,15))
@@ -3389,7 +3389,7 @@ class Controller():
         self.offset_entry.pack(side=RIGHT,padx=self.padx)
         self.offset_label.pack(side=RIGHT,padx=self.padx)
         
-        self.outer_outer_zoom_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_outer_zoom_frame=Frame(self.analysis_dialog.interior,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_outer_zoom_frame.pack(expand=True,fill=BOTH)
 
         self.zoom_title_frame=Frame(self.outer_outer_zoom_frame,bg=self.bg)
@@ -3434,7 +3434,7 @@ class Controller():
         self.left_zoom_entry2.pack(side=RIGHT,padx=self.padx)
         self.zoom_label3.pack(side=RIGHT,padx=self.padx)
         
-        self.outer_outer_slope_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.outer_outer_slope_frame=Frame(self.analysis_dialog.interior,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.outer_outer_slope_frame.pack(expand=True,fill=BOTH)
         
         self.outer_slope_frame=Frame(self.outer_outer_slope_frame,bg=self.bg,padx=self.padx)
@@ -3502,7 +3502,7 @@ class Controller():
         self.plot_slope_label.pack(side=RIGHT,padx=self.padx)
         
 
-        self.exclude_artifacts_frame=Frame(self.analysis_dialog.top,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
+        self.exclude_artifacts_frame=Frame(self.analysis_dialog.interior,bg=self.bg,padx=self.padx,pady=15,highlightthickness=1)
         self.exclude_artifacts_frame.pack(fill=BOTH,expand=True)
         self.exclude_artifacts=IntVar()
         self.exclude_artifacts_check=Checkbutton(self.exclude_artifacts_frame, selectcolor=self.check_bg,fg=self.textcolor,text=' Exclude data susceptible to artifacts\n (high g, 1000-1400 nm)  ', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.exclude_artifacts, command=lambda x='foo',: tab.set_exclude_artifacts(self.exclude_artifacts.get()))
@@ -3513,7 +3513,7 @@ class Controller():
 
 
 
-        self.analysis_dialog.top.configure(highlightthickness=1,highlightcolor='white')
+        self.analysis_dialog.interior.configure(highlightthickness=1,highlightcolor='white')
         
 
         
@@ -4800,15 +4800,17 @@ class Dialog:
         
     
 class VerticalScrolledDialog(Dialog):
-    def __init__(self, controller, title, label, buttons={}, button_width=None, min_height=820, width=300, height=600):
-
+    def __init__(self, controller, title, label, buttons={}, button_width=None, min_height=810, width=350, height=820):
+        screen_height = controller.master.winfo_screenheight()
+        if height>screen_height-50:
+            height-screen_height-50
         super().__init__(controller, title, label, buttons, button_width=button_width, width=width, height=height)
 
         self.frame=VerticalScrolledFrame(controller, self.top, width=width, min_height=min_height, height=height)
         self.frame.config(height=height)
         self.frame.canvas.config(height=height)
         self.frame.pack()
-        self.top=self.frame.interior
+        self.interior=self.frame.interior
         
     def update(self):
         self.frame.update(controller_resize=False)
