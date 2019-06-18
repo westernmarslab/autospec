@@ -82,7 +82,6 @@ class Plotter():
         
         
     def set_height(self, height):
-        pass
         for tab in self.tabs:
             tab.top.configure(height=height)
 
@@ -193,10 +192,15 @@ class Plotter():
         wavelengths=[]
         reflectance=[]
         for i, d in enumerate(data):
-            if i==0: wavelengths=d[60:] #the first column in my .csv (now first row) was wavelength in nm. Exclude the first 100 values because they are typically very noisy.
-            else: #the other columns are all reflectance values
+            if i==0 and len(d)>500: wavelengths=d[60:] #the first column in my .csv (now first row) was wavelength in nm. Exclude the first 100 values because they are typically very noisy.
+            elif i==0:
+                wavelengths=d
+            elif len(d)>500: #the other columns are all reflectance values
                 d=np.array(d)
                 reflectance.append(d[60:])
+            else:
+                d=np.array(d)
+                reflectance.append(d)
                 #d2=d/np.max(d) #d2 is normalized reflectance
                 #reflectance[0].append(d)
                 #reflectance[1].append(d2)
@@ -211,7 +215,6 @@ class Plotter():
             index = self.notebook.index("@%d,%d" % (event.x, event.y))
             tab=self.notebook.tab("@%d,%d" % (event.x, event.y))
             name=tab['text'][:-2]
-            print(name)
             if index!=0:
                 self.notebook.forget(index)
                 self.titles.remove(name)
@@ -307,27 +310,59 @@ class Sample():
                 self.data[spec_label][y_axis]=old+offset
     #generate a list of hex colors that are evenly distributed from dark to light across a single hue. 
     def set_colors(self, hue):
-        N=len(self.spectrum_labels)/2
-        if len(self.spectrum_labels)%2!=0:
-            N+=1
-        N=int(N)+2
-
         
-        hsv_tuples = [(hue, 1, x*1.0/N) for x in range(4,N)]
-        hsv_tuples=hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N)]
-        self.colors=[]
-        for tuple in hsv_tuples:
-            self.colors.append(colorutils.hsv_to_hex(tuple))
-        
-        N=N+2
-        white_hsv_tuples=[(hue, 1, x*1.0/N) for x in range(2,N)]
-        white_hsv_tuples=white_hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N-4)]
-        self.white_colors=[]
-        for tuple in white_hsv_tuples:
-            self.white_colors.append(colorutils.hsv_to_hex(tuple))
+        if len(self.spectrum_labels)>3:
+            N=len(self.spectrum_labels)/2
+            if len(self.spectrum_labels)%2!=0:
+                N+=1
+            N=int(N)+2
     
+            
+            hsv_tuples = [(hue, 1, x*1.0/N) for x in range(4,N)]
+            hsv_tuples=hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N)]
+            self.colors=[]
+            for tuple in hsv_tuples:
+                self.colors.append(colorutils.hsv_to_hex(tuple))
+                
+            N=N+2
+            white_hsv_tuples=[(hue, 1, x*1.0/N) for x in range(1,N)]
+            white_hsv_tuples=white_hsv_tuples+[(hue, (N-x)*1.0/N,1) for x in range(N-4)]
+            self.white_colors=[]
+            for tuple in white_hsv_tuples:
+                self.white_colors.append(colorutils.hsv_to_hex(tuple))
+        
+        #For small numbers of spectra, you end up with a couple extra and the first plotted are darker than you want.
+        elif len(self.spectrum_labels)==3:
+            self.colors=[]
+            self.colors.append(colorutils.hsv_to_hex((hue,1,0.8))) #dark spectrum
+            self.colors.append(colorutils.hsv_to_hex((hue,0.8,1)))
+            self.colors.append(colorutils.hsv_to_hex((hue,0.3,1))) #light spectrum
+            
+            self.white_colors=[]
+            
+            self.white_colors.append(colorutils.hsv_to_hex((hue,1,0.6))) #dark spectrum
+            self.white_colors.append(colorutils.hsv_to_hex((hue,1,0.9)))
+            self.white_colors.append(colorutils.hsv_to_hex((hue,0.5,1))) #light spectrum
+            
+        elif len(self.spectrum_labels)==2:
+            self.colors=[]
+            self.colors.append(colorutils.hsv_to_hex((hue,1,0.9))) #dark spectrum
+            self.colors.append(colorutils.hsv_to_hex((hue,0.5,1)))
+            
+            
+            self.white_colors=[]
+            self.white_colors.append(colorutils.hsv_to_hex((hue,0.7,1))) #light spectrum
+            self.white_colors.append(colorutils.hsv_to_hex((hue,1,0.8))) #dark spectrum
+        elif len(self.spectrum_labels)==1:
+            self.colors=[]
+            self.colors.append(colorutils.hsv_to_hex((hue,1,1)))
+            
+            self.white_colors=[]
+            self.white_colors.append(colorutils.hsv_to_hex((hue,1,0.7)))
+        
         self.index=-1
         self.white_index=-1
+        
         #self.__next_color=self.colors[0]
         
     def next_color(self):
@@ -472,22 +507,30 @@ class Tab():
         if not path: return
         
         if path[-4:len(path)]!='.csv':
-            print(str(path)[-4:len(path)])
             path+='.csv'
         
         headers=self.plot.visible_data_headers
         data=self.plot.visible_data
 
-        print('hi!')
         headers=(',').join(headers)
         #data=np.transpose(data) doesn't work if not all columns are same length
         data_lines=[]
+        max_len=0
+        for col in data:
+            if len(col)>max_len:
+                max_len=len(col)
+                
         for i, col in enumerate(data):
-            for j, val in enumerate(col):
+            j=0
+            for val in col:
                 if j<len(data_lines):
                     data_lines[j]+=','+str(val)
                 else:
                     data_lines.append(str(val))
+                j=j+1
+            while j<max_len:
+                data_lines[j]+=','
+                j+=1
                     
         
     
@@ -495,8 +538,7 @@ class Tab():
             f.write(headers+'\n')
             for line in data_lines:
                 f.write(line+'\n')
-            # for line in data:
-            #     f.write(','.join(map(str,line))+'\n')
+
             
         
     def save_dark(self):
@@ -530,12 +572,13 @@ class Tab():
         i=len(self.plot.plot.lines)
         j=0
         #Delete all of the lines except annotations e.g. vertical lines showing where slopes are being calculated.
-        for x in range(i):
+        for _ in range(i):
             if self.plot.plot.lines[j] not in self.plot.annotations:
                 self.plot.plot.lines[j].remove()
             else:
                 j+=1
-        for x in range(i):
+        j=0
+        for _ in range(i):
             if self.plot.white_plot.lines[j] not in self.plot.white_annotations:
                 self.plot.white_plot.lines[j].remove()
             else:
@@ -1158,7 +1201,6 @@ class Tab():
             self.recip_samples.append(recip_sample)
             
         for sample in self.recip_samples:
-            print('making contour data for '+sample.name)
             for label in sample.data:
                 if len(sample.data[label]['average reflectance'])>1:
                     e,i,g=self.get_e_i_g(label)
@@ -1179,7 +1221,6 @@ class Tab():
 
         return left, right, avgs, artifact_warning
     def plot_error(self, x_axis):
-        print(x_axis)
         if x_axis=='e,i': 
             x_axis='contour'
             tab=Tab(self.plotter, u'\u0394'+'R compared to '+self.base_sample.name,[self.contour_sample], x_axis='contour',y_axis='difference')  
@@ -1197,7 +1238,6 @@ class Tab():
 
     def plot_avg_reflectance(self, x_axis):
         if x_axis=='e' or x_axis=='theta':
-            print(x_axis)
             tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='average reflectance')
         elif x_axis=='i':
             tab=Tab(self.plotter, 'Reflectance vs '+x_axis,self.emission_samples, x_axis=x_axis,y_axis='average reflectance')
@@ -1286,7 +1326,10 @@ class Tab():
             multiplier=None
             for label in sample.spectrum_labels: 
                 wavelengths=np.array(sample.data[label]['wavelength'])
-                reflectance=np.array(sample.data[label]['reflectance'])
+                if 'reflectance' in sample.data[label]:
+                    reflectance=np.array(sample.data[label]['reflectance'])
+                else:
+                    reflectance=np.array(sample.data[label]['normalized reflectance'])
                 index = (np.abs(wavelengths - wavelength)).argmin() #find index of wavelength closest to wavelength we want to normalize to
 
                 multiplier=1/reflectance[index] #Normalize to 1
@@ -1479,7 +1522,9 @@ class Plot():
                 for j, label in enumerate(sample.spectrum_labels):
                     if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
                     if i==0 and j==0:
+
                         self.ylim=[np.min(sample.data[label][self.y_axis]),np.max(sample.data[label][self.y_axis])]
+                        
                     else:
 
                         sample_min=np.min(sample.data[label][self.y_axis])
@@ -1519,7 +1564,6 @@ class Plot():
         
         #If x limits for plot not specified, make the plot wide enough to display min and max values for all samples.
         if xlim==None:
-            print(self.x_axis)
             for i, sample in enumerate(self.samples):
                 for j, label in enumerate(sample.spectrum_labels):
                     if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
@@ -1551,6 +1595,9 @@ class Plot():
         
         #we'll use these to generate hsv lists of colors for each sample, which will be evenly distributed across a gradient to make it easy to see what the overall trend of reflectance is.
         self.hues=[200,12,130,290,170,37,330]
+        self.hues=[200,12,130,290,170,37]
+        #self.hues=[200,130,12,290,170,37,330]
+        #self.hues=[130,290,170,37,330]
         self.oversize_legend=oversize_legend
         self.plot_scale=plot_scale
         self.annotations=[] #These will be vertical lines drawn to help with analysis to show where slopes are being calculated, etc
@@ -1600,9 +1647,8 @@ class Plot():
             self.white_plot=self.white_fig.add_subplot(self.gs[0])
         pos1 = self.plot.get_position() # get the original position 
 
-        
-        y0=pos1.y0
-        height=pos1.height
+        y0=pos1.y0*1.5 #This is all just magic to tweak the exact position.
+        height=pos1.height*0.9
         if self.oversize_legend:
             height=pos1.height*self.plot_scale/self.legend_len
             y0=1-self.plot_scale/self.legend_len+pos1.y0*self.plot_scale/(self.legend_len)*0.5
@@ -1670,7 +1716,6 @@ class Plot():
     
     def adjust_x(self, left, right):
         if self.x_axis!='theta':
-            print('hi!')
             self.plot.set_xlim(left, right)
             self.white_plot.set_xlim(left,right)
             self.xlim=[left,right]
@@ -1903,7 +1948,7 @@ class Plot():
 
                                 
                                 with plt.style.context('default'):
-                                    self.white_lines.append(self.white_plot.plot(w_1,r_1, label=legend_label,color=color,linewidth=2))
+                                    self.white_lines.append(self.white_plot.plot(w_1,r_1, label=legend_label,color=white_color,linewidth=2))
                                     self.white_lines.append(self.white_plot.plot(w_2,r_2,'--',color=white_color,linewidth=2))
                                     self.white_lines.append(self.white_plot.plot(w_3,r_3, color=white_color, linewidth=2))
                             else:
@@ -1914,21 +1959,30 @@ class Plot():
                                 
                                 with plt.style.context('default'):
                                     self.white_lines.append(self.white_plot.plot(wavelengths,reflectance, label=legend_label,color=white_color,linewidth=2))
+
                         else:
-                            self.lines.append(self.plot.plot(wavelengths,reflectance, label=legend_label,color=color,linewidth=2))
+                            if len(wavelengths)>50:
+                                self.lines.append(self.plot.plot(wavelengths,reflectance, label=legend_label,color=color,linewidth=2))
+                            else:
+                                self.lines.append(self.plot.plot(wavelengths,reflectance,'-o', label=legend_label,color=color,linewidth=2,markersize=5))
                             
                             self.visible_data_headers.append(legend_label)
                             self.visible_data.append(reflectance)
                         
                             with plt.style.context('default'):
-                                self.white_lines.append(self.white_plot.plot(wavelengths,reflectance, label=legend_label,color=white_color,linewidth=2))
+                                if len(wavelengths)>50:
+                                    self.white_lines.append(self.white_plot.plot(wavelengths,reflectance, label=legend_label,color=white_color,linewidth=2))
+                                else:
+                                    self.white_lines.append(self.white_plot.plot(wavelengths,reflectance, '-o',label=legend_label,color=white_color,linewidth=2,markersize=5))
                     elif self.x_axis=='g':
                         self.visible_data_headers.append(legend_label)
                         self.visible_data.append(sample.data[label][self.y_axis])
                         
                         self.lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], 'o',label=legend_label,color=color, markersize=6))
+                        #self.lines.append(self.plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis],label=legend_label,color=color, markersize=6))
                         with plt.style.context('default'):
                             self.lines.append(self.white_plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], 'o',label=legend_label,color=white_color, markersize=6))
+                            #self.lines.append(self.white_plot.plot(sample.data[label][self.x_axis], sample.data[label][self.y_axis], label=legend_label,color=white_color, markersize=6))
                     elif self.x_axis=='theta':
                         
                         
@@ -1937,7 +1991,6 @@ class Plot():
                         theta=np.array(theta)*-1*3.14159/180+3.14159/2
                         r=sample.data[label][self.y_axis]
                         if i==0 and j==0: #If this is the first line we are plotting, we'll need to create the polar axis.
-                            print('hello!')
                             self.fig.delaxes(self.plot)
                             self.ax = self.fig.add_subplot(self.gs[0],projection='polar')
                             c = self.ax.plot(theta, np.array(r),'-o',color=color,label=legend_label)
@@ -1981,7 +2034,6 @@ class Plot():
                             self.ax.legend(bbox_to_anchor=(self.legend_anchor, 1), loc=1, borderaxespad=0.)
                             
                             with plt.style.context('default'):
-                                print('hello!')
                                 self.white_ax.set_ylim(min-delta/10,max+delta/10)
                                 self.white_ax.set_rgrids(np.round(np.arange(min,max+delta/10,delta/2),3))
                                 #self.white_ax.tick_params(axis='r', colors='red')

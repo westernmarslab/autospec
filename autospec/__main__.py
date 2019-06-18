@@ -155,6 +155,12 @@ pi_share_Mac='PiShare'
 home_loc=os.path.expanduser('~')
 
 if opsys=='Linux':
+    import ctypes
+    x11 = ctypes.cdll.LoadLibrary('libX11.so')
+    x11.XInitThreads()
+    # except:
+    #     print("Warning: failed to XInitThreads()")
+    
     home_loc+='/'
     spec_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+spec_share+'/'
     data_share_loc='/run/user/1000/gvfs/smb-share:server='+server+',share='+data_share+'/'
@@ -301,15 +307,7 @@ class Controller():
         
         #One wait dialog open at a time. CommandHandlers check whether to use an existing one or make a new one.
         self.wait_dialog=None
-        
-        # try:
-        #     with open(self.config_loc+'geom','r') as f:
-        #         self.last_i=int(f.readline().strip('\n'))
-        #         self.last_e=int(f.readline().strip('\n'))
-        # except:
-        #     self.last_i=None
-        #     self.last_e=None
-        
+
         self.min_i=-50
         self.max_i=45
         self.i=None
@@ -398,9 +396,6 @@ class Controller():
         self.tk_master=self.master #this gets used when deciding whether to open a new master when giving a no connection dialog or something. I can't remember. Maybe could be deleted, but I don't think so
 
         self.menubar = Menu(self.master)
-        
-
-
         # create a pulldown menu, and add it to the menu bar
         self.filemenu = Menu(self.menubar, tearoff=0)
         self.filemenu.add_command(label="Load script", command=self.load_script)
@@ -2441,8 +2436,8 @@ class Controller():
             for i, param in enumerate(params):
                 
                 try:
-                    name=param.split('=')[0].strip(' ')
-                    pos=get_val(param)
+                    pos=param.split('=')[0].strip(' ')
+                    name=get_val(param)
                     valid_pos=validate_int_input(pos,1,5)
                     if self.available_sample_positions[int(pos)-1] in self.taken_sample_positions: #If the requested position is already taken, we're not going to allow it.
                         if len(self.sample_label_entries)>1: #If only one label is out there, it will be listed as taken even though the entry is empty, so we can ignore it. But if there is more than one label, we know the position is a repeat and not valid.
@@ -2456,6 +2451,7 @@ class Controller():
                     skip_count+=1
 
                 if valid_pos:
+                    self.sample_label_entries[i-skip_count].configure(state=NORMAL)
                     self.sample_label_entries[i-skip_count].insert(0,name)
                     self.sample_pos_vars[i-skip_count].set(self.available_sample_positions[int(pos)-1])
                     self.set_taken_sample_positions()
@@ -2542,7 +2538,7 @@ class Controller():
                 remaining=num-elapsed
                 time.sleep(remaining)
                 self.cmd_complete==True
-                self.console_log.insert(END,'Done sleeping.\n')
+                self.console_log.insert(END,'\tDone sleeping.\n')
                 if len(self.queue)>0:
                     self.next_in_queue()
             except:
@@ -2921,7 +2917,12 @@ class Controller():
             output_file=output_file+'.csv'
         
         self.full_process_output_path=output_file
-            
+        
+        input_directory=self.input_dir_entry.get()
+        if input_directory[-1]=='\\':
+            input_directory=input_directory[:-1]
+            print('MODIFYING input DIRECTORY')
+            print(input_directory)
     
         if self.proc_local.get()==1:
             self.plot_local_remote='local'
@@ -2931,14 +2932,24 @@ class Controller():
             check=self.check_local_folder(self.output_dir_entry.get(),self.process_cmd)
             if not check: return #Same deal for the folder (except existing is good).
 
-            self.spec_commander.process(self.input_dir_entry.get(),'spec_share_loc','proc_temp.csv')
+            self.spec_commander.process(input_directory,'spec_share_loc','proc_temp.csv')
 
         else:
             self.plot_local_remote='remote'
-            check=self.check_remote_folder(self.output_dir_entry.get(),self.process_cmd)
+            output_directory=self.output_dir_entry.get()
+            # if output_directory[-1]=='\\':
+            #     output_directory=output_directory[:-1]
+            #     print('MODIFYING output DIRECTORY')
+            #     print(output_directory)
+                
+
+                
+            check=self.check_remote_folder(output_directory,self.process_cmd)
             if not check:
                 return
-            self.spec_commander.process(self.input_dir_entry.get(), self.output_dir_entry.get(), output_file)
+
+
+            self.spec_commander.process(input_directory, output_directory, output_file)
             
         if self.process_save_dir.get():
             file=open(self.local_config_loc+'process_directories.txt','w')

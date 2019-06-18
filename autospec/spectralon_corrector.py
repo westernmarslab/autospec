@@ -49,11 +49,11 @@ def main():
     # ax.grid()
     # ax.set_title('i=60')
     # ax.legend()
-    plt.show()
+    #plt.show()
     
-    return
-    file='/home/khoza/Spectroscopy/data/003_unaltered_coated_full_sweep.csv'
-    file2='/home/khoza/Spectroscopy/003_unaltered_coated_full_sweep_corrected.csv'
+    #return
+    file='/home/khoza/Spectroscopy/data/DF_overview.csv'
+    file2='/home/khoza/Spectroscopy/data/DF_overview_corrected.csv'
     wavelengths, reflectance, labels=load_csv(file)
     
     corrected_data=[]
