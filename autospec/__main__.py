@@ -1,7 +1,7 @@
 #The controller runs the main thread controlling the program.
 #It creates and starts a View object, which extends Thread and will show a pygame window.
 
-dev=True
+dev=False
 test=True
 online=False
 
@@ -101,7 +101,9 @@ sys.path.append(package_loc)
 
 #import goniometer_model
 import goniometer_view
+from goniometer_view import TestView
 import plotter
+from plotter import Plotter
 import verticalscrolledframe
 
 #This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't changing the modules.
