@@ -4861,7 +4861,7 @@ class ProcessHandler(CommandHandler):
         #self.controller.complete_queue_item()
         interrupt_string='Data processed successfully'
         if warnings!='':
-            interrupt_string+='\n'+warnings
+            interrupt_string+='\n\n'+warnings
         self.interrupt(interrupt_string)
         self.controller.plot_input_file=self.outputfile
         print(self.controller.proc_local_remote)
