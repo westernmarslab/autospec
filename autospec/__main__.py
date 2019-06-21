@@ -5840,6 +5840,7 @@ class SpecListener(Listener):
                     elif 'processsuccessnocorrection' in cmd:
                         self.queue.append('processsuccessnocorrection')
                     elif 'processsuccessnolog' in cmd:
+
                         self.queue.append('processsuccessnolog')
                     elif 'processsuccess' in cmd:
                         self.queue.append('processsuccess')
