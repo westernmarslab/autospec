@@ -1916,7 +1916,9 @@ class Controller():
                     params=cmd[0:-1].split('goniometer.configure(MANUAL')[1].split(',')[1:]
                     params.append(1)
                 else:
-                    raise Exception()
+                    self.log('Error: invalid arguments for mode, i, e, sample_num: '+str(params)+'\nExample input: goniometer.configure(AUTOMATIC, 0, 20, wr)')
+                    self.queue=[]
+                    self.script_running=False
                 valid_i=validate_int_input(params[0],self.min_i,self.max_i)
                 valid_e=validate_int_input(params[1],self.min_e,self.max_e)
 
@@ -1942,7 +1944,7 @@ class Controller():
                     self.configure_pi(params[0],params[1],params[2])
 
                 else:
-                    self.log('Error: invalid arguments for control, i, e, sample_num: '+str(params))
+                    self.log('Error: invalid arguments for mode, i, e, sample_num: '+str(params)+'\nExample input: goniometer.configure(AUTOMATIC, 0, 20, wr)')
                     self.queue=[]
                     self.script_running=False
             except Exception as e:
@@ -2149,15 +2151,6 @@ class Controller():
                 self.queue=[]
                 self.script_running=False
             
-
-        # elif 'log(' in cmd:
-        #     info=cmd[0:-1].split('log(')[1]
-        #     info.strip('"')
-        #     info.strip("'")
-        #     self.check_logfile()
-        #     self.log(info,write_to_file=True)
-        #     if len(self.queue)>0:
-        #         self.next_in_queue()
                 
         elif 'move_tray(' in cmd:
             if self.manual_automatic.get()==0:
@@ -2304,7 +2297,6 @@ class Controller():
                     self.script_running=False
                     return False  
             else:
-                print('not steps!')
                 i=param
                 valid_i=validate_int_input(i, self.min_i, self.max_i)
                 if valid_i:
@@ -4805,10 +4797,16 @@ class ProcessHandler(CommandHandler):
         
     def wait(self):
         while self.timeout_s>0:
-            if 'processsuccess' in self.listener.queue:
-
-                self.listener.queue.remove('processsuccess')
-                
+            if 'processsuccess' in self.listener.queue or 'processsuccessnocorrection' in self.listener.queue or 'processsuccessnolog' in self.listener.queue:
+                warnings=''
+                if 'processsuccess' in self.listener.queue:
+                    self.listener.queue.remove('processsuccess')
+                if 'processsuccessnolog' in self.listener.queue:
+                    self.listener.queue.remove('processsuccessnolog')
+                    warnings='No log found in data directory.\n First line of log file should be\n #AutoSpec log'
+                if 'processsuccessnocorrection' in self.listener.queue:
+                    self.listener.queue.remove('processsuccessnocorrection')
+                    warnings='Correction for non-Lambertian properties of\nSpectralon was not applied.'
                 
                 if '.' not in self.outputfile:
                     self.outputfile+='.csv'
@@ -4830,7 +4828,7 @@ class ProcessHandler(CommandHandler):
                         except:
                             pass
                 else: #if the final destination was remote then we're already done.
-                    self.success()
+                    self.success(warnings=warnings)
                 return
                 
             elif 'processerrorfileexists' in self.listener.queue:
@@ -4858,7 +4856,7 @@ class ProcessHandler(CommandHandler):
             elif 'processerror' in self.listener.queue:
 
                 self.listener.queue.remove('processerror')
-                self.wait_dialog.top.wm_geometry('376x150')
+                self.wait_dialog.top.wm_geometry('376x175')
                 self.interrupt('Error processing files.\n\nIs ViewSpecPro running? Do directories exist?',retry=True)
                 self.controller.log('Error processing files')
                 return
@@ -4868,9 +4866,12 @@ class ProcessHandler(CommandHandler):
 
         self.timeout()
         
-    def success(self):
+    def success(self,warnings=''):
         #self.controller.complete_queue_item()
-        self.interrupt('Data processed successfully')
+        interrupt_string='Data processed successfully'
+        if warnings!='':
+            interrupt_string+='\n'+warnings
+        self.interrupt(interrupt_string)
         self.controller.plot_input_file=self.outputfile
         print(self.controller.proc_local_remote)
         print(self.controller.plot_local_remote)
@@ -5583,12 +5584,6 @@ class RemoteDirectoryWorker():
     def get_dirs(self,parent):
         
         cmdfilename=self.spec_commander.listdir(parent)
-        # #Remove the cmd number from this filename (it gets stripped out in the control computer before the return file is sent, so we shouldn't have it included in what we look for in wait_for_contents)
-        # cmdfilename_parts=cmdfilename.split('&')
-        # while cmdfilename_parts[0][-1] in '0123456789':
-        #     cmdfilename_parts[0]=cmdfilename_parts[0][0:-1]
-        # cmdfilename=cmdfilename_parts[0]+'&'+cmdfilename_parts[1]
-        print(cmdfilename)
         status=self.wait_for_contents(cmdfilename)
         return status
         
@@ -5851,7 +5846,10 @@ class SpecListener(Listener):
                         
                     elif 'failedtosavefile' in cmd:
                         self.queue.append('failedtosavefile')
-                        
+                    elif 'processsuccessnocorrection' in cmd:
+                        self.queue.append('processsuccessnocorrection')
+                    elif 'processsuccessnocorrection' in cmd:
+                        self.queue.append('processsuccessnolog')
                     elif 'processsuccess' in cmd:
                         self.queue.append('processsuccess')
                         
