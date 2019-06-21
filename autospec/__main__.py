@@ -3705,15 +3705,6 @@ class Controller():
         self.spec_save_dir_entry.delete(0,'end')
         self.spec_save_dir_entry.insert(0,spec_save_dir)
         self.spec_save_dir_entry.icursor(pos)
-    
-    def validate_logfile(self,*args):
-        pos=self.logfile_entry.index(INSERT)
-        logfile=rm_reserved_chars(self.logfile_entry.get())
-        if len(logfile)<len(self.logfile_entry.get()):
-            pos=pos-1
-        self.logfile_entry.delete(0,'end')
-        self.logfile_entry.insert(0,logfile)
-        self.logfile_entry.icursor(pos)
 
     def validate_basename(self,*args):
         pos=self.spec_basename_entry.index(INSERT)
