@@ -9,14 +9,13 @@ from tkinter import filedialog
 import colorutils
 from matplotlib import cm
 import matplotlib.tri as mtri
-import pickle
+#import pickle
 import io
 
 
-import matplotlib.backends.tkagg as tkagg
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from verticalscrolledframe import VerticalScrolledFrame
+from verticalscrolledframe import VerticalScrolledFrame #slightly different than vsf defined in main
 
 #These are related to the region of spectra that are sensitive to polarization artifacts. This is at high phase angles between 1000 and 1400 nm.
 global MIN_WAVELENGTH_ARTIFACT_FREE
@@ -85,6 +84,7 @@ class Plotter():
         for tab in self.tabs:
             tab.top.configure(height=height)
 
+    #caption should get 
     def plot_spectra(self, title, file, caption, exclude_wr=True):
         if title=='':
             title='Plot '+str(self.num+1)
@@ -96,8 +96,6 @@ class Plotter():
                 j+=1
                 new=title+' ('+str(j)+')'
             title=new
-        #self.titles.append(title)
-                
 
         try:
             wavelengths, reflectance, labels=self.load_data(file)
@@ -105,7 +103,6 @@ class Plotter():
             raise(Exception('Error loading data!'))
             return
             
-
         for i, spectrum_label in enumerate(labels):
             sample_label=spectrum_label.split(' (i')[0]
             
@@ -282,9 +279,9 @@ class Plotter():
                 return False
         else: #If we're at a safe phase angle
             return False
+            
 class Sample():
     def __init__(self, name, file, title):
-
         self.title=title
         self.name=name
         self.file=file
@@ -308,6 +305,7 @@ class Sample():
             if y_axis in self.data[spec_label]:
                 old=np.array(self.data[spec_label][y_axis])
                 self.data[spec_label][y_axis]=old+offset
+                
     #generate a list of hex colors that are evenly distributed from dark to light across a single hue. 
     def set_colors(self, hue):
         
@@ -428,7 +426,6 @@ class Tab():
             self.top=NotScrolledFrame(self.plotter.notebook)
             
         self.top.min_height=np.max([self.legend_height, self.height-50])
-        #self.top.bind("<Visibility>", self.on_visibility)
         self.top.pack()
         
         #If this is being created from the File -> Plot option, or from right click -> new tab, just put the tab at the end.
@@ -453,15 +450,8 @@ class Tab():
         self.canvas.get_tk_widget().bind('<Button-3>',lambda event: self.open_right_click_menu(event))
         self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
 
-
-
         self.canvas.get_tk_widget().pack(expand=True,fill=BOTH)
-        #self.top.bind('<Configure>',resize_fig)
-
-        
         self.plot=Plot(self.plotter, self.fig, self.white_fig,self.samples,self.title, self.oversize_legend,self.plot_scale,self.plot_width,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim, exclude_artifacts=self.exclude_artifacts)
-
-
 
         self.canvas.draw()
         
@@ -562,8 +552,6 @@ class Tab():
     #That way when the top gets recreated in refresh, the reset button will get the new one instead of creating errors by getting the old one.
     def get_top(self):
         return self.top
-    
-
         
     def set_exclude_artifacts(self, bool):
         for i, sample in enumerate(self.plot.samples):
@@ -1275,7 +1263,8 @@ class Tab():
             tab=Tab(self.plotter, 'Slope vs '+x_axis,self.incidence_samples, x_axis=x_axis,y_axis='slope')
         elif x_axis=='i,e':
             tab=Tab(self.plotter, 'Slope',[self.contour_sample], x_axis='contour',y_axis='slope')
-        
+       
+    #not implemented
     def calculate_photometric_variability(self, left, right):
         left=float(left)
         right=float(right)
@@ -1393,11 +1382,11 @@ class Tab():
     
     #We want to pass a list of existing samples and a list of possible samples.
     def ask_which_samples(self):
-        
         #Build up lists of strings telling available samples, which of those samples a currently plotted, and a dictionary mapping those strings to the sample options.
         self.build_sample_lists()
         #We tell the controller which samples are already plotted so it can initiate the listbox with those samples highlighted.
-        self.plotter.controller.ask_plot_samples(self,self.existing_indices, self.sample_options_list, self.geoms, self.title)#existing_samples, new_samples)
+        self.plotter.controller.ask_plot_samples(self,self.existing_indices, self.sample_options_list, self.geoms, self.title)
+        
     
     def set_samples(self, listbox_labels, title, incidences, emissions, exclude_specular=False, tolerance=None):
         #we made a dict mapping sample labels for a listbox to available samples to plot. This was passed back when the user clicked ok. Reset this tab's samples to be those ones, then replot.
@@ -1478,7 +1467,6 @@ class Tab():
         else: return False
         
     def adjust_x(self, left, right):
-
         left=float(left)
         right=float(right)
         self.xlim=[left,right]
@@ -1499,9 +1487,6 @@ class Tab():
         
 class Plot():
     def __init__(self, plotter, fig, white_fig, samples,title, oversize_legend=False,plot_scale=18,plot_width=215,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None, exclude_artifacts=False):
-        
-
-        
         self.plotter=plotter
         self.samples=samples
         self.contour_levels=[]
@@ -1624,9 +1609,7 @@ class Plot():
                 if self.x_axis=='wavelength' and self.y_axis=='reflectance':
                     if len(self.samples)==1: #No need to specify which sample if you are only plotting one.
                         legend_label=legend_label.replace(sample.name,'').replace('(i=','i=').strip('(')
-                    # if len(self.files)>1:
-                    #     legend_label=sample.title+': '+legend_label
-                        
+       
                 if len(legend_label)>self.max_legend_label_len:
                     self.max_legend_label_len=len(legend_label)
                 self.legend_len+=1
@@ -1680,7 +1663,6 @@ class Plot():
             format=path.split('.')[-1]
             if format not in available_formats:
                 path=path+'.png'
-        
         fig.savefig(path, facecolor=fig.get_facecolor())
         
     def set_title(self,title):
@@ -1729,12 +1711,7 @@ class Plot():
     def adjust_y(self, bottom, top):
         if self.x_axis=='theta':
             pass
-            # min=bottom
-            # max=top
-            # delta=max-min
-            # self.ax.set_ylim(min-delta/10,max+delta/10)
-            # self.ax.set_yticks(np.arange(min,max+delta/10,delta/2))
-            # self.ylim=[bottom,top]
+
         else:
             self.plot.set_ylim(bottom, top)
             self.white_plot.set_ylim(bottom,top)
@@ -1855,14 +1832,14 @@ class Plot():
         
     
         
-    def draw(self, exclude_wr=True):#self, title, sample=None, exclude_wr=True):
+    def draw(self, exclude_wr=True):
         self.visible_data=[]
         self.visible_data_headers=[]
         self.lines=[]
         self.white_lines=[]
         
         if self.x_axis=='contour':
-            # self.plot.tricontour(self.samples[0].data['all samples']['e'], self.samples[0].data['all samples']['i'], self.samples[0].data['all samples'][self.y_axis], levels=14, linewidths=0.5, colors='k')
+
             x=self.samples[0].data['all samples']['e']
             y=self.samples[0].data['all samples']['i']
             z=self.samples[0].data['all samples'][self.y_axis]
@@ -1908,8 +1885,7 @@ class Plot():
             min=None #we'll use these for setting polar r limits if we are doing a polar plot.
             max=None                
             for j, sample in enumerate(self.samples):
-                if self.x_axis=='contour':
-                    print('I did\'t think we got here!')
+
                 for i, label in enumerate(sample.spectrum_labels):
                     if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
                     

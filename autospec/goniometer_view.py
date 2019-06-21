@@ -12,8 +12,8 @@ from tkinter import *
 import os
 import tkinter as tk
 
-
-class TestView():
+#Animated graphic of goniometer
+class GoniometerView():
     def __init__(self,controller,notebook):
         self.width=1800
         self.height=1200
@@ -27,15 +27,6 @@ class TestView():
         self.double_embed=Frame(self.embed,width=self.width,height=self.height)
         self.double_embed.pack(fill=BOTH,expand=True)
         
-        
-        # frame=Frame(self.notebook,bg='green')
-        # frame.pack(fill=BOTH,expand=True)
-        # close_img=tk.PhotoImage("img_close", data='''
-        #         R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
-        #         d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
-        #         5kEJADs=
-        #         ''')
-
         
         self.notebook.add(self.embed,text='Goniometer view')
         
@@ -71,7 +62,7 @@ class TestView():
         
 
         
-        
+    #draws everything not just one circle
     def draw_circle(self,width,height):
         self.width=width
         self.height=height
@@ -94,6 +85,7 @@ class TestView():
         except:
             print('no pygame font')
         
+        #pivot point of goniometer arms. Used as reference for drawing everyting else
         pivot = (int(self.width/2),int(0.8*self.height))
         light_len = int(5*self.char_len/8)#300
         light_width=24  #needs to be an even number
@@ -118,11 +110,9 @@ class TestView():
             elif self.l_up:
                 y_l_text-=self.char_len/20
             elif y_d_text<y_l_text:
-                print('emission above,lift it higher')
                 y_d_text-=self.char_len/20
                 self.d_up=True
             else:
-                print('incidence above,lift it higher')
                 self.l_up=True
                 y_l_text-=self.char_len/20
         else:
@@ -172,19 +162,6 @@ class TestView():
         #border around screen
         pygame.draw.rect(self.screen,pygame.Color('darkgray'),(2,2,self.width-6,self.height+15),2)
 
-
-        #pygame.display.update()
-        #self. master.update()
-        
-        
-        #pygame.display.flip()
-        
-        # self.screen.fill((255,255,255))
-
-        #   for i in range(100):
-        #     time.sleep(0.05)
-        #     pygame.draw.circle(self.screen, (0,0,0), (200,200),i)
-        #     pygame.display.flip()
         
     def move_light(self, theta, config=False):
         while np.abs(theta-self.theta_l)>0:
@@ -195,6 +172,7 @@ class TestView():
                 time.sleep(.005)
             self.draw_circle(self.width,self.height)
             self.flip()
+            
     def set_current_sample(self, sample):
             self.current_sample=sample
             self.draw_circle(self.width,self.height)
