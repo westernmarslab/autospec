@@ -91,7 +91,10 @@ elif opsys=='Mac':
 sys.path.append(package_loc)
 
 import goniometer_view
+from goniometer_view import TestView
 import plotter
+from plotter import Plotter
+#import verticalscrolledframe
 
 #This is needed because otherwise changes won't show up until you restart the shell. Not needed if you aren't changing the modules.
 if dev:
