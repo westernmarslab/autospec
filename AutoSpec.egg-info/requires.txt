@@ -1,5 +1,0 @@
-pygame
-matplotlib
-numpy
-cython
-colorutils

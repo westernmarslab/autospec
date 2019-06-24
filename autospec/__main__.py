@@ -3227,56 +3227,7 @@ class Controller():
             self.complete_queue_item()
         title=self.plot_title_entry.get()
         caption=''#self.plot_caption_entry.get()
-        # labels={}
-        # nextfile=None
-        # nextnote=None
-        # try:
-        #     if self.load_labels.get():
-        #         with open(self.proc_logfile_entry.get()) as log:
-        #             line=log.readline()
-        #             while line!='':
-        #                 while 'i: ' not in line and line!='':
-        #                     line=log.readline()
-        #                 if 'i:' in line:
-        #                     try:
-        #                         nextnote=' (i='+line.split('i: ')[-1].strip('\n')
-        #                     except:
-        #                         nextnote=' (i=?'
-        #                 while 'e: ' not in line and line!='':
-        #                     line=log.readline()
-        #                 if 'e:' in line:
-        #                     try:
-        #                         nextnote=nextnote+',e='+line.split('e: ')[-1].strip('\n')+')'
-        #                     except:
-        #                         nextnote=nextnote+',e=?)'
-        #                 while 'filename' not in line and line!='':
-        #                     line=log.readline()
-        #                 if 'filename' in line:
-        #                     if '\\' in line:
-        #                         line=line.split('\\')
-        #                     else:
-        #                         line=line.split('/')
-        #                     nextfile=line[-1].strip('\n')
-        #                     nextfile=nextfile.split('.')
-        #                     nextfile=nextfile[0]+nextfile[1]
-        #                         
-        #                 while 'Label' not in line and line!='':
-        #                     line=log.readline()
-        #                 if 'Label' in line:
-        #                     nextnote=line.split('Label: ')[-1].strip('\n')+nextnote
-        #                     
-        #                 if nextfile != None and nextnote != None:
-        #                     nextnote=nextnote.strip('\n')
-        #                     labels[nextfile]=nextnote
 
-        #                       nextfile=None
-        #                     nextnote=None
-        #                 line=log.readline()
-                        
-                    
-        # except Exception as e:
-        #     raise e
-        #     dialog=ErrorDialog(self, label='Error! File not found or cannot be parsed: '+self.proc_logfile_entry.get())
             
                     
         try:
@@ -3293,11 +3244,14 @@ class Controller():
                 plot_config.write(self.plot_title+'\n')
 
             self.plot_top.destroy()
-            
-           # if self.no_wr.get()==1:
-           #     self.plotter.plot_spectra(title,filename,caption,exclude_wr=True)
-           # else:
-            self.plotter.plot_spectra(title,filename,caption,exclude_wr=False)
+        
+            if self.plotter.controller.plot_local_remote=='remote':
+                self.plotter.plot_spectra(title,filename,caption,exclude_wr=False, draw=False)
+                self.plotter.tabs[-1].ask_which_samples()
+            else:
+                self.plotter.plot_spectra(title,filename,caption,exclude_wr=False, draw=True)
+                self.plotter.tabs[-1].ask_which_samples()
+
             self.goniometer_view.flip()
     
             last=len(self.view_notebook.tabs())-1
@@ -4378,8 +4332,8 @@ class CommandHandler():
         self.timeout_s=timeout
 
         #Start the wait function, which will watch the listener to see what attributes change and react accordingly. If this isn't in its own thread, the dialog box doesn't pop up until after it completes.
-        thread = Thread(target =self.wait)
-        thread.start()
+        self.thread = Thread(target =self.wait)
+        self.thread.start()
         
     @property
     def timeout_s(self):
@@ -4794,7 +4748,7 @@ class ProcessHandler(CommandHandler):
                     self.listener.queue.remove('processsuccess')
                 if 'processsuccessnolog' in self.listener.queue:
                     self.listener.queue.remove('processsuccessnolog')
-                    warnings='No log found in data directory.\n First line of log file should be\n #AutoSpec log'
+                    warnings='No log found in data directory.\n First line of log file should be  #AutoSpec log'
                 if 'processsuccessnocorrection' in self.listener.queue:
                     self.listener.queue.remove('processsuccessnocorrection')
                     warnings='Correction for non-Lambertian properties of\nSpectralon was not applied.'
@@ -4802,12 +4756,14 @@ class ProcessHandler(CommandHandler):
                 if '.' not in self.outputfile:
                     self.outputfile+='.csv'
 
-                self.controller.log('Files processed.\n\t'+self.outputfile)
+                self.controller.log('Files processed. '+warnings.replace('\n',' ' )+'\n\t'+self.outputfile)
                 if self.controller.proc_local_remote=='local': #Move on to finishing the process by transferring the data from temp to final destination
                     try:
                         self.controller.complete_queue_item()
                         self.controller.next_in_queue()
                         self.success()
+                        if warnings !='':
+                            self.wait_dialog.top.wm_geometry('376x185')
                     except Exception as e:
                         print(e)
                         self.interrupt('Error: Could not transfer data to local folder.')
@@ -4820,6 +4776,8 @@ class ProcessHandler(CommandHandler):
                             pass
                 else: #if the final destination was remote then we're already done.
                     self.success(warnings=warnings)
+                    if warnings !='':
+                        self.wait_dialog.top.wm_geometry('376x185')
                 return
                 
             elif 'processerrorfileexists' in self.listener.queue:

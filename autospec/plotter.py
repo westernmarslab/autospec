@@ -85,7 +85,7 @@ class Plotter():
             tab.top.configure(height=height)
 
     #caption should get 
-    def plot_spectra(self, title, file, caption, exclude_wr=True):
+    def plot_spectra(self, title, file, caption, exclude_wr=True, draw=True):
         if title=='':
             title='Plot '+str(self.num+1)
             self.num+=1
@@ -132,14 +132,10 @@ class Plotter():
         new_samples=[]
         for sample in self.samples[file]:
             new_samples.append(self.samples[file][sample])
-            #tab=Tab(self, title,[self.samples[file][sample]])
         
-        tab=Tab(self,title+': '+new_samples[0].name,[new_samples[0]])
+        tab=Tab(self,title+': '+new_samples[0].name,[new_samples[0]], draw=draw)
+        self.tabs.append(tab)
 
-    # def savefig(self,title, sample=None):
-    #     self.draw_plot(title, 'v2.0')
-    #     self.plots[title].savefig(title)
-    #     self.draw_plot(self.style)
         
         
     def load_data(self, file, format='spectral_database_csv'):
@@ -376,7 +372,7 @@ class Sample():
 class Tab():
     #Title override is true if the title of this individual tab is set manually by user.
     #If it is False, then the tab and plot title will be a combo of the file title plus the sample that is plotted.
-    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}, scrollable=True,original=None,x_axis='wavelength',y_axis='reflectance',xlim=None,ylim=None, exclude_artifacts=False, exclude_specular=False, specularity_tolerance=None):
+    def __init__(self, plotter, title, samples,tab_index=None,title_override=False, geoms={'i':[],'e':[]}, scrollable=True,original=None,x_axis='wavelength',y_axis='reflectance',xlim=None,ylim=None, exclude_artifacts=False, exclude_specular=False, specularity_tolerance=None, draw=True):
         self.plotter=plotter
         if original==None: #This is true if we're not normalizing anything. holding on to the original data lets us reset.
             self.original_samples=list(samples)
@@ -451,10 +447,14 @@ class Tab():
         self.canvas.get_tk_widget().bind('<Button-1>',lambda event: self.close_right_click_menu(event))
 
         self.canvas.get_tk_widget().pack(expand=True,fill=BOTH)
-        self.plot=Plot(self.plotter, self.fig, self.white_fig,self.samples,self.title, self.oversize_legend,self.plot_scale,self.plot_width,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim, exclude_artifacts=self.exclude_artifacts)
+        self.plot=Plot(self.plotter, self.fig, self.white_fig,self.samples,self.title, self.oversize_legend,self.plot_scale,self.plot_width,x_axis=self.x_axis,y_axis=self.y_axis,xlim=self.xlim,ylim=self.ylim, exclude_artifacts=self.exclude_artifacts, draw=draw)
 
-        self.canvas.draw()
+        print('made plot')
         
+        if draw:
+            self.canvas.draw() #sometimes silently crashes if run from pip module (not IDE) on some login configurations. Related to thread safety (only crashes for remote plotting, which involves a separate thread). To protect against this, draw will be false if this is called from a separate thread and the user is asked for input instead.
+
+            print('drew on canvas')
 
         self.popup_menu = Menu(self.top.interior, tearoff=0)
         if self.x_axis=='wavelength' and (self.y_axis=='reflectance' or self.y_axis=='normalized reflectance'):
@@ -481,6 +481,8 @@ class Tab():
                                     command=self.close)
 
         self.plotter.menus.append(self.popup_menu)
+
+        print('done')
     def freeze(self):
         self.frozen=True
     def unfreeze(self):
@@ -1486,7 +1488,7 @@ class Tab():
         self.plot.adjust_z(bottom,top)
         
 class Plot():
-    def __init__(self, plotter, fig, white_fig, samples,title, oversize_legend=False,plot_scale=18,plot_width=215,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None, exclude_artifacts=False):
+    def __init__(self, plotter, fig, white_fig, samples,title, oversize_legend=False,plot_scale=18,plot_width=215,x_axis='wavelength',y_axis='reflectance',xlim=None, ylim=None, exclude_artifacts=False, draw=True):
         self.plotter=plotter
         self.samples=samples
         self.contour_levels=[]
@@ -1643,8 +1645,9 @@ class Plot():
         self.white_plot.set_position(pos2) # set a new position, slightly adjusted so it doesn't go off the edges of the screen.
         
 
-        
-        self.draw()
+        if draw:
+            self.draw()
+            print('draw')
         
         def on_closing():
             # for i in self.plots:
@@ -1885,7 +1888,6 @@ class Plot():
             min=None #we'll use these for setting polar r limits if we are doing a polar plot.
             max=None                
             for j, sample in enumerate(self.samples):
-
                 for i, label in enumerate(sample.spectrum_labels):
                     if self.y_axis not in sample.data[label] or self.x_axis not in sample.data[label]: continue
                     
@@ -2089,6 +2091,8 @@ class Plot():
         self.white_plot.set_ylim(*self.ylim)
         self.set_x_ticks()
         self.set_y_ticks()
+        
+        print('done')
 
 
 class NotScrolledFrame(Frame):
