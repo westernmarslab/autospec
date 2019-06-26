@@ -936,7 +936,7 @@ class Controller():
         self.angles_failsafe_frame=Frame(self.failsafe_frame, bg=self.bg)
         self.angles_failsafe_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
         self.angles_failsafe_check=Checkbutton(self.angles_failsafe_frame, fg=self.textcolor,text='Check validity of emission and incidence angles.', bg=self.bg, pady=self.pady,highlightthickness=0,selectcolor=self.check_bg, variable=self.angles_failsafe)
-        self.angles_failsafe_check.pack(pady=(6,5),side=LEFT,padx=(0,20))
+        #self.angles_failsafe_check.pack(pady=(6,5),side=LEFT,padx=(0,20))
         if self.angles_failsafe.get():
             self.angles_failsafe_check.select()
         
@@ -957,9 +957,9 @@ class Controller():
         self.wrap_frame=Frame(self.failsafe_frame,bg=self.bg)
         self.wrap_frame.pack(pady=self.pady,padx=(20,5),fill=X, expand=True)
         self.anglechangefailsafe_check=Checkbutton(self.wrap_frame, selectcolor=self.check_bg,fg=self.textcolor,text='Remind me to check the goniometer if the viewing geometry changes.', bg=self.bg, pady=self.pady,highlightthickness=0, variable=self.anglechangefailsafe)
-        self.anglechangefailsafe_check.pack(pady=(6,5),side=LEFT)#side=LEFT, pady=self.pady)
-        if self.anglechangefailsafe.get():
-            self.anglechangefailsafe_check.select()
+        #self.anglechangefailsafe_check.pack(pady=(6,5),side=LEFT)#side=LEFT, pady=self.pady)
+        #if self.anglechangefailsafe.get():
+         #   self.anglechangefailsafe_check.select()
             
         self.failsafes_ok_button=Button(self.failsafe_frame,text='Ok',command=self.settings_top.destroy)
         self.failsafes_ok_button.config(fg=self.buttontextcolor,highlightbackground=self.highlightbackgroundcolor,bg=self.buttonbackgroundcolor, width=15)
@@ -1150,7 +1150,8 @@ class Controller():
    
 
             
-    def opt(self):
+    def opt_old(self, override=False):
+        
         try:
             new_spec_config_count=int(self.instrument_config_entry.get())
             if new_spec_config_count<1 or new_spec_config_count>32767:
@@ -1158,14 +1159,58 @@ class Controller():
         except:
             dialog=ErrorDialog(self,label='Error: Invalid number of spectra to average.\nEnter a value from 1 to 32767')
             return 
-            
-            
-        ready=self.setup({self.opt:[]}) #Since we want to make sure optimization times are logged in the current folder, we do all the setup checks before optimizing even though no data gets saved.
         
-        if ready:
+        # if self.manual_automatic.get()==0 and override==False: #manual
+        #     buttons={
+        #         'yes':{
+        #             self.opt:[True]
+        #         },
+        #         'no':{
+        #             self.clear_queue:[]
+        #         }
+        #     }
+        #     warnings=self.check_viewing_geom_for_manual_operation(buttons)
+        #     if warnings!='':
+        #         return
+                
+            
+            
+        ready=self.setup_RS3_config({self.opt:[True]}) #Since we want to make sure optimization times are logged in the current folder, we do all the setup checks before optimizing even though no data gets saved.
+
+
+        
+        if ready: #If we don't still need to set save config or configure instrument before optimizing
+
             self.spec_commander.optimize()
             handler=OptHandler(self)
-
+            
+    #when operating in manual mode, check validity of viewing geom when the user clicks buttons. If valid, update graphic and self.i and self.e before moving on to other checks. Return any warnings.       
+    def check_viewing_geom_for_manual_operation(self):
+            warnings=''
+            
+            valid_i=validate_int_input(self.incidence_entries[0].get(),-90,90)
+            if valid_i:
+                if str(self.i)!=self.incidence_entries[0].get():
+                    self.angles_change_time=time.time()
+                self.i=int(self.incidence_entries[0].get())
+                
+            else:
+                warnings+='The incidence angle is invalid (Min:'+str(-90)+', Max:'+str(90)+').\n\n'
+                
+            valid_e=validate_int_input(self.emission_entries[0].get(),-90,90)
+            if valid_e:
+                if str(self.e)!=self.emission_entries[0].get():
+                    self.angles_change_time=time.time()
+                self.e=int(self.emission_entries[0].get())
+            else:
+                warnings+='The emission angle is invalid (Min:'+str(-90)+', Max:'+str(90)+').\n\n'
+                
+            valid_separation=self.validate_distance(self.incidence_entries[0].get(),self.emission_entries[0].get())
+            if valid_e and valid_i and not valid_separation:
+                warnings+='Incidence and emission should be at least '+str(self.required_angular_separation)+' degrees apart.\n\n'
+            self.set_and_animate_geom()
+                
+            return warnings
 
         
     #Check whether the current save configuration for raw spectral is different from the last one saved. If it is, send commands to the spec compy telling it so.
@@ -1215,6 +1260,7 @@ class Controller():
         return True
         
     #If the user has failsafes activated, check that requirements are met. Always require a valid number of spectra.
+    #Different requirements are checked depending on what the function func is that will be called next (opt, wr, take spectrum, acquire)
     def check_optional_input(self, func, args=[],warnings=''):
             label=warnings
             now=int(time.time())
@@ -1222,8 +1268,10 @@ class Controller():
             emission=self.emission_entries[0].get()
             
             if self.manual_automatic.get()==0:
+                warnings=self.check_viewing_geom_for_manual_operation()
+                label+=warnings
 
-                if self.optfailsafe.get():
+                if self.optfailsafe.get() and func!=self.opt:
                     try:
                         opt_limit=int(float(self.opt_timeout_entry.get()))*60
                     except:
@@ -1236,9 +1284,17 @@ class Controller():
                         if int(minutes)>0:
                             label+='The instrument has not been optimized for '+minutes+' minutes '+seconds+' seconds.\n\n'
                         else: label+='The instrument has not been optimized for '+seconds+' seconds.\n\n'
+                    if self.opt_time!=None:
+                        if self.angles_change_time==None:
+                            pass
+                        elif self.opt_time<self.angles_change_time:
+                            valid_i=validate_int_input(incidence,self.min_i,self.max_i)
+                            valid_e=validate_int_input(emission,self.min_e,self.max_e)
+                            if valid_i and valid_e:
+                                label+='The insturment has not been optimized at this geometry.\n\n'
                 
 
-                if self.wrfailsafe.get() and func!=self.wr:
+                if self.wrfailsafe.get() and func!=self.wr and func!=self.opt:
     
                     try:
                         wr_limit=int(float(self.wr_timeout_entry.get()))*60
@@ -1262,11 +1318,17 @@ class Controller():
     
                     if self.angles_change_time!=None and self.wr_time!=None:
                         if self.angles_change_time>self.wr_time+1:
-                            label+=' No white reference has been taken at this viewing geometry.\n\n'
-                        elif emission!=self.e or incidence!=self.i:
-                            label+=' No white reference has been taken at this viewing geometry.\n\n'
+                            print('angles, wr change times:')
+                            print(self.angles_change_time)
+                            print(self.wr_time)
+                            valid_i=validate_int_input(incidence,self.min_i,self.max_i)
+                            valid_e=validate_int_input(emission,self.min_e,self.max_e)
+                            if valid_i and valid_e:
+                                label+=' No white reference has been taken at this viewing geometry.\n\n'
+                        # elif str(emission)!=str(self.e) or str(incidence)!=str(self.i):
+                        #     label+=' No white reference has been taken at this viewing geometry.\n\n'
                         
-                if self.angles_failsafe.get():
+                if False:#self.angles_failsafe.get():
                     valid_i=validate_int_input(incidence,self.min_i,self.max_i)
                     valid_e=validate_int_input(emission,self.min_e,self.max_e)
                     valid_separation=self.validate_distance(incidence,emission)
@@ -1279,7 +1341,7 @@ class Controller():
                         if not valid_separation:
                             label+='Incidence and emission need to be at least '+str(self.required_angular_separation)+' degrees apart.\n\n'
                         
-                if self.anglechangefailsafe.get():
+                if False:#self.anglechangefailsafe.get():
                     anglechangealert=False
                     if self.angles_change_time==None and emission!='' and incidence !='':
                         label+='This is the first time emission and incidence angles are being set,\n'
@@ -1287,23 +1349,23 @@ class Controller():
                     elif self.e==None and emission!='':
                         label+='This is the first time the emission angle is being set,\n'
                         anglechangealert=True
-                        if incidence!=self.i and incidence!='':
+                        if str(incidence)!=str(self.i) and incidence!='' and self.i!=None:
                             label+='and the incidence angle has changed since last spectrum,\n'
                         anglechangealert=True
                     elif self.i==None and incidence!='':
                         label+='This is the first time the incidence angle is being set,\n'
                         anglechangealert=True
-                        if emission!=self.e and emission !='':
+                        if str(emission)!=str(self.e) and emission !='' and self.e!=None:
                             label+='and the emission angle has changed since last spectrum,\n' 
                         anglechangealert=True
-                    if anglechangealert==False and emission!=self.e and emission !='' and incidence !=self.i and incidence!='':
+                    if anglechangealert==False and emission!=str(self.e) and str(emission) !='' and str(incidence) !=str(self.i) and incidence!='':
                         if self.e!=None and self.i!=None:
                             label+='The emission and incidence angles have changed since last spectrum,\n'
                             anglechangealert=True
-                    elif anglechangealert==False and emission!=self.e and emission !='':
+                    elif anglechangealert==False and str(emission)!=str(self.e) and emission !='':
                         label+='The emission angle has changed since last spectrum,\n'
                         anglechangealert=True
-                    elif anglechangealert==False and incidence!=self.i and incidence!='':
+                    elif anglechangealert==False and str(incidence)!=str(self.i) and incidence!='':
                         label+='The incidence angle has changed since last spectrum,\n' 
                         anglechangealert=True
                         
@@ -1311,7 +1373,7 @@ class Controller():
                         label+='so the goniometer arm(s) may need to change to match.\n\n'
                         pass
                    
-            if self.labelfailsafe.get():
+            if self.labelfailsafe.get() and func!=self.opt and func!=self.wr:
                 if self.sample_label_entries[self.current_sample_gui_index].get()=='':
                     label +='This sample has no label.\n\n'
             for entry in self.sample_label_entries:
@@ -1343,8 +1405,8 @@ class Controller():
             else: #if there were no errors
                 return True
         
-    #Setup gets called after we already know that input is valid, but before we've set up the specrometer control software. If we need to change the software configuration, it puts those things into the queue saying we will need to do them when we start.
-    def setup(self, nextaction):
+    #Setup gets called after we already know that input is valid, but before we've set up the specrometer control software. If we need to set RS3's save configuration or the instrument configuration (number of spectra to average), it puts those things into the queue saying we will need to do them when we start.
+    def setup_RS3_config(self, nextaction):
         #self.check_logfile()
         if self.manual_automatic.get()==0:
             thread=Thread(target=self.set_and_animate_geom)
@@ -1376,13 +1438,16 @@ class Controller():
             self.process_input_dir=self.spec_save_dir_entry.get()
         return True
         
-    #Action will be either wr or take a spectrum, OR it might just be 'acquire'. 
+    #acquire is called every time opt, wr, or take spectrum buttons are pushed from manual mode
+    #also called if acquire button is pushed in automatic mode
+    #Action will be either wr, take_spectrum, or opt (manual mode) OR it might just be 'acquire' (automatic mode)
+    #For any of these things, we need to validate input. 
     def acquire(self, override=False, setup_complete=False, action=None, garbage=False):
         if not setup_complete:
             #Make sure basenum entry has the right number of digits. It is already guaranteed to have no more digits than allowed and to only have numbers.
             while len(self.spec_startnum_entry.get())<NUMLEN:
                 self.spec_startnum_entry.insert(0,'0')
-            #Set all entries to active
+            #Set all entries to active. Viewing geometry information will be pulled from these one at a time. Entries are removed from the active list after the geom info is read.
             self.active_incidence_entries=list(self.incidence_entries)
             self.active_emission_entries=list(self.emission_entries)
             self.active_i_e_pair_frames=list(self.i_e_pair_frames)
@@ -1400,35 +1465,43 @@ class Controller():
                     range_warnings=valid_range
                 
         if not override: #If input isn't valid and the user asks to continue, take_spectrum will be called again with override set to True
-            ok=self.check_mandatory_input()
+            ok=self.check_mandatory_input() #check things that have to be right in order to continue e.g. valid number of spectra to average
             if not ok:
                 return
             
+            #now check things that are optional e.g. having reasonable sample labels, taking a white reference at every geom.
             valid_input=False
             if action==self.take_spectrum:
-                valid_input=self.check_optional_input(action,[True,False,garbage],range_warnings)
-            else:
+                valid_input=self.check_optional_input(self.take_spectrum,[True,False,garbage],range_warnings)
+            elif action==self.acquire or action==self.wr:
                 valid_input=self.check_optional_input(action,[True,False],range_warnings)
+            elif action==self.opt:
+                valid_input=self.check_optional_input(self.opt,[True,False],range_warnings)
             if not valid_input:
                 return         
                 
+        #Make sure RS3 save config and instrument config are taken care of. This will add those actions to the queue if needed.
         if not setup_complete:
             if action==self.take_spectrum:
-                setup=self.setup({action:[True, False,garbage]})
+                setup=self.setup_RS3_config({self.take_spectrum:[True, False,garbage]})
+            elif action==self.wr or action==self.acquire:
+                #print(action)
+                setup=self.setup_RS3_config({action:[True, False]})
+            elif action==self.opt:
+                setup=self.setup_RS3_config({self.opt:[True, False]})
             else:
-                setup=self.setup({action:[True, False]})
+                raise Exception()
             #If things were not already set up (instrument config, etc) then the compy will take care of that and call take_spectrum again after it's done.
             if not setup:
                 return
-                
-
+                    
         if action==self.take_spectrum:
             startnum_str=str(self.spec_startnum_entry.get())
             while len(startnum_str)<NUMLEN:
                 startnum_str='0'+startnum_str
             if not garbage:
                 label=''
-                if self.white_referencing:
+                if self.white_referencing: #This will be true when we are saving the spectrum after the white reference
                     label='White Reference'
                 else:
                     label=self.sample_label_entries[self.current_sample_gui_index].get()
@@ -1442,6 +1515,10 @@ class Controller():
             self.spec_commander.white_reference()
             handler=WhiteReferenceHandler(self)
             
+        elif action==self.opt:
+            self.spec_commander.optimize()
+            handler=OptHandler(self)
+            
         elif action==self.acquire:
             self.build_queue()
             self.next_in_queue()
@@ -1453,7 +1530,7 @@ class Controller():
             #For each (i, e), opt, white reference, save the white reference, move the tray, take a  spectrum, then move the tray back, then update geom to next.
         self.queue.append({self.move_tray:['wr']})
         for entry in self.active_incidence_entries: 
-            self.queue.append({self.opt:[]})
+            self.queue.append({self.opt:[True, True]})
             self.queue.append({self.wr:[True,True]})
             self.queue.append({self.take_spectrum:[True,True,False]})
             for pos in self.taken_sample_positions: #e.g. 'Sample 1'
@@ -1485,20 +1562,34 @@ class Controller():
             self.queue=self.queue+script_queue
 
     #animates goniometer arms moving
-    def set_and_animate_geom(self):
-            valid_i=validate_int_input(self.i,-90,90)
-            if valid_i:
-                self.goniometer_view.move_light(int(self.i))
-            valid_e=validate_int_input(self.e,-90,90)
-            if valid_e:
-                self.goniometer_view.move_detector(int(self.e))
+    def set_and_animate_geom(self, complete_queue_item=False):
             try:
                 self.set_geom()
             except:
                 return
+            valid_i=validate_int_input(self.i,-90,90)
+            if valid_i:
+                if self.manual_automatic.get()==0:#manual, no animation
+                    self.goniometer_view.move_light(int(self.i),config=True)
+                else:
+                    self.goniometer_view.move_light(int(self.i))
+            valid_e=validate_int_input(self.e,-90,90)
+            if valid_e:
+                if self.manual_automatic.get()==0:#manual, no animation
+                    self.goniometer_view.move_detector(int(self.e),config=True)
+                else:
+                    self.goniometer_view.move_detector(int(self.e))
+
+            if complete_queue_item:
+                self.complete_queue_item()
+                if len(self.queue)>0:
+                    self.next_in_queue()
                         
     def set_geom(self):
-        self.angles_change_time=time.time()
+        if self.i==None or self.e==None:
+            self.angles_change_time=time.time()
+        elif int(self.i)!=int(self.active_incidence_entries[0].get()) or int(self.e)!=int(self.active_emission_entries[0].get()):
+            self.angles_change_time=time.time()
         self.i=int(self.active_incidence_entries[0].get())
         self.e=int(self.active_emission_entries[0].get())
         
@@ -1567,15 +1658,18 @@ class Controller():
         self.set_light_geom(i,type)
         
     def set_light_geom(self, i=None, type='angle'):
-        self.angles_change_time=time.time()
+        
         if i==None:
+            if str(self.i)!=self.active_incidence_entries[0].get():
+                self.angles_change_time=time.time()
             self.i=int(self.active_incidence_entries[0].get())
         else:
             #If we are using set_incidence(steps=...) from the commandline, don't change i.
             if type=='angle':
+                if str(self.i)!=str(i):
+                    self.angles_change_time=time.time()
                 self.i=i
-            else:
-                pass
+
             
     #Move detector will either read e from the GUI (default), or if this is a text command then e will be passed as a parameter.
     #When from the commandline, e may not be an emission angle at all but a number of steps to move. In this case, type will be 'steps'. 
@@ -1609,15 +1703,17 @@ class Controller():
         
 
     def set_detector_geom(self,e=None, type='angle'):
-        self.angles_change_time=time.time()
         if e==None:
+            if str(self.e)!=self.active_emission_entries[0].get():
+                self.angles_change_time=time.time()
             self.e=int(self.active_emission_entries[0].get())
         else:
             #If we are using set_emission(steps=...) from the commandline, don't change e.
             if type=='angle':
+                if str(self.e)!=str(e):
+                    self.angles_change_time=time.time()
                 self.e=e
-            else:
-                pass
+
         
     def move_tray(self, pos, type='position'):
         steps=False
@@ -1732,28 +1828,36 @@ class Controller():
         else:
             return warning_string
 
-            
-    def spec_button_cmd(self):
-        self.queue=[]
-        self.queue.append({self.take_spectrum:[False,False,False]})
-        self.take_spectrum(False, False, False)
-        
-    def take_spectrum(self, override, setup_complete,garbage):
-        self.acquire(override=override, setup_complete=setup_complete,action=self.take_spectrum,garbage=garbage)
-        
-    def wr_button_cmd(self):
-        self.queue=[]
-        self.queue.append({self.wr:[False,False]})
-        self.queue.append({self.take_spectrum:[True,True,False]})
-        self.wr()
-        
+
+    #called when user clicks optimize button. No different than opt() except we clear out the queue first just in case there is something leftover hanging out in there.
     def opt_button_cmd(self):
         self.queue=[]
-        self.queue.append({self.opt:[]})
-        self.opt()
+        self.queue.append({self.opt:[True, True]}) #Setting override and setup_complete to True make is so if we automatically retry because of an error on the spec compy we won't have to do setup things agian.
+        self.acquire(override=False, setup_complete=False,action=self.opt)
+     
+    #called when user clicks wr button. No different than wr() except we clear out the queue first just in case there is something leftover hanging out in there.
+    def wr_button_cmd(self):
+        self.queue=[]
+        self.queue.append({self.wr:[True,True]}) #Setting override and setup_complete to True make is so if we automatically retry because of an error on the spec compy we won't have to do setup things agian.
+        self.queue.append({self.take_spectrum:[True,True,False]})
+        self.acquire(override=False, setup_complete=False,action=self.wr)
+
+    #called when user clicks take spectrum button. No different than take_spectrum() except we clear out the queue first just in case there is something leftover hanging out in there.
+    def spec_button_cmd(self):
+        self.queue=[]
+        self.queue.append({self.take_spectrum:[False,False,False]}) #We don't automatically retry taking spectra so there is no need to have override and setup complete set to true here as for the other two above.
+        self.acquire(override=False, setup_complete=False,action=self.take_spectrum,garbage=False)
+        
+    #commands that are put in the queue for optimizing, wr, taking a spectrum. 
+    def opt(self, override=False, setup_complete=False):
+        self.acquire(override=override, setup_complete=setup_complete,action=self.opt)
         
     def wr(self, override=False, setup_complete=False):
         self.acquire(override=override, setup_complete=setup_complete,action=self.wr)
+        
+    def take_spectrum(self, override, setup_complete, garbage):
+        self.acquire(override=override, setup_complete=setup_complete,action=self.take_spectrum,garbage=garbage)
+        
     
     def check_connection(self):
         self.connection_checker.check_connection(False)
@@ -1900,8 +2004,8 @@ class Controller():
         elif cmd=='opt()':
             if not self.script_running:
                 self.queue=[]
-            self.queue.insert(0,{self.opt:[]})
-            self.opt()
+            self.queue.insert(0,{self.opt:[True, False]})
+            self.opt(True, False)
         elif cmd=='goniometer.configure(MANUAL)':
             self.set_manual_automatic(force=0)
 
@@ -2496,15 +2600,15 @@ class Controller():
         
     def process_cmd(self):
 
-        
         output_file=self.output_file_entry.get()
 
         if output_file=='':
             dialog=ErrorDialog(self, label='Error: Enter an output file name')
             return
         
-        if '.' not in output_file: 
+        if output_file[-4:]!='.csv': 
             output_file=output_file+'.csv'
+            self.output_file_entry.insert('end','.csv')
         
         self.full_process_output_path=output_file
         
@@ -3540,8 +3644,7 @@ class Controller():
             self.manual_automatic.set(1)
         
         if self.manual_automatic.get()==0:# or force==0:
-            # if force==0:
-            #     self.manual_automatic.set(0)
+            print('hi')
             self.range_frame.pack_forget()
             self.individual_angles_frame.pack()
             self.range_radio.configure(state = DISABLED)
@@ -3550,6 +3653,9 @@ class Controller():
             while len(self.incidence_entries)>1:
                 self.remove_i_e_pair(len(self.incidence_entries)-1)
             self.add_i_e_pair_button.configure(state=DISABLED)
+            self.add_sample_button.configure(state=DISABLED)
+            for pos_menu in self.pos_menus:
+                pos_menu.configure(state=DISABLED)
            
             self.opt_button.pack(padx=self.padx,pady=self.pady, side=LEFT)
             self.wr_button.pack(padx=self.padx,pady=self.pady, side=LEFT) 
@@ -3570,6 +3676,8 @@ class Controller():
             self.wr_button.pack_forget()
             self.range_radio.configure(state = NORMAL)
             self.add_sample_button.configure(state=NORMAL)
+            for pos_menu in self.pos_menus:
+                pos_menu.configure(state=NORMAL)
             
             #self.queue=[]
             valid_i=validate_int_input(self.i,-60,60)
@@ -3582,7 +3690,6 @@ class Controller():
                 menu.entryconfigure(0,label='  Manual')
                 menu.entryconfigure(1,label='X Automatic')
                 self.geommenu.entryconfigure(1,state=NORMAL, label='  Range (Automatic only)')
-                #self.queue.append({self.set_manual_automatic:[True]})
             else:
                 self.freeze()
                 buttons={
@@ -3591,9 +3698,10 @@ class Controller():
                         self.unfreeze:[],
                     },
                     'cancel':{
+                        self.unfreeze:[],
                         self.set_manual_automatic:[override,0], 
                         self.clear_queue:[],
-                        self.unfreeze:[],
+                        
                     }
                 }
                 dialog=IntInputDialog(self,title='Setup Required',label='Setup required: Unknown goniometer state.\n\nPlease enter the current viewing geometry and tray position,\nor click \'Cancel\' to use the goniometer in manual mode.',values={'Incidence':[self.i,self.min_i,self.max_i],'Emission':[self.e,self.min_e,self.max_e],'Tray position':[self.sample_tray_index,0,self.num_samples-1]},buttons=buttons)
@@ -3936,35 +4044,9 @@ class Controller():
         if self.manual_automatic.get()==0:
             self.range_radio.configure(state='disabled')
             self.add_i_e_pair_button.configure(state='disabled')
-            
-    # def on_closing(self):
-    #     if self.manual_automatic.get()==1:
-    #         print('hi!')
-    #         self.incidence_entries[0].delete(0,'end')
-    #         self.incidence_entries[0].insert(0,'0')
-    #         self.emission_entries[0].delete(0,'end')
-    #         self.emission_entries[0].insert(0,'30')
-    #         self.active_incidence_entries=[self.incidence_entries[0]]
-    #         self.active_emission_entries=[self.emission_entries[0]]
-    #         self.set_geom()
-    #         
-    #         self.queue=[]
-    #         if self.e==None or self.i==None:
-    #             self.master.destroy()
-    #             exit()
-    #         if int(self.e)<0:
-    #             self.queue.append({self.detector_close:[]})
-    #             self.queue.append({self.light_close:[]})
-    #         else:
-    #             self.queue.append({self.light_close:[]})  
-    #             self.queue.append({self.detector_close:[]})
-  
- #  #           self.next_in_queue()
-    #     else:
-    #         self.master.destroy()
-
-            
-            #dialog=Dialog(self, title='Please reset geometry on exit',label='Please manually set the goniometer to\n\nincidence=0\nemission=30',buttons={'ok':{self.master.destroy:[]}},width=500,height=250)
+            self.add_sample_button.configure(state='disabled')
+            for pos_menu in self.pos_menus:
+                menu.configure(state='disabled')
             
                     
     def light_close(self):
@@ -4320,8 +4402,8 @@ class CommandHandler():
             self.wait_dialog.top.geometry("%dx%d%+d%+d" % (376, 130, 107, 69))
    
         #We'll keep track of elapsed time so we can cancel the operation if it takes too long
-        self.t0=time.clock()
-        self.t=time.clock()
+        # self.t0=time.perf_counter()
+        # self.t=time.perf_counter()
         self.timeout_s=timeout
         
         #The user can pause or cancel if we're executing a list of commands.
@@ -4468,7 +4550,7 @@ class CommandHandler():
             
 
 class InstrumentConfigHandler(CommandHandler):
-    def __init__(self, controller, title='Configuring instrument...', label='Configuring instrument...', timeout=20):
+    def __init__(self, controller, title='Configuring instrument...', label='Configuring instrument...', timeout=30):
         self.listener=controller.spec_listener
         super().__init__(controller, title, label,timeout=timeout)
         
@@ -4564,7 +4646,6 @@ class OptHandler(CommandHandler):
         self.timeout()
                 
     def success(self):
-
         self.controller.opt_time=int(time.time())
         self.controller.log('Instrument optimized.',write_to_file=True)# \n\ti='+self.controller.active_incidence_entries[0].get()+'\n\te='+self.controller.active_emission_entries[0].get())
         super(OptHandler, self).success()
@@ -4608,7 +4689,6 @@ class WhiteReferenceHandler(CommandHandler):
                 return
             elif 'wrfailed' in self.listener.queue:
                 self.listener.queue.remove('wrfailed')
-
 
                 if self.first_try==True and not self.cancel: #Actually this is always true since a new OptHandler gets created for each attempt
                     self.controller.log('Error: Failed to take white reference. Retrying.')
@@ -4880,6 +4960,7 @@ class MotionHandler(CommandHandler):
         while self.timeout_s>0:
             if 'donemoving' in self.listener.queue:
                 self.listener.queue.remove('donemoving')
+                print('hooray!')
                 self.success()
                 return
             elif 'nopiconfig' in self.listener.queue:
@@ -4892,6 +4973,8 @@ class MotionHandler(CommandHandler):
 
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
+            print('printing timeout')
+            if self.timeout_s%10==0: print(self.timeout_s)
         
         self.timeout()
     def success(self):
@@ -5194,11 +5277,7 @@ class SpectrumHandler(CommandHandler):
         while len(numstr)<NUMLEN:
             numstr='0'+numstr
         
-        #Log whether it was a white reference or a regular spectrum that just got saved. We temporarily put 'White reference' into the sample label entry if it was a white reference.
-        # if 'White reference' in self.controller.sample_label_entries[self.controller.current_sample_gui_index].get():
-        #     info_string='White reference saved.'
-        # else:
-        #     info_string='Spectrum saved.'
+        #Log whether it was a white reference or a regular spectrum that just got saved. 
         info_string=''
         label=''
         if self.controller.white_referencing: 
@@ -5208,8 +5287,6 @@ class SpectrumHandler(CommandHandler):
         else:
             info_string='Spectrum saved.'
             label=self.controller.sample_label_entries[self.controller.current_sample_gui_index].get()
-
-        # info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+self.controller.active_incidence_entries[0].get()+'\n\te: '+self.controller.active_emission_entries[0].get()+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+numstr+'.asd'+'\n\tLabel: '+label+'\n'
         
         info_string+='\n\tSpectra averaged: ' +str(self.controller.spec_config_count)+'\n\ti: '+str(self.controller.i)+'\n\te: '+str(self.controller.e)+'\n\tfilename: '+self.controller.spec_save_path+'\\'+self.controller.spec_basename+lastnumstr+'.asd'+'\n\tLabel: '+label+'\n'
         #If it was a garbage spectrum, we don't need all of the information about it. Instead, just delete it and log that it happened.
@@ -5231,8 +5308,6 @@ class SpectrumHandler(CommandHandler):
                 time.sleep(INTERVAL)
             if t<=0:
                 self.controller.log('\nError: Operation timed out removing placeholder spectrum ('+self.controller.spec_basename+lastnumstr+'.asd). This data is likely garbage.')
-            #self.complete_queue_item()
-            #self.next_in_queue()
         else:
             self.controller.log(info_string,True)
             
