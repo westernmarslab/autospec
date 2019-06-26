@@ -4948,8 +4948,12 @@ class CloseHandler(CommandHandler):
             
 class MotionHandler(CommandHandler):
     def __init__(self, controller, title='Moving...', label='Moving...', buttons={'cancel':{}}, timeout=90, new_sample_loc='foo', steps=False):
+        self.steps=steps
         self.listener=controller.pi_listener
-        super().__init__(controller, title, label,timeout=timeout)
+        try:
+            super().__init__(controller, title, label,timeout=timeout)
+        except:
+            print('exception in super init in motion handler') #There has been an erro rthat has come up a couple of times saying the motion handler has no attribute self.steps. Maybe because the call to super is silently failing so this method never finishes?
         self.new_sample_loc=new_sample_loc
         self.steps=steps
 
@@ -4991,6 +4995,10 @@ class MotionHandler(CommandHandler):
                 self.controller.log('Light source moved')
             
         elif 'tray' in self.label:
+            try:
+                print(self.steps) #For some reason sometimes get an error saying MotionHandler has no attribute self.steps
+            except:
+                self.steps=False
             if self.steps==False: #If we're specifying a position, not a number of motor steps
                 self.controller.log('Sample tray moved to '+str(self.new_sample_loc)+' position.')
                 try:
