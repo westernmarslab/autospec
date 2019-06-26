@@ -2071,6 +2071,70 @@ class Controller():
             self.queue.insert(0,{self.take_spectrum:[True,True,False]})
             self.take_spectrum(True,True,False)
         #e.g. set_spec_save(directory=R:\RiceData\Kathleen\test_11_15, basename=test,num=0000) 
+        elif 'setup_geom(' in cmd: #params are i, e, index=0
+            params=cmd[0:-1].split('setup_geom(')[1].split(',')
+            if len(params)!=2 and len(params)!=3:
+                self.log('Error: could not parse command '+cmd)
+            elif self.manual_automatic.get()==0: #manual mode
+                valid_i=validate_int_input(params[0],-90,90)
+                valid_e=validate_int_input(params[1],-90,90)
+                if not valid_i or not valid_e:
+                    self.log('Error: i='+params[0]+', e='+params[1]+' is not a valid viewing geometry.')
+                else:
+                    self.incidence_entries[0].delete(0,'end')
+                    self.incidence_entries[0].insert(0,params[0])
+                    self.emission_entries[0].delete(0,'end')
+                    self.emission_entries[0].insert(0,params[1])
+            else: #automatic mode
+                valid_i=validate_int_input(params[0],self.min_i,self.max_i)
+                valid_e=validate_int_input(params[1],self.min_e,self.max_e)
+                if not valid_i or not valid_e:
+                    self.log('Error: i='+params[0]+', e='+params[1]+' is not a valid viewing geometry.')
+                else:
+                    index=0
+                    if len(params)==3:
+                        index=int(get_val(params[2]))
+                    valid_index=validate_int_input(index, 0, len(self.emission_entries)-1)
+                    if not valid_index:
+                        self.log('Error: '+str(index)+' is not a valid index. Enter a value from 0-'+str(len(self.emission_entries)-1))
+                    else:
+                        self.incidence_entries[index].delete(0,'end')
+                        self.incidence_entries[index].insert(0,params[0])
+                        self.emission_entries[index].delete(0,'end')
+                        self.emission_entries[index].insert(0,params[1])
+        elif 'add_geom(' in cmd: #params are i, e. Will not overwrite existing geom.
+            params=cmd[0:-1].split('add_geom(')[1].split(',')
+            if len(params)!=2:
+                self.log('Error: could not parse command '+cmd)
+            elif self.manual_automatic.get()==0: #manual mode
+                valid_i=validate_int_input(params[0],-90,90)
+                valid_e=validate_int_input(params[1],-90,90)
+                if not valid_i or not valid_e:
+                    self.log('Error: i='+params[0]+', e='+params[1]+' is not a valid viewing geometry.')
+                elif self.emission_entries[0].get()=='' and self.incidence_entries[0].get()=='':
+                    self.incidence_entries[0].insert(0,params[0])
+                    self.emission_entries[0].insert(0,params[1])
+                else:
+                    self.log('Error: Cannot add second geometry in manual mode.')
+            else: #automatic mode
+                if self.individual_range.get()==1:
+                    self.log('Error: Cannot add geometry in range mode. Use setup_geom_range() instead')
+                else:
+                    valid_i=validate_int_input(params[0],self.min_i,self.max_i)
+                    valid_e=validate_int_input(params[1],self.min_e,self.max_e)
+                    if not valid_i or not valid_e:
+                        self.log('Error: i='+params[0]+', e='+params[1]+' is not a valid viewing geometry.')
+                    elif self.emission_entries[0].get()=='' and self.incidence_entries[0].get()=='':
+                        self.incidence_entries[0].insert(0,params[0])
+                        self.emission_entries[0].insert(0,params[1])
+                    else:
+                        self.add_i_e_pair()
+                        self.incidence_entries[-1].insert(0,params[0])
+                        self.emission_entries[-1].insert(0,params[1])
+            
+                    
+
+
         elif 'setup_geom_range(' in cmd:
             if self.manual_automatic.get()==0:
                 self.log('Error: Not in automatic mode')
@@ -2083,7 +2147,6 @@ class Controller():
                 if 'i_start' in param:
                     try:
                         self.light_start_entry.delete(0,'end')
-                        print(get_val(param))
                         self.light_start_entry.insert(0,get_val(param))
                     except:
                         self.log('Error: Unable to parse initial incidence angle')
