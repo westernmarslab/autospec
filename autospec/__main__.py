@@ -3483,7 +3483,6 @@ class Controller():
         r=RemoteFileExplorer(self,label='Select the directory containing the data you want to process.\nThis must be on a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data',target=self.input_dir_entry)
         
     def choose_process_output_dir(self):
-        print('hi')
         r=RemoteFileExplorer(self,label='Select the directory where you want to save your processed data.\nThis must be to a drive mounted on the spectrometer control computer.\n E.g. R:\RiceData\MarsGroup\Kathleen\spectral_data',target=self.output_dir_entry)
     
     def add_sample(self):
@@ -5040,8 +5039,10 @@ class MotionHandler(CommandHandler):
 
             time.sleep(INTERVAL)
             self.timeout_s-=INTERVAL
-            print('printing timeout')
-            if self.timeout_s%10==0: print(self.timeout_s)
+            
+            if self.timeout_s%10==0: 
+                print('printing timeout')
+                print(self.timeout_s)
         
         self.timeout()
     def success(self):
@@ -5860,7 +5861,11 @@ class PiListener(Listener):
             
     def listen(self):
         try:
-            self.cmdfiles=os.listdir(self.read_command_loc)  
+            self.cmdfiles=os.listdir(self.read_command_loc) 
+            if self.controller.opsys=='Windows': #these lines eliminate the lag that is otherwise present when running this software from windows computers. Not sure why, but it works!
+                with open(os.devnull, 'w') as f:
+                    f.write(self.cmdfiles) 
+                
         except:#Happens if there is a network disconnect that hasn't been registered yet.
             self.cmd_files=self.cmdfiles0
         if self.cmdfiles==self.cmdfiles0:
@@ -6497,7 +6502,6 @@ class VerticalScrolledFrame(Frame):
 class StringVarWithEntry(StringVar):
     def __init__(self):
         super().__init__()
-        print('hi!')
         self.entry=None
 
 if __name__=='__main__':
