@@ -1316,11 +1316,8 @@ class Controller():
                         else: label+=' No white reference has been taken for '+seconds+' seconds.\n\n'
                 if self.wr_angles_failsafe.get() and func!=self.wr:
     
-                    if self.angles_change_time!=None and self.wr_time!=None:
+                    if self.angles_change_time!=None and self.wr_time!=None and func!=self.opt:
                         if self.angles_change_time>self.wr_time+1:
-                            print('angles, wr change times:')
-                            print(self.angles_change_time)
-                            print(self.wr_time)
                             valid_i=validate_int_input(incidence,self.min_i,self.max_i)
                             valid_e=validate_int_input(emission,self.min_e,self.max_e)
                             if valid_i and valid_e:
@@ -5849,6 +5846,7 @@ class Listener(Thread):
     
 class PiListener(Listener):
     def __init__(self, read_command_loc,test=False):
+       
 
         super().__init__(read_command_loc,PI_OFFLINE)
         self.connection_checker=PiConnectionChecker(read_command_loc,controller=self.controller, func=self.listen)
@@ -5862,9 +5860,13 @@ class PiListener(Listener):
     def listen(self):
         try:
             self.cmdfiles=os.listdir(self.read_command_loc) 
-            if self.controller.opsys=='Windows': #these lines eliminate the lag that is otherwise present when running this software from windows computers. Not sure why, but it works!
-                with open(os.devnull, 'w') as f:
+            if 'delme' in self.cmdfiles:
+                cmdfiles.remove('delme')
+            #print(self.cmdfiles)
+            if self.controller.opsys=='Windows': #these lines at one point eliminated the lag that is otherwise present when running this software from windows computers. THen the lag came back. It happens because windows is reading from a cache, but I don't know how to force windows to clear the cache for the directory before looking again.
+                with open(self.read_command_loc+'delme', 'w',0) as f:
                     f.write(self.cmdfiles) 
+                #os.remove(self.read_command_loc+'delme')
                 
         except:#Happens if there is a network disconnect that hasn't been registered yet.
             self.cmd_files=self.cmdfiles0
@@ -5873,11 +5875,11 @@ class PiListener(Listener):
         else:
             for cmdfile in self.cmdfiles:
                 try:
-                    os.remove(self.read_command_loc+'/'+cmdfile)
+                    os.remove(self.read_command_loc+cmdfile)
                 except:
-                    print('failed to remove '+self.read_command_loc+'/'+cmdfile)
+                    print('failed to remove '+self.read_command_loc+cmdfile)
                     pass #happens if the file is still in use, e.g. not done writing
-                if cmdfile not in self.cmdfiles0:
+                if cmdfile not in self.cmdfiles0 and cmdfile !='delme':
                     cmd, params=decrypt(cmdfile)
 
                     print('Pi read command: '+cmd)
