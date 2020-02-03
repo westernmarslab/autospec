@@ -4867,7 +4867,7 @@ class ProcessHandler(CommandHandler):
     def __init__(self, controller, title='Processing...', label='Processing...'):
         
         self.listener=controller.spec_listener
-        super().__init__(controller, title, label,timeout=2000+BUFFER)
+        super().__init__(controller, title, label,timeout=20000+BUFFER)
         self.outputfile=self.controller.output_file_entry.get()
         dir=self.controller.output_dir_entry.get()
         if (self.controller.opsys=='Linux' or self.controller.opsys=='Mac') and self.controller.plot_local_remote=='local':
