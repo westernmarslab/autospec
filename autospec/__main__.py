@@ -2679,6 +2679,7 @@ class Controller():
             print(input_directory)
     
         if self.proc_local.get()==1:
+            print('local 1')
             self.plot_local_remote='local'
 
             check=self.check_local_file(self.output_dir_entry.get(),output_file,self.process_cmd)
@@ -2689,6 +2690,7 @@ class Controller():
             self.spec_commander.process(input_directory,'spec_share_loc','proc_temp.csv')
 
         else:
+            print('remote 1')
             self.plot_local_remote='remote'
             output_directory=self.output_dir_entry.get()             
             check=self.check_remote_folder(output_directory,self.process_cmd)
@@ -2713,14 +2715,15 @@ class Controller():
         
         
     def finish_process(self,output_file):
+        print('finishing processing')
         self.complete_queue_item()
         #We're going to transfer the data file and log file to the final destination. To transfer the log file, first decide on a name to call it. This will be based on the dat file name. E.g. foo.csv would have foo_log.txt associated with it.
         final_data_destination=self.output_file_entry.get()
+        print(final_data_destination)
         if '.' not in final_data_destination:
             final_data_destination=final_data_destination+'.csv'
         data_base='.'.join(final_data_destination.split('.')[0:-1])
         log_base=''
-
             
         if self.opsys=='Linux' or self.opsys=='Mac':
             final_data_destination=self.output_dir_entry.get()+'/'+final_data_destination
@@ -2736,8 +2739,11 @@ class Controller():
             final_log_destination=log_base+'_'+str(i)
             i+=1
         final_log_destination+='.txt'
+        print('moving data to '+final_data_destination)
         shutil.move(self.spec_temp_loc+'proc_temp.csv',final_data_destination)
+        print('moving log to '+final_log_destination)
         shutil.move(self.spec_temp_loc+'proc_temp_log.txt',final_log_destination)
+        
     def open_options(self, tab,current_title):
         #If the user already has dialogs open for editing the plot, close the extras to avoid confusion.
         try:
@@ -3703,7 +3709,6 @@ class Controller():
             self.manual_automatic.set(1)
         
         if self.manual_automatic.get()==0:# or force==0:
-            print('hi')
             self.range_frame.pack_forget()
             self.individual_angles_frame.pack()
             self.range_radio.configure(state = DISABLED)
@@ -4880,8 +4885,12 @@ class ProcessHandler(CommandHandler):
          #Normally we have a pause and a cancel option if there are additional items in the queue, but it doesn't make much sense to cancel processing halfway through, so let's just not have the option.
         
     def wait(self):
-        while self.timeout_s>0:
+        while True: #self.timeout_s>0: Never going to timeout
+            print('No timeout')
+            if self.timeout_s%20==0:
+                print(self.timeout_s)
             if 'processsuccess' in self.listener.queue or 'processsuccessnocorrection' in self.listener.queue or 'processsuccessnolog' in self.listener.queue:
+                print('process success!')
                 warnings=''
                 if 'processsuccess' in self.listener.queue:
                     self.listener.queue.remove('processsuccess')
@@ -4897,6 +4906,7 @@ class ProcessHandler(CommandHandler):
 
                 self.controller.log('Files processed. '+warnings.replace('\n',' ' )+'\n\t'+self.outputfile)
                 if self.controller.proc_local_remote=='local': #Move on to finishing the process by transferring the data from temp to final destination
+                    print('local!')
                     try:
                         self.controller.complete_queue_item()
                         self.controller.next_in_queue()
@@ -4914,6 +4924,7 @@ class ProcessHandler(CommandHandler):
                         except:
                             pass
                 else: #if the final destination was remote then we're already done.
+                    print('remote')
                     self.success(warnings=warnings)
                     if warnings !='':
                         self.wait_dialog.top.wm_geometry('376x185')
@@ -5954,6 +5965,7 @@ class SpecListener(Listener):
 
                         self.queue.append('processsuccessnolog')
                     elif 'processsuccess' in cmd:
+                        print('processsuccess')
                         self.queue.append('processsuccess')
                         
                     elif 'processerrorfileexists' in cmd:
